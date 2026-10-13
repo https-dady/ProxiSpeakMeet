@@ -1,30 +1,34 @@
+/* ================================================================
+   ProxiSpeak Design System — Phase 1
+   Consolidated UI Stylesheet
+================================================================ */
+
 :root {
-  /* ProxiSpeak Design System — Phase 1 */
-   /* ProxiSpeak — Background Palette */
+  /* Background palette */
   --bg: #080b14;
   --bg-elev: #101625;
   --bg-elev-2: #151e30;
-  --line: #263149;
 
+  /* Borders */
+  --line: #263149;
+  --line-strong: rgba(143, 164, 202, 0.28);
+
+  /* Typography */
   --text: #edf2ff;
   --text-dim: #9ba9c2;
 
+  /* Accent and status colors */
   --accent: #8175ff;
   --ok: #5ad19a;
   --warn: #ffc857;
   --error: #ff6b81;
 
-    /* Border and radius system */
-  --line-strong: rgba(143, 164, 202, 0.28);
-
+  /* Radius */
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 18px;
 
-    /* Surface elevation */
-  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.22);
-
-    /* Spacing scale */
+  /* Spacing */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -33,12 +37,29 @@
   --space-6: 24px;
   --space-8: 32px;
 
+  /* Elevation */
+  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.22);
 
+  /* Form controls */
+  --input-bg: rgba(10, 15, 29, 0.82);
+  --input-border: var(--line);
+  --input-border-hover: var(--line-strong);
+  --input-focus-ring: rgba(129, 117, 255, 0.18);
+
+  /* Badge palette */
+  --badge-bg: rgba(129, 117, 255, 0.12);
+  --badge-border: rgba(129, 117, 255, 0.28);
 
   color-scheme: dark;
 }
 
-* {
+/* ================================================================
+   Global foundation
+================================================================ */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -53,15 +74,15 @@ body {
   background: var(--bg);
   color: var(--text);
   font:
-  14px/1.5 Inter,
-  ui-sans-serif,
-  system-ui,
-  -apple-system,
-  'Segoe UI',
-  Roboto,
-  Helvetica,
-  Arial,
-  sans-serif;
+    14px/1.5 Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -79,8 +100,8 @@ body {
 .app__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--space-3);
+  padding: var(--space-3);
   min-height: 0;
   flex: 1;
 }
@@ -88,18 +109,21 @@ body {
 .app__sidebar {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
   min-height: 0;
   overflow-y: auto;
   padding-right: 2px;
 }
 
-/* ---------------------------------------------------------------- status */
+/* ================================================================
+   Status bar
+================================================================ */
+
 .statusbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
   padding: 10px 14px;
   background: linear-gradient(180deg, #0d131c, #0a0f16);
   border-bottom: 1px solid var(--line);
@@ -128,18 +152,22 @@ body {
 .dot {
   width: 9px;
   height: 9px;
+  flex: 0 0 9px;
   border-radius: 50%;
   background: var(--text-dim);
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
 }
+
 .dot--online {
   background: var(--ok);
 }
+
 .dot--connecting,
 .dot--reconnecting {
   background: var(--warn);
   animation: pulse 1.2s infinite;
 }
+
 .dot--error {
   background: var(--error);
 }
@@ -150,25 +178,42 @@ body {
   }
 }
 
+/* ================================================================
+   Badges
+================================================================ */
+
 .badge {
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  line-height: 1.4;
   color: var(--text-dim);
 }
+
 .badge--redis {
   color: #c7a6ff;
   border-color: #3c2b5c;
+  background: rgba(129, 117, 255, 0.08);
 }
 
-/* ---------------------------------------------------------------- canvas */
+/* ================================================================
+   Canvas world
+   Keep movement, touch handling and physics unchanged.
+================================================================ */
+
 .world {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   min-height: 0;
 }
 
@@ -187,9 +232,11 @@ body {
   inset: 0;
   display: block;
 }
+
 .world__layer--static {
   image-rendering: auto;
 }
+
 .world__layer--dynamic {
   touch-action: none;
 }
@@ -211,30 +258,34 @@ body {
   color: var(--text-dim);
   flex-wrap: wrap;
 }
+
 .world__controls label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
 }
+
 .world__hint {
   margin-left: auto;
 }
 
-/* ---------------------------------------------------------------- panels */
+/* ================================================================
+   Panels
+================================================================ */
+
 .panel {
+  min-width: 0;
+  padding: 14px;
   background: linear-gradient(
     145deg,
     rgba(17, 26, 43, 0.96),
     rgba(11, 17, 30, 0.98)
   );
-
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 14px;
-
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.16),
+    var(--shadow-panel),
     inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
@@ -242,8 +293,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--space-2);
+  min-width: 0;
+  margin-bottom: var(--space-2);
 }
 
 .panel__header--sub {
@@ -252,11 +304,15 @@ body {
 
 .panel__header h2,
 .panel__header h3 {
+  min-width: 0;
   margin: 0;
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .panel__meta {
@@ -270,28 +326,32 @@ body {
   margin: 4px 0;
 }
 
-/* ----------------------------------------------------------------- peers */
+/* ================================================================
+   Peers
+================================================================ */
+
 .peers__list,
 .mesh__list,
 .legend__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .peer {
   display: grid;
-  grid-template-columns: 18px 1fr auto;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--bg-elev-2);
   opacity: 0.72;
 }
+
 .peer--live {
   opacity: 1;
 }
@@ -310,6 +370,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   font-size: 13px;
 }
 
@@ -349,29 +410,73 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ================================================================
+   Chips
+================================================================ */
+
 .chip {
-  padding: 1px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 7px;
   border-radius: 999px;
   border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
   font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  line-height: 1.4;
   color: var(--text-dim);
 }
+
 .chip--muted {
   color: var(--text-dim);
 }
+
 .chip--blocked {
   color: #ff9f8a;
   border-color: #4a2a26;
+  background: rgba(255, 159, 138, 0.06);
 }
+
 .chip--speaking {
   color: #0a0f17;
   background: var(--ok);
   border-color: var(--ok);
 }
 
-/* ----------------------------------------------------------------- audit */
+.chip--interactive {
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.chip--interactive:hover {
+  border-color: var(--accent);
+  background: rgba(129, 117, 255, 0.18);
+}
+
+.chip--active {
+  border-color: var(--accent);
+  background: rgba(129, 117, 255, 0.2);
+  color: var(--text);
+}
+
+.chip--interactive:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ================================================================
+   Audit
+================================================================ */
+
 .verdict {
   display: inline-block;
   padding: 3px 10px;
@@ -380,85 +485,104 @@ body {
   font-size: 12px;
   margin-bottom: 8px;
 }
+
 .verdict--ok {
   background: rgba(90, 209, 154, 0.16);
   color: var(--ok);
 }
+
 .verdict--bad {
-  background: rgba(255, 107, 107, 0.16);
+  background: rgba(255, 107, 129, 0.16);
   color: var(--error);
 }
 
 .audit__grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 6px 12px;
   margin: 0;
   font-size: 12px;
 }
+
 .audit__grid div {
   display: flex;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
   padding-bottom: 3px;
 }
+
 .audit__grid dt {
   color: var(--text-dim);
 }
+
 .audit__grid dd {
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
 
+/* ================================================================
+   Mesh and legend
+================================================================ */
+
 .mesh__list li {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-size: 12px;
   color: var(--text-dim);
 }
 
-/* ---------------------------------------------------------------- legend */
 .legend__list li {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   color: var(--text-dim);
   font-size: 12px;
 }
+
 .swatch-dot {
+  display: inline-block;
   width: 10px;
   height: 10px;
+  flex: 0 0 10px;
   border-radius: 3px;
-  display: inline-block;
 }
 
-/* ------------------------------------------------------------------ gate */
+/* ================================================================
+   Join gate
+================================================================ */
+
 .gate {
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: var(--space-6);
   flex: 1;
   min-height: 0;
 }
 
 .gate__card {
-  width: min(420px, 100%);
-  background: var(--bg-elev);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45);
+  width: min(420px, 100%);
+  padding: 22px;
+  background: linear-gradient(
+    145deg,
+    rgba(17, 26, 43, 0.98),
+    rgba(11, 17, 30, 0.99)
+  );
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
 }
 
 .gate__title {
   margin: 0;
   font-size: 26px;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .gate__subtitle {
@@ -469,6 +593,7 @@ body {
 
 .gate__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -482,96 +607,176 @@ body {
 .gate__swatches,
 .gate__avatars {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: var(--space-2);
 }
 
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
   font-size: 12px;
   color: var(--text-dim);
 }
 
-.field input[type='text'],
+/* ================================================================
+   Form controls
+================================================================ */
+
+.field input[type="text"],
 .field input:not([type]),
-.gate__card input:not([type='color']):not([type='checkbox']) {
-  background: #0a0f17;
-  border: 1px solid var(--line);
+.field input[type="email"],
+.field input[type="password"],
+.field input[type="number"],
+.field textarea,
+.field select,
+.gate__card input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
   color: var(--text);
-  border-radius: 8px;
-  padding: 9px 10px;
   font: inherit;
-  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
 }
-.gate__card input:focus {
+
+.field textarea {
+  min-height: 96px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.field select {
+  cursor: pointer;
+}
+
+.field input:not(:disabled):hover,
+.field textarea:not(:disabled):hover,
+.field select:not(:disabled):hover,
+.gate__card input:not(:disabled):hover {
+  border-color: var(--input-border-hover);
+}
+
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible,
+.gate__card input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
 }
+
+.field input::placeholder,
+.field textarea::placeholder,
+.gate__card input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.8;
+}
+
+.field input:disabled,
+.field textarea:disabled,
+.field select:disabled,
+.gate__card input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.field input::selection,
+.field textarea::selection {
+  color: var(--text);
+  background: rgba(129, 117, 255, 0.38);
+}
+
+/* ================================================================
+   Swatches and shapes
+================================================================ */
 
 .swatch,
 .shape {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
-  border: 2px solid transparent;
-  cursor: pointer;
   padding: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
   background: #2a3646;
+  cursor: pointer;
 }
+
 .swatch--active,
 .shape--active {
   border-color: #fff;
 }
-.shape {
-  background: #2a3646;
-}
+
 .shape--circle {
   border-radius: 50%;
 }
+
 .shape--square {
   border-radius: 3px;
 }
+
 .shape--triangle {
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
   border: none;
   background: #6d8db8;
 }
+
 .shape--hex {
-  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  clip-path: polygon(
+    25% 0,
+    75% 0,
+    100% 50%,
+    75% 100%,
+    25% 100%,
+    0 50%
+  );
   border: none;
   background: #6d8db8;
 }
 
+/* ================================================================
+   Alerts
+================================================================ */
+
 .alert {
   padding: 9px 11px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   line-height: 1.5;
 }
+
 .alert--error {
-  background: rgba(255, 107, 107, 0.12);
+  background: rgba(255, 107, 129, 0.12);
   border: 1px solid #4a2530;
   color: #ffb3b3;
 }
-/* --------------------------------------------------------------- buttons */
+
+/* ================================================================
+   Buttons
+================================================================ */
 
 .button {
   appearance: none;
   border: 1px solid var(--line);
-
   background: linear-gradient(
     180deg,
     rgba(27, 39, 61, 0.96),
     rgba(18, 27, 43, 0.96)
   );
-
   color: var(--text);
   border-radius: var(--radius-sm);
   padding: 9px 14px;
   font: inherit;
   cursor: pointer;
-
   transition:
     background 160ms ease,
     border-color 160ms ease,
@@ -581,7 +786,6 @@ body {
 
 .button:hover:not(:disabled) {
   border-color: var(--line-strong);
-
   box-shadow: 0 5px 16px rgba(0, 0, 0, 0.18);
 }
 
@@ -601,25 +805,15 @@ body {
 }
 
 .button--primary {
-  background: linear-gradient(
-    135deg,
-    var(--accent),
-    #579bff
-  );
-
+  background: linear-gradient(135deg, var(--accent), #579bff);
   border-color: transparent;
-  color: #ffffff;
+  color: #fff;
   font-weight: 650;
-
   box-shadow: 0 7px 20px rgba(98, 88, 245, 0.22);
 }
 
 .button--primary:hover:not(:disabled) {
   box-shadow: 0 9px 24px rgba(98, 88, 245, 0.3);
-}
-
-.button--primary:active:not(:disabled) {
-  transform: translateY(1px);
 }
 
 .button--small {
@@ -632,6 +826,10 @@ body {
   color: var(--warn);
 }
 
+/* ================================================================
+   Volume controls
+================================================================ */
+
 .volume {
   display: inline-flex;
   align-items: center;
@@ -640,365 +838,62 @@ body {
 
 .volume input {
   width: 110px;
+  max-width: 100%;
   accent-color: var(--accent);
 }
 
-/* --------------------------------------------------------------- notices */
+/* ================================================================
+   Notifications
+   Preserve fixed positioning and stacking behavior.
+================================================================ */
+
 .notices {
   position: fixed;
   right: 16px;
   bottom: 16px;
-  list-style: none;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(420px, calc(100vw - 32px));
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 20;
-  max-width: min(420px, calc(100vw - 32px));
+  list-style: none;
 }
 
-.notice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  background: var(--bg-elev-2);
-  border: 1px solid var(--line);
-  font-size: 12px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
-  animation: slide-in 180ms ease;
-}
-.notice--ok {
-  border-color: #24503c;
-}
-.notice--warn {
-  border-color: #4d3f1d;
-}
-.notice--error {
-  border-color: #4a2530;
-}
-
-.notice__close {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 16px;
-  cursor: pointer;
-  line-height: 1;
-}
-
-@keyframes slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-
-@media (max-width: 980px) {
-  .app__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .app__sidebar {
-    max-height: 42vh;
-  }
-}
-
-
-/* ================================================================
-   COMMIT 09 — INPUT FIELDS & FOCUS STATES
-   ProxiSpeak UI Enhancement
-   UI-only: application logic remains unchanged.
-================================================================ */
-
-/* Shared form-control tokens */
-:root {
-  --input-bg: rgba(10, 15, 29, 0.82);
-  --input-border: var(--line);
-  --input-border-hover: var(--line-strong);
-  --input-focus: var(--accent);
-  --input-focus-ring: rgba(129, 117, 255, 0.18);
-}
-
-/* Existing field components */
-.field input,
-.field textarea,
-.field select,
-.gate__card input {
-  color: var(--text);
-  background-color: var(--input-bg);
-  border: 1px solid var(--input-border);
-  border-radius: var(--radius-sm);
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    background-color 160ms ease;
-}
-
-/* Consistent hover feedback */
-.field input:not(:disabled):hover,
-.field textarea:not(:disabled):hover,
-.field select:not(:disabled):hover,
-.gate__card input:not(:disabled):hover {
-  border-color: var(--input-border-hover);
-}
-
-/* Violet focus state */
-.field input:focus-visible,
-.field textarea:focus-visible,
-.field select:focus-visible,
-.gate__card input:focus-visible {
-  outline: none;
-  border-color: var(--input-focus);
-  box-shadow: 0 0 0 3px var(--input-focus-ring);
-}
-
-/* Placeholder readability */
-.field input::placeholder,
-.field textarea::placeholder,
-.gate__card input::placeholder {
-  color: var(--text-dim);
-  opacity: 0.8;
-}
-
-/* Disabled form controls */
-.field input:disabled,
-.field textarea:disabled,
-.field select:disabled,
-.gate__card input:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-/* Keyboard accessibility */
-.field input:focus-visible,
-.field textarea:focus-visible,
-.field select:focus-visible,
-.gate__card input:focus-visible {
-  outline-offset: 2px;
-}
-
-/* Reduced-motion accessibility */
-@media (prefers-reduced-motion: reduce) {
-  .field input,
-  .field textarea,
-  .field select,
-  .gate__card input {
-    transition: none;
-  }
-}
-
-
-/* ================================================================
-   COMMIT 10 — STATUS INDICATORS, BADGES & CHIPS
-   ProxiSpeak UI Enhancement
-================================================================ */
-
-:root {
-  --status-online: #5ad19a;
-  --status-warning: #ffc857;
-  --status-error: #ff6b81;
-  --status-info: #8175ff;
-
-  --badge-bg: rgba(129, 117, 255, 0.12);
-  --badge-border: rgba(129, 117, 255, 0.28);
-}
-
-/* Shared badge and chip foundation */
-.badge,
-.chip,
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: fit-content;
-  max-width: 100%;
-  padding: 4px 10px;
-  border: 1px solid var(--badge-border);
-  border-radius: 999px;
-  background: var(--badge-bg);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-/* Small status indicator */
-.status-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
-  border-radius: 50%;
-  background: var(--text-dim);
-}
-
-/* Online / available */
-.status-dot--online,
-.status-badge--online {
-  --status-current: var(--status-online);
-}
-
-.status-dot--online {
-  background: var(--status-online);
-}
-
-.status-badge--online {
-  color: var(--status-online);
-  border-color: rgba(90, 209, 154, 0.28);
-  background: rgba(90, 209, 154, 0.1);
-}
-
-/* Warning / away */
-.status-dot--warning {
-  background: var(--status-warning);
-}
-
-.status-badge--warning {
-  color: var(--status-warning);
-  border-color: rgba(255, 200, 87, 0.28);
-  background: rgba(255, 200, 87, 0.1);
-}
-
-/* Error / offline */
-.status-dot--error {
-  background: var(--status-error);
-}
-
-.status-badge--error {
-  color: var(--status-error);
-  border-color: rgba(255, 107, 129, 0.28);
-  background: rgba(255, 107, 129, 0.1);
-}
-
-/* Informational status */
-.status-dot--info {
-  background: var(--status-info);
-}
-
-.status-badge--info {
-  color: var(--status-info);
-}
-
-/* Interactive chips */
-.chip--interactive {
-  cursor: pointer;
-  user-select: none;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-.chip--interactive:hover {
-  border-color: var(--accent);
-  background: rgba(129, 117, 255, 0.18);
-}
-
-.chip--interactive:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.chip--active {
-  border-color: var(--accent);
-  background: rgba(129, 117, 255, 0.2);
-  color: var(--text);
-}
-
-/* Allow badge text to wrap in narrow layouts */
-@media (max-width: 480px) {
-  .badge,
-  .chip,
-  .status-badge {
-    font-size: 11px;
-    padding: 4px 8px;
-  }
-}
-
-/* Respect reduced-motion preferences */
-@media (prefers-reduced-motion: reduce) {
-  .chip--interactive {
-    transition: none;
-  }
-}
-
-/* ================================================================
-   COMMIT 11 — NOTIFICATIONS & PANEL HEADERS
-   ProxiSpeak UI Enhancement
-================================================================ */
-
-/* Panel headers */
-.panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--line);
-}
-
-/* Secondary panel headers */
-.panel__header--sub {
-  padding-bottom: var(--space-3);
-  border-bottom-color: rgba(143, 164, 202, 0.16);
-}
-
-/* Panel heading typography */
-.panel__header h2,
-.panel__header h3 {
-  margin: 0;
-  color: var(--text);
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  line-height: 1.35;
-}
-
-/* Notification container */
-.notices {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-/* Base notification */
 .notice {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: var(--space-3);
+  min-width: 0;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--bg-elev);
+  background: var(--bg-elev-2);
   color: var(--text);
-  box-shadow: var(--shadow-panel);
+  font-size: 12px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  box-shadow: var(--shadow-panel);
+  animation: slide-in 180ms ease;
 }
 
-/* Success notification */
 .notice--ok {
-  border-color: rgba(90, 209, 154, 0.28);
+  border-color: rgba(90, 209, 154, 0.38);
   background: rgba(90, 209, 154, 0.08);
 }
 
-/* Warning notification */
 .notice--warn {
-  border-color: rgba(255, 200, 87, 0.28);
+  border-color: rgba(255, 200, 87, 0.38);
   background: rgba(255, 200, 87, 0.08);
 }
 
-/* Error notification */
 .notice--error {
-  border-color: rgba(255, 107, 129, 0.3);
+  border-color: rgba(255, 107, 129, 0.38);
   background: rgba(255, 107, 129, 0.08);
 }
 
-/* Notification dismiss button */
 .notice__close {
   display: inline-flex;
   align-items: center;
@@ -1006,11 +901,14 @@ body {
   flex: 0 0 auto;
   min-width: 28px;
   min-height: 28px;
+  margin-left: auto;
   padding: 4px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
   cursor: pointer;
   transition:
     color 160ms ease,
@@ -1020,7 +918,7 @@ body {
 
 .notice__close:hover {
   border-color: var(--line);
-  background: var(--bg-elev-2);
+  background: var(--bg-elev);
   color: var(--text);
 }
 
@@ -1029,83 +927,40 @@ body {
   outline-offset: 2px;
 }
 
-/* Narrow screens */
-@media (max-width: 480px) {
-  .panel__header {
-    gap: var(--space-3);
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
 
-  .notice {
-    padding: var(--space-3);
-  }
-}
-
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .notice__close {
-    transition: none;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
 /* ================================================================
-   COMMIT 12 — RESPONSIVE DESIGN & ACCESSIBILITY
-   ProxiSpeak UI Enhancement
+   Responsive layout
 ================================================================ */
 
-/* Prevent accidental horizontal overflow */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@media (max-width: 980px) {
+  .app__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app__sidebar {
+    max-height: 42vh;
+  }
 }
 
-img,
-video,
-canvas,
-svg {
-  max-width: 100%;
-}
-
-/* Allow flex and grid children to shrink */
-.panel,
-.panel__header,
-.panel__body,
-.notice,
-.field {
-  min-width: 0;
-}
-
-/* Tablet and smaller screens */
 @media (max-width: 768px) {
-  .panel {
-    max-width: 100%;
+  .app__body {
+    gap: var(--space-3);
+    padding: var(--space-3);
   }
 
   .panel__header {
     flex-wrap: wrap;
-  }
-
-  .notices {
-    width: 100%;
-  }
-
-  .notice {
-    overflow-wrap: anywhere;
-  }
-
-  .button {
-    max-width: 100%;
-  }
-}
-
-/* Mobile screens */
-@media (max-width: 480px) {
-  .panel {
-    border-radius: var(--radius);
-  }
-
-  .panel__header {
-    gap: var(--space-3);
   }
 
   .panel__header h2,
@@ -1113,8 +968,64 @@ svg {
     overflow-wrap: anywhere;
   }
 
+  .gate {
+    padding: var(--space-4);
+  }
+
+  .gate__card {
+    padding: var(--space-5);
+  }
+}
+
+@media (max-width: 480px) {
+  .app__body {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .panel {
+    padding: var(--space-3);
+    border-radius: var(--radius);
+  }
+
+  .panel__header {
+    gap: var(--space-3);
+  }
+
+  .panel__header--sub {
+    margin-top: var(--space-3);
+  }
+
+  .statusbar {
+    align-items: flex-start;
+    padding: 10px 12px;
+  }
+
+  .statusbar__left,
+  .statusbar__right {
+    flex-wrap: wrap;
+  }
+
+  .gate {
+    padding: var(--space-3);
+  }
+
+  .gate__card {
+    padding: var(--space-4);
+    border-radius: var(--radius);
+  }
+
+  .gate__title {
+    font-size: 23px;
+  }
+
+  .gate__actions {
+    gap: var(--space-2);
+  }
+
   .button {
     min-height: 40px;
+    max-width: 100%;
   }
 
   .button--small {
@@ -1126,18 +1037,24 @@ svg {
     max-width: 100%;
   }
 
-  .volume input {
-    max-width: 100%;
+  .notice {
+    padding: var(--space-3);
   }
 
-  input,
-  textarea,
-  select {
-    max-width: 100%;
+  .badge,
+  .chip {
+    font-size: 10px;
+  }
+
+  .audit__grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
-/* Visible keyboard focus */
+/* ================================================================
+   Keyboard accessibility
+================================================================ */
+
 :where(
   button,
   a,
@@ -1150,19 +1067,30 @@ svg {
   outline-offset: 3px;
 }
 
-/* Do not override disabled controls' interaction behavior */
 :where(button, input, textarea, select):disabled {
   cursor: not-allowed;
 }
 
-/* Respect operating-system motion preferences */
+/* ================================================================
+   Reduced motion
+   Limit decorative transitions and animations without changing
+   Canvas logic, WebRTC, audio processing or application state.
+================================================================ */
+
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  .button,
+  .chip--interactive,
+  .notice__close,
+  .field input,
+  .field textarea,
+  .field select,
+  .gate__card input {
+    transition: none;
+  }
+
+  .notice,
+  .dot--connecting,
+  .dot--reconnecting {
+    animation: none;
   }
 }
