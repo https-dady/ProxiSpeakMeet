@@ -14,7 +14,12 @@
   --warn: #ffc857;
   --error: #ff6b81;
 
+    /* Border and radius system */
+  --line-strong: rgba(143, 164, 202, 0.28);
+
+  --radius-sm: 8px;
   --radius: 12px;
+  --radius-lg: 18px;
 
     /* Spacing scale */
   --space-1: 4px;
