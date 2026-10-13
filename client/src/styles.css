@@ -705,3 +705,87 @@ body {
     max-height: 42vh;
   }
 }
+
+
+/* ================================================================
+   COMMIT 09 — INPUT FIELDS & FOCUS STATES
+   ProxiSpeak UI Enhancement
+   UI-only: application logic remains unchanged.
+================================================================ */
+
+/* Shared form-control tokens */
+:root {
+  --input-bg: rgba(10, 15, 29, 0.82);
+  --input-border: var(--line);
+  --input-border-hover: var(--line-strong);
+  --input-focus: var(--accent);
+  --input-focus-ring: rgba(129, 117, 255, 0.18);
+}
+
+/* Existing field components */
+.field input,
+.field textarea,
+.field select,
+.gate__card input {
+  color: var(--text);
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+/* Consistent hover feedback */
+.field input:not(:disabled):hover,
+.field textarea:not(:disabled):hover,
+.field select:not(:disabled):hover,
+.gate__card input:not(:disabled):hover {
+  border-color: var(--input-border-hover);
+}
+
+/* Violet focus state */
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible,
+.gate__card input:focus-visible {
+  outline: none;
+  border-color: var(--input-focus);
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+}
+
+/* Placeholder readability */
+.field input::placeholder,
+.field textarea::placeholder,
+.gate__card input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.8;
+}
+
+/* Disabled form controls */
+.field input:disabled,
+.field textarea:disabled,
+.field select:disabled,
+.gate__card input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Keyboard accessibility */
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible,
+.gate__card input:focus-visible {
+  outline-offset: 2px;
+}
+
+/* Reduced-motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .field input,
+  .field textarea,
+  .field select,
+  .gate__card input {
+    transition: none;
+  }
+}
