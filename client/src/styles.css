@@ -1,15 +1,20 @@
 :root {
-  --bg: #070a10;
-  --bg-elev: #0e141d;
-  --bg-elev-2: #131b26;
-  --line: #1f2a38;
-  --text: #dbe4f0;
-  --text-dim: #8b9bb0;
-  --accent: #4f8cff;
+  /* ProxiSpeak Design System — Phase 1 */
+  --bg: #080b14;
+  --bg-elev: #101625;
+  --bg-elev-2: #151e30;
+  --line: #263149;
+
+  --text: #edf2ff;
+  --text-dim: #9ba9c2;
+
+  --accent: #8175ff;
   --ok: #5ad19a;
   --warn: #ffc857;
-  --error: #ff6b6b;
-  --radius: 10px;
+  --error: #ff6b81;
+
+  --radius: 12px;
+
   color-scheme: dark;
 }
 
