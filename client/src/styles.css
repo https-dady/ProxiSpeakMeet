@@ -1046,3 +1046,123 @@ body {
     transition: none;
   }
 }
+
+/* ================================================================
+   COMMIT 12 — RESPONSIVE DESIGN & ACCESSIBILITY
+   ProxiSpeak UI Enhancement
+================================================================ */
+
+/* Prevent accidental horizontal overflow */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+/* Allow flex and grid children to shrink */
+.panel,
+.panel__header,
+.panel__body,
+.notice,
+.field {
+  min-width: 0;
+}
+
+/* Tablet and smaller screens */
+@media (max-width: 768px) {
+  .panel {
+    max-width: 100%;
+  }
+
+  .panel__header {
+    flex-wrap: wrap;
+  }
+
+  .notices {
+    width: 100%;
+  }
+
+  .notice {
+    overflow-wrap: anywhere;
+  }
+
+  .button {
+    max-width: 100%;
+  }
+}
+
+/* Mobile screens */
+@media (max-width: 480px) {
+  .panel {
+    border-radius: var(--radius);
+  }
+
+  .panel__header {
+    gap: var(--space-3);
+  }
+
+  .panel__header h2,
+  .panel__header h3 {
+    overflow-wrap: anywhere;
+  }
+
+  .button {
+    min-height: 40px;
+  }
+
+  .button--small {
+    min-height: 32px;
+  }
+
+  .volume {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+
+  .volume input {
+    max-width: 100%;
+  }
+
+  input,
+  textarea,
+  select {
+    max-width: 100%;
+  }
+}
+
+/* Visible keyboard focus */
+:where(
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Do not override disabled controls' interaction behavior */
+:where(button, input, textarea, select):disabled {
+  cursor: not-allowed;
+}
+
+/* Respect operating-system motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
