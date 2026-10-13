@@ -1,0 +1,32 @@
+{
+  "name": "proxispeak-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Geospatial proximity audio ecosystem - signaling + spatial engine",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon --watch src --watch .env src/index.js",
+    "seed": "node scripts/seed.js",
+    "audit": "node scripts/spatial-audit.js",
+    "audit:api": "node scripts/spatial-audit.js --url http://localhost:4000",
+    "loadtest": "node scripts/loadtest.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ioredis": "^5.4.2",
+    "mongoose": "^8.9.5",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "socket.io-client": "^4.8.1"
+  }
+}

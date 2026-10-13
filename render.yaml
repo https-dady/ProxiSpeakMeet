@@ -1,0 +1,33 @@
+# ProxiSpeak — single Render Web Service.
+#
+# One Node process serves the API, the Socket.io signaling endpoint, the
+# spatial audit AND the built React bundle on the same port.
+#
+# Deploy: push this branch -> Render New > Blueprint > pick the repo.
+services:
+  - type: web
+    name: proxispeak
+    runtime: node
+    plan: free # 'starter' once you need always-on + more RAM
+    region: oregon
+    branch: arena/0db06934-proxispeak-geospatial-proximit
+    buildCommand: npm run build # installs server+client deps, runs `vite build`
+    startCommand: npm start # node server/src/index.js, listens on process.env.PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render's managed MongoDB injects MONGO_URI automatically; for Atlas or
+      # any external database paste the connection string here.
+      # mongodb+srv://user:pass@cluster.mongodb.net/proxispeak?retryWrites=true&w=majority
+      - key: MONGO_URI
+        sync: false
+      # Render's managed Redis injects a rediss:// URL (TLS) automatically.
+      # Leave it empty to run single-instance (no Pub/Sub, no scaling).
+      - key: REDIS_URL
+        sync: false
+      # Lock the browser origin down: https://proxispeak.onrender.com
+      # Unset = single-origin mode (any origin accepted, warns in production).
+      - key: CLIENT_URL
+        sync: false
