@@ -789,3 +789,140 @@ body {
     transition: none;
   }
 }
+
+
+/* ================================================================
+   COMMIT 10 — STATUS INDICATORS, BADGES & CHIPS
+   ProxiSpeak UI Enhancement
+================================================================ */
+
+:root {
+  --status-online: #5ad19a;
+  --status-warning: #ffc857;
+  --status-error: #ff6b81;
+  --status-info: #8175ff;
+
+  --badge-bg: rgba(129, 117, 255, 0.12);
+  --badge-border: rgba(129, 117, 255, 0.28);
+}
+
+/* Shared badge and chip foundation */
+.badge,
+.chip,
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid var(--badge-border);
+  border-radius: 999px;
+  background: var(--badge-bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Small status indicator */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+/* Online / available */
+.status-dot--online,
+.status-badge--online {
+  --status-current: var(--status-online);
+}
+
+.status-dot--online {
+  background: var(--status-online);
+}
+
+.status-badge--online {
+  color: var(--status-online);
+  border-color: rgba(90, 209, 154, 0.28);
+  background: rgba(90, 209, 154, 0.1);
+}
+
+/* Warning / away */
+.status-dot--warning {
+  background: var(--status-warning);
+}
+
+.status-badge--warning {
+  color: var(--status-warning);
+  border-color: rgba(255, 200, 87, 0.28);
+  background: rgba(255, 200, 87, 0.1);
+}
+
+/* Error / offline */
+.status-dot--error {
+  background: var(--status-error);
+}
+
+.status-badge--error {
+  color: var(--status-error);
+  border-color: rgba(255, 107, 129, 0.28);
+  background: rgba(255, 107, 129, 0.1);
+}
+
+/* Informational status */
+.status-dot--info {
+  background: var(--status-info);
+}
+
+.status-badge--info {
+  color: var(--status-info);
+}
+
+/* Interactive chips */
+.chip--interactive {
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.chip--interactive:hover {
+  border-color: var(--accent);
+  background: rgba(129, 117, 255, 0.18);
+}
+
+.chip--interactive:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.chip--active {
+  border-color: var(--accent);
+  background: rgba(129, 117, 255, 0.2);
+  color: var(--text);
+}
+
+/* Allow badge text to wrap in narrow layouts */
+@media (max-width: 480px) {
+  .badge,
+  .chip,
+  .status-badge {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .chip--interactive {
+    transition: none;
+  }
+}
