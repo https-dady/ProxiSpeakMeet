@@ -2890,3 +2890,69 @@ body {
   }
 }
 
+
+
+/* ================================================================
+   PHASE 2 — COMMIT 17
+   Global Keyboard Focus & Accessibility Polish
+   UI-only: preserve all application behavior.
+================================================================ */
+
+/* Consistent keyboard focus visibility */
+:where(
+  button,
+  input,
+  select,
+  textarea,
+  a,
+  [role="button"]
+):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Keep focus indicators visible on dark surfaces */
+.statusbar button:focus-visible,
+.statusbar input:focus-visible,
+.gate button:focus-visible,
+.gate input:focus-visible,
+.peers button:focus-visible,
+.audit button:focus-visible,
+.legend button:focus-visible,
+.world__controls input:focus-visible,
+.notice__close:focus-visible {
+  outline: 2px solid #a69cff;
+  outline-offset: 3px;
+}
+
+/* Clear keyboard focus for colour selection */
+.gate__swatches .swatch:focus-visible,
+.gate__avatars .shape:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 6px rgba(108, 92, 231, 0.24);
+}
+
+/* Preserve visible focus on canvas when focusable */
+.world__layer--dynamic:focus-visible {
+  outline: 2px solid #a69cff;
+  outline-offset: -3px;
+}
+
+/* Clear disabled state without changing button behavior */
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
+
+/* Avoid forced motion for users requesting reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
