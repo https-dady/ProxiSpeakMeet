@@ -1261,3 +1261,202 @@ body {
     transition: none;
   }
 }
+
+/* ================================================================
+   PHASE 2 — COMMIT 05
+   Nearby Peers Panel — Visual Polish
+   UI-only: preserve all application behavior.
+================================================================ */
+
+.peers__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.peers__eyebrow {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  line-height: 1.4;
+}
+
+.peers__heading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.peers__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 1px solid rgba(143, 164, 202, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.peers__count-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 9px rgba(90, 209, 154, 0.25);
+}
+
+.peers__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 150px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.peers__empty-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  margin-bottom: 4px;
+  border: 1px solid rgba(143, 164, 202, 0.17);
+  border-radius: 12px;
+  background: rgba(108, 92, 231, 0.09);
+  color: var(--accent);
+  font-size: 25px;
+  line-height: 1;
+}
+
+.peers__empty strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.peers__empty > span:last-child {
+  max-width: 230px;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.peers__list {
+  gap: 7px;
+}
+
+.peers__list .peer {
+  min-width: 0;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(143, 164, 202, 0.1);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.018);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.peers__list .peer--live {
+  border-color: rgba(108, 92, 231, 0.25);
+  background: linear-gradient(
+    105deg,
+    rgba(108, 92, 231, 0.075),
+    rgba(255, 255, 255, 0.018)
+  );
+}
+
+.peers__list .peer__body {
+  min-width: 0;
+}
+
+.peers__list .peer__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  margin-bottom: 7px;
+}
+
+.peers__list .peer__name {
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.peers__list .peer__meter {
+  position: relative;
+  overflow: hidden;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(143, 164, 202, 0.12);
+}
+
+.peers__list .peer__gain,
+.peers__list .peer__level {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.peers__list .peer__gain {
+  background: linear-gradient(90deg, #635bdf, #8c83ff);
+  opacity: 0.85;
+}
+
+.peers__list .peer__level {
+  background: linear-gradient(90deg, #55d6a0, #a1f4d0);
+  opacity: 0.9;
+}
+
+.peers__list .peer__numbers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .peers__count {
+    max-width: 100%;
+    white-space: normal;
+    text-align: right;
+  }
+
+  .peers__list .peer {
+    gap: 8px;
+    padding: 9px;
+  }
+
+  .peers__list .peer__numbers {
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .peers__list .peer {
+    transition: none;
+  }
+}
