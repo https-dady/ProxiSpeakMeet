@@ -1,3 +1,4 @@
+
 import { ProxiProvider, useProxi } from './state/ProxiContext.jsx';
 import { WorldCanvas } from './canvas/WorldCanvas.jsx';
 import { MicGate } from './components/MicGate.jsx';
@@ -23,14 +24,20 @@ function Office() {
   return (
     <div className="app">
       <StatusBar />
-      <main className="app__body">
+
+      <main className="app__body" aria-label="Virtual office workspace">
         <WorldCanvas />
-        <aside className="app__sidebar">
+
+        <aside
+          className="app__sidebar"
+          aria-label="Workspace information and diagnostics"
+        >
           <PeerList />
           <AuditPanel />
           <SoundLegend />
         </aside>
       </main>
+
       <Notices />
     </div>
   );
@@ -45,3 +52,4 @@ export function App() {
 }
 
 export default App;
+
