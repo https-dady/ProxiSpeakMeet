@@ -1460,3 +1460,164 @@ body {
     transition: none;
   }
 }
+
+/* ================================================================
+   PHASE 2 — COMMIT 06
+   Virtual Office Canvas — Visual Polish
+   UI-only. Do not modify canvas rendering or movement logic.
+================================================================ */
+
+.world {
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.world__stage {
+  isolation: isolate;
+  border: 1px solid rgba(143, 164, 202, 0.18);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(
+      ellipse at 50% 45%,
+      rgba(74, 86, 142, 0.12),
+      transparent 65%
+    ),
+    #090e19;
+  box-shadow:
+    0 20px 55px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.world__layer {
+  max-width: 100%;
+}
+
+.world__layer--static {
+  z-index: 0;
+}
+
+.world__layer--dynamic {
+  z-index: 1;
+  touch-action: manipulation;
+  outline: none;
+}
+
+.world__layer--dynamic:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.world__veil {
+  z-index: 2;
+  gap: 12px;
+  padding: 24px;
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(26, 34, 59, 0.7),
+      rgba(7, 10, 18, 0.92)
+    );
+  color: var(--text-dim);
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.7;
+  backdrop-filter: blur(5px);
+}
+
+.world__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(143, 164, 202, 0.13);
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    110deg,
+    rgba(18, 26, 45, 0.8),
+    rgba(10, 15, 28, 0.8)
+  );
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.world__controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid rgba(143, 164, 202, 0.13);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.world__controls label:hover {
+  border-color: rgba(143, 164, 202, 0.3);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+}
+
+.world__controls input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.world__controls label:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.world__hint {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .world__stage {
+    min-height: 360px;
+  }
+
+  .world__hint {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .world__stage {
+    min-height: 300px;
+    border-radius: var(--radius-md);
+  }
+
+  .world__controls {
+    gap: 7px;
+    padding: 9px;
+  }
+
+  .world__controls label {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+  }
+
+  .world__hint {
+    padding: 3px 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world__controls label {
+    transition: none;
+  }
+}
