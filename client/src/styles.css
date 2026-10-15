@@ -2360,3 +2360,198 @@ body {
   }
 }
 
+
+
+/* ================================================================
+   PHASE 2 — COMMIT 11
+   Spatial Audio Legend — Visual Polish
+   UI-only: preserve all application behavior.
+================================================================ */
+
+.legend__header {
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.legend__heading {
+  min-width: 0;
+}
+
+.legend__eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  line-height: 1.4;
+}
+
+.legend__heading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.legend__badge {
+  flex-shrink: 0;
+  padding: 5px 8px;
+  border: 1px solid rgba(143, 164, 202, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-dim);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.legend__list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0 12px 12px;
+  list-style: none;
+}
+
+.legend__item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(143, 164, 202, 0.12);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.legend__marker {
+  position: relative;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--legend-color) 30%,
+    transparent
+  );
+  border-radius: 10px;
+  background: color-mix(
+    in srgb,
+    var(--legend-color) 9%,
+    transparent
+  );
+}
+
+.legend__marker > span {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--legend-color);
+  box-shadow: 0 0 10px color-mix(
+    in srgb,
+    var(--legend-color) 40%,
+    transparent
+  );
+}
+
+.legend__item--distance .legend__marker > span {
+  width: 17px;
+  height: 3px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.legend__item--speaking .legend__marker > span {
+  box-shadow:
+    0 0 0 4px color-mix(
+      in srgb,
+      var(--legend-color) 15%,
+      transparent
+    ),
+    0 0 12px color-mix(
+      in srgb,
+      var(--legend-color) 35%,
+      transparent
+    );
+}
+
+.legend__item--blocked .legend__marker > span {
+  width: 17px;
+  height: 0;
+  border-top: 2px dashed var(--legend-color);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.legend__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.legend__content strong {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.legend__content > span {
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.legend__footnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 12px 12px;
+  padding: 10px;
+  border: 1px solid rgba(108, 92, 231, 0.16);
+  border-radius: var(--radius-sm);
+  background: rgba(108, 92, 231, 0.055);
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.legend__footnote-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+@media (max-width: 480px) {
+  .legend__list {
+    gap: 6px;
+    padding-inline: 10px;
+  }
+
+  .legend__item {
+    gap: 9px;
+    padding: 9px;
+  }
+
+  .legend__marker {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+  }
+
+  .legend__footnote {
+    margin-inline: 10px;
+  }
+}
