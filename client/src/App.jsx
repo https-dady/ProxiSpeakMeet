@@ -1,4 +1,3 @@
-
 import { ProxiProvider, useProxi } from './state/ProxiContext.jsx';
 import { WorldCanvas } from './canvas/WorldCanvas.jsx';
 import { MicGate } from './components/MicGate.jsx';
@@ -6,6 +5,7 @@ import { StatusBar } from './components/StatusBar.jsx';
 import { PeerList } from './components/PeerList.jsx';
 import { AuditPanel } from './components/AuditPanel.jsx';
 import { SoundLegend } from './components/SoundLegend.jsx';
+import { OfficeSidebar } from './components/OfficeSidebar.jsx';
 import { Notices } from './components/Notices.jsx';
 
 function Office() {
@@ -23,20 +23,27 @@ function Office() {
 
   return (
     <div className="app">
-      <StatusBar />
+      <OfficeSidebar />
 
-      <main className="app__body" aria-label="Virtual office workspace">
-        <WorldCanvas />
+      <div className="app__workspace">
+        <StatusBar />
 
-        <aside
-          className="app__sidebar"
-          aria-label="Workspace information and diagnostics"
+        <main
+          className="app__body"
+          aria-label="Virtual office workspace"
         >
-          <PeerList />
-          <AuditPanel />
-          <SoundLegend />
-        </aside>
-      </main>
+          <WorldCanvas />
+
+          <aside
+            className="app__sidebar"
+            aria-label="Workspace information and diagnostics"
+          >
+            <PeerList />
+            <AuditPanel />
+            <SoundLegend />
+          </aside>
+        </main>
+      </div>
 
       <Notices />
     </div>
@@ -52,4 +59,3 @@ export function App() {
 }
 
 export default App;
-
