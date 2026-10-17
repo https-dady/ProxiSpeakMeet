@@ -3989,3 +3989,211 @@ transition: none;
     max-width: none;
   }
 }
+
+/* =========================================================
+   PHASE 3 — COMMIT 27
+   PREMIUM STATUS BAR REFINEMENT
+   UI ONLY — EXISTING FUNCTIONALITY PRESERVED
+   ========================================================= */
+
+/* Status bar shell */
+
+.app__workspace > .statusbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  min-width: 0;
+  padding: 14px 18px;
+  color: #e9edff;
+  background:
+    linear-gradient(
+      115deg,
+      rgba(20, 25, 46, 0.96),
+      rgba(12, 16, 31, 0.96)
+    );
+  border-bottom: 1px solid rgba(137, 148, 210, 0.14);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+/* Connection state */
+
+.app__workspace > .statusbar .statusbar__left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  min-width: 0;
+}
+
+.app__workspace > .statusbar .statusbar__connection {
+  color: #edf0ff;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.35px;
+}
+
+.app__workspace > .statusbar .statusbar__detail {
+  max-width: 240px;
+  overflow: hidden;
+  color: #8e99bb;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Live workspace statistics */
+
+.app__workspace > .statusbar .statusbar__stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+
+.app__workspace > .statusbar .statusbar__stat {
+  display: inline-flex;
+  align-items: center;
+  min-height: 29px;
+  padding: 6px 9px;
+  color: #aab5d4;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(119, 135, 190, 0.075);
+  border: 1px solid rgba(137, 148, 210, 0.12);
+  border-radius: 8px;
+}
+
+.app__workspace > .statusbar .badge {
+  min-height: 29px;
+  padding: 6px 9px;
+  border-radius: 8px;
+}
+
+/* Volume and action controls */
+
+.app__workspace > .statusbar .statusbar__right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app__workspace > .statusbar .volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 5px 10px;
+  color: #c5cdec;
+  background: rgba(119, 135, 190, 0.075);
+  border: 1px solid rgba(137, 148, 210, 0.14);
+  border-radius: 9px;
+}
+
+.app__workspace > .statusbar .volume input[type="range"] {
+  width: 82px;
+  min-width: 55px;
+  accent-color: #8d83ff;
+  cursor: pointer;
+}
+
+.app__workspace > .statusbar .statusbar__right .button {
+  min-height: 34px;
+  border-radius: 9px;
+}
+
+/* Keyboard accessibility */
+
+.app__workspace > .statusbar button:focus-visible,
+.app__workspace > .statusbar input:focus-visible {
+  outline: 2px solid #a69cff;
+  outline-offset: 3px;
+}
+
+/* Tablet and compact desktop */
+
+@media (max-width: 1100px) {
+  .app__workspace > .statusbar {
+    align-items: flex-start;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .app__workspace > .statusbar .statusbar__left {
+    flex: 1 1 180px;
+  }
+
+  .app__workspace > .statusbar .statusbar__stats {
+    justify-content: flex-start;
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  .app__workspace > .statusbar .statusbar__right {
+    flex: 0 1 auto;
+  }
+}
+
+/* Mobile */
+
+@media (max-width: 560px) {
+  .app__workspace > .statusbar {
+    padding: 11px 10px;
+    gap: 10px;
+  }
+
+  .app__workspace > .statusbar .statusbar__left {
+    flex: 1 1 100%;
+  }
+
+  .app__workspace > .statusbar .statusbar__detail {
+    max-width: 100%;
+  }
+
+  .app__workspace > .statusbar .statusbar__stats {
+    width: 100%;
+    gap: 5px;
+  }
+
+  .app__workspace > .statusbar .statusbar__stat {
+    min-height: 27px;
+    padding: 5px 7px;
+    font-size: 10px;
+  }
+
+  .app__workspace > .statusbar .statusbar__right {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .app__workspace > .statusbar .volume {
+    flex: 1 1 120px;
+  }
+
+  .app__workspace > .statusbar .volume input[type="range"] {
+    flex: 1;
+    width: auto;
+    min-width: 40px;
+  }
+}
+
+/* Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .app__workspace > .statusbar,
+  .app__workspace > .statusbar * {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}
