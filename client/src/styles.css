@@ -4507,3 +4507,386 @@ transition: none;
     transition: none;
   }
 }
+
+/* =========================================================
+   PHASE 3 — COMMIT 29
+   PREMIUM SPATIAL AUDIT & WEBRTC PANEL
+   UI ONLY — EXISTING FUNCTIONALITY PRESERVED
+   ========================================================= */
+
+.app__sidebar > .panel.audit {
+  min-width: 0;
+  padding: 17px;
+  overflow: hidden;
+  color: #e9edff;
+  background:
+    linear-gradient(
+      150deg,
+      rgba(21, 27, 49, 0.98),
+      rgba(11, 16, 31, 0.98)
+    );
+  border: 1px solid rgba(133, 146, 210, 0.15);
+  border-radius: 15px;
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+/* Audit heading */
+
+.app__sidebar .audit__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+  margin-bottom: 15px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(133, 146, 210, 0.13);
+}
+
+.app__sidebar .audit__heading {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.app__sidebar .audit__eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: #858fb4;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 1.5px;
+}
+
+.app__sidebar .audit__heading h2 {
+  margin: 0;
+  color: #eff1ff;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.35px;
+}
+
+.app__sidebar .audit__description {
+  margin: 7px 0 0;
+  color: #939fbe;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+/* Audit action */
+
+.app__sidebar .audit__header > .button {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-height: 33px;
+  border-radius: 9px;
+  font-size: 10px;
+  white-space: normal;
+}
+
+.app__sidebar .audit__header > .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.app__sidebar .audit__run-indicator {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: #7885a8;
+}
+
+.app__sidebar .audit__run-indicator--running {
+  background: #a69aff;
+  box-shadow: 0 0 10px rgba(166, 154, 255, 0.5);
+  animation: audit-status-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes audit-status-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Empty state */
+
+.app__sidebar .audit__empty,
+.app__sidebar .audit__mesh-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 15px 12px;
+  color: #9ba7c8;
+  background: rgba(115, 130, 184, 0.045);
+  border: 1px dashed rgba(133, 146, 210, 0.19);
+  border-radius: 11px;
+}
+
+.app__sidebar .audit__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: #aaa0ff;
+  font-size: 20px;
+  background: rgba(129, 117, 255, 0.12);
+  border: 1px solid rgba(129, 117, 255, 0.2);
+  border-radius: 10px;
+}
+
+.app__sidebar .audit__empty strong,
+.app__sidebar .audit__mesh-empty strong {
+  color: #e6eaff;
+  font-size: 12px;
+}
+
+.app__sidebar .audit__empty > span:last-child,
+.app__sidebar .audit__mesh-empty > span {
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+/* Audit verdict */
+
+.app__sidebar .audit .verdict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 15px;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 750;
+  border-radius: 9px;
+  overflow-wrap: anywhere;
+}
+
+.app__sidebar .audit .verdict--ok {
+  color: #83e5bb;
+  background: rgba(56, 190, 135, 0.09);
+  border: 1px solid rgba(79, 209, 157, 0.2);
+}
+
+.app__sidebar .audit .verdict--bad {
+  color: #ff9ba4;
+  background: rgba(239, 91, 110, 0.09);
+  border: 1px solid rgba(239, 91, 110, 0.2);
+}
+
+.app__sidebar .audit__verdict-indicator {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Query performance metrics */
+
+.app__sidebar .audit__section-label {
+  margin-bottom: 9px;
+  color: #8c98bb;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 1.25px;
+  text-transform: uppercase;
+}
+
+.app__sidebar .audit__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.app__sidebar .audit__metric {
+  min-width: 0;
+  padding: 10px;
+  background: rgba(115, 130, 184, 0.055);
+  border: 1px solid rgba(133, 146, 210, 0.11);
+  border-radius: 10px;
+}
+
+.app__sidebar .audit__metric dt {
+  margin-bottom: 7px;
+  color: #8e9abc;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.app__sidebar .audit__metric dd {
+  margin: 0;
+  color: #e3e8ff;
+  font-size: 15px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.app__sidebar .audit__metric .audit__metric-detail {
+  color: #b8b0ff;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+/* WebRTC mesh section */
+
+.app__sidebar .audit__mesh-section {
+  min-width: 0;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(133, 146, 210, 0.13);
+}
+
+.app__sidebar .audit__mesh-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+
+.app__sidebar .audit__mesh-header h3 {
+  margin: 0;
+  color: #e9edff;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.app__sidebar .audit__mesh-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  color: #aab5d4;
+  font-size: 10px;
+}
+
+.app__sidebar .audit__mesh-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #62deb0;
+  box-shadow: 0 0 8px rgba(98, 222, 176, 0.3);
+}
+
+/* Connection rows */
+
+.app__sidebar .audit__mesh-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app__sidebar .audit__mesh-list > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  background: rgba(115, 130, 184, 0.05);
+  border: 1px solid rgba(133, 146, 210, 0.11);
+  border-radius: 9px;
+}
+
+.app__sidebar .audit__peer-id {
+  justify-self: start;
+  max-width: 100%;
+  color: #c5bdff;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.app__sidebar .audit__peer-state {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 6px;
+  min-width: 0;
+  color: #aeb9d9;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.app__sidebar .audit__peer-state-dot {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #65dcae;
+}
+
+.app__sidebar .audit__mesh-list .panel__meta {
+  min-width: 0;
+  color: #8996b8;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.app__sidebar .audit__mesh-list .audit__rtt {
+  justify-self: end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Compact screens */
+
+@media (max-width: 1100px) {
+  .app__sidebar > .panel.audit {
+    padding: 14px;
+  }
+
+  .app__sidebar .audit__metric {
+    padding: 9px;
+  }
+
+  .app__sidebar .audit__metric dd {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .app__sidebar > .panel.audit {
+    padding: 13px;
+  }
+
+  .app__sidebar .audit__grid {
+    gap: 7px;
+  }
+
+  .app__sidebar .audit__metric {
+    padding: 9px;
+  }
+
+  .app__sidebar .audit__metric dt {
+    font-size: 9px;
+  }
+
+  .app__sidebar .audit__metric dd {
+    font-size: 13px;
+  }
+}
+
+/* Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .app__sidebar .audit__run-indicator--running {
+    animation: none;
+  }
+}
