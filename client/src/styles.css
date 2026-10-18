@@ -5160,3 +5160,240 @@ transition: none;
     transition: none;
   }
 }
+
+/* =========================================================
+   PHASE 3 — COMMIT 31
+   PREMIUM VIRTUAL OFFICE CANVAS
+   UI ONLY — EXISTING FUNCTIONALITY PRESERVED
+   ========================================================= */
+
+/* Main virtual office panel */
+
+.app__body > .world {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 12px;
+  padding: 14px;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      150deg,
+      rgba(19, 25, 46, 0.98),
+      rgba(10, 15, 29, 0.98)
+    );
+  border: 1px solid rgba(133, 146, 210, 0.16);
+  border-radius: 16px;
+  box-shadow:
+    0 16px 42px rgba(0, 0, 0, 0.17),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+/* Canvas stage */
+
+.app__body > .world > .world__stage {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 420px;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(
+      ellipse at 50% 45%,
+      rgba(76, 92, 166, 0.09),
+      transparent 65%
+    ),
+    #090e1b;
+  border: 1px solid rgba(127, 143, 204, 0.17);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 45px rgba(0, 0, 0, 0.16),
+    0 5px 18px rgba(0, 0, 0, 0.12);
+}
+
+/* Keep the existing stacked canvas architecture intact */
+
+.app__body > .world .world__layer {
+  display: block;
+  max-width: none;
+  image-rendering: auto;
+}
+
+.app__body > .world .world__layer--static {
+  pointer-events: none;
+}
+
+.app__body > .world .world__layer--dynamic {
+  touch-action: manipulation;
+  outline: none;
+}
+
+/* Keyboard focus for the interactive canvas */
+
+.app__body > .world .world__layer--dynamic:focus-visible {
+  outline: 2px solid #9d92ff;
+  outline-offset: -4px;
+}
+
+/* Join overlay */
+
+.app__body > .world .world__veil {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #d9dfff;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: center;
+  background: rgba(7, 11, 23, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+/* Canvas controls */
+
+.app__body > .world > .world__controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  min-width: 0;
+  padding: 11px;
+  color: #aeb9d8;
+  background: rgba(8, 13, 26, 0.72);
+  border: 1px solid rgba(133, 146, 210, 0.12);
+  border-radius: 11px;
+}
+
+/* Toggle controls */
+
+.app__body > .world .world__controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 9px;
+  color: #bac5e4;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(115, 130, 184, 0.065);
+  border: 1px solid rgba(133, 146, 210, 0.13);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.app__body > .world .world__controls label:hover {
+  color: #eff1ff;
+  background: rgba(115, 130, 184, 0.12);
+  border-color: rgba(143, 151, 255, 0.25);
+}
+
+.app__body > .world .world__controls input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #9386ff;
+  cursor: pointer;
+}
+
+.app__body > .world .world__controls label:focus-within {
+  outline: 2px solid #9d92ff;
+  outline-offset: 2px;
+}
+
+/* Movement instructions */
+
+.app__body > .world .world__hint {
+  flex: 1 1 180px;
+  min-width: 0;
+  margin-left: auto;
+  color: #858fb0;
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Medium screens */
+
+@media (max-width: 1100px) {
+  .app__body > .world {
+    padding: 11px;
+    gap: 10px;
+  }
+
+  .app__body > .world > .world__stage {
+    min-height: 360px;
+  }
+
+  .app__body > .world > .world__controls {
+    gap: 7px;
+    padding: 9px;
+  }
+
+  .app__body > .world .world__controls label {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+}
+
+/* Mobile */
+
+@media (max-width: 560px) {
+  .app__body > .world {
+    padding: 8px;
+    gap: 9px;
+    border-radius: 12px;
+  }
+
+  .app__body > .world > .world__stage {
+    min-height: 300px;
+    border-radius: 9px;
+  }
+
+  .app__body > .world > .world__controls {
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .app__body > .world .world__controls label {
+    flex: 1 1 calc(50% - 6px);
+    justify-content: flex-start;
+    min-width: 0;
+    min-height: 34px;
+    padding: 7px;
+    font-size: 10px;
+  }
+
+  .app__body > .world .world__hint {
+    flex: 1 1 100%;
+    margin-left: 0;
+    padding: 4px 2px 0;
+    text-align: left;
+  }
+
+  .app__body > .world .world__veil {
+    padding: 14px;
+    font-size: 12px;
+  }
+}
+
+/* Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .app__body > .world .world__controls label {
+    transition: none;
+  }
+}
