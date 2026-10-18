@@ -6141,3 +6141,77 @@ transition: none;
     scroll-behavior: auto;
   }
 }
+
+/* =========================================================
+   PHASE 3 — COMMIT 36
+   WORKSPACE INTERACTION STATES
+   UI ONLY — EXISTING FUNCTIONALITY PRESERVED
+   ========================================================= */
+
+/* Workspace buttons */
+
+.app__workspace button,
+.office-sidebar button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app__workspace button:not(:disabled):focus-visible,
+.office-sidebar button:not(:disabled):focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 3px;
+}
+
+/* Workspace links */
+
+.app__workspace a:focus-visible,
+.office-sidebar a:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 3px;
+  border-radius: 5px;
+}
+
+/* Disabled controls */
+
+.app__workspace button:disabled,
+.office-sidebar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+/* Range controls */
+
+.app__workspace input[type="range"] {
+  accent-color: #a78bfa;
+}
+
+.app__workspace input[type="range"]:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 4px;
+}
+
+/* Keyboard focus for form controls */
+
+.app__workspace input:not([type="range"]):focus-visible,
+.app__workspace select:focus-visible,
+.app__workspace textarea:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 2px;
+}
+
+/* Touch devices */
+
+@media (hover: none) {
+  .app__workspace button,
+  .office-sidebar button {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Reduced motion preference */
+
+@media (prefers-reduced-motion: reduce) {
+  .app__workspace *,
+  .office-sidebar * {
+    scroll-behavior: auto;
+  }
+}
