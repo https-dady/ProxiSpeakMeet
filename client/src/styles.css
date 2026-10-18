@@ -5606,3 +5606,336 @@ transition: none;
     transition: none;
   }
 }
+
+/* =========================================================
+   PHASE 3 — COMMIT 33
+   PREMIUM JOIN SCREEN REFINEMENT
+   UI ONLY — EXISTING JOIN FLOW PRESERVED
+   ========================================================= */
+
+/* Form field surfaces */
+
+.gate__card .field > input:not([type="color"]) {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 11px 12px;
+
+  color: #edf0ff;
+  background: rgba(7, 12, 25, 0.76);
+  border: 1px solid rgba(137, 151, 204, 0.2);
+  border-radius: 9px;
+
+  font: inherit;
+  font-size: 12px;
+
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.gate__card .field > input:not([type="color"]):hover {
+  border-color: rgba(151, 143, 255, 0.38);
+}
+
+.gate__card .field > input:not([type="color"]):focus-visible {
+  outline: none;
+  border-color: #9d92ff;
+  background: rgba(10, 16, 33, 0.96);
+  box-shadow: 0 0 0 3px rgba(157, 146, 255, 0.13);
+}
+
+.gate__card .field > input::placeholder {
+  color: #687493;
+  opacity: 1;
+}
+
+/* Profile section labels */
+
+.gate__section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gate__section-number {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 27px;
+  width: 27px;
+  height: 27px;
+
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.24);
+  border-radius: 8px;
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.gate__section-heading > span:last-child {
+  color: #e0e6ff;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+/* Profile colour selector */
+
+.gate__swatches {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gate__swatches .swatch {
+  position: relative;
+  flex: 0 0 25px;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+
+  border: 2px solid rgba(220, 226, 255, 0.18);
+  border-radius: 50%;
+
+  cursor: pointer;
+
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.gate__swatches .swatch:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.85);
+}
+
+.gate__swatches .swatch--active {
+  border-color: #ffffff;
+  box-shadow:
+    0 0 0 3px rgba(157, 146, 255, 0.24),
+    0 0 14px rgba(157, 146, 255, 0.16);
+}
+
+.gate__swatches .swatch:focus-visible {
+  outline: 2px solid #c4b5fd;
+  outline-offset: 4px;
+}
+
+.gate__swatches input[type="color"] {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 3px;
+
+  background: rgba(11, 17, 34, 0.9);
+  border: 1px solid rgba(137, 151, 204, 0.24);
+  border-radius: 8px;
+
+  cursor: pointer;
+}
+
+.gate__swatches input[type="color"]:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 3px;
+}
+
+.gate__color-value {
+  color: #8e9abb;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+}
+
+/* Avatar selector */
+
+.gate__avatars {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.gate__avatars .shape {
+  display: grid;
+  place-items: center;
+  flex: 0 0 35px;
+  width: 35px;
+  height: 35px;
+  padding: 0;
+
+  background: rgba(120, 134, 190, 0.08);
+  border: 1px solid rgba(137, 151, 204, 0.2);
+  border-radius: 10px;
+
+  cursor: pointer;
+
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.gate__avatars .shape:hover {
+  background: rgba(139, 92, 246, 0.12);
+  border-color: rgba(167, 139, 250, 0.5);
+  transform: translateY(-1px);
+}
+
+.gate__avatars .shape--active {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.12);
+}
+
+.gate__avatars .shape:focus-visible {
+  outline: 2px solid #c4b5fd;
+  outline-offset: 3px;
+}
+
+.gate__avatar-label {
+  color: #aeb9d8;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+/* Field guidance */
+
+.gate__field-hint {
+  color: #7885a8;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+/* Join actions */
+
+.gate__actions .button {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 750;
+
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.gate__actions .button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.gate__actions .button:focus-visible {
+  outline: 2px solid #c4b5fd;
+  outline-offset: 3px;
+}
+
+.gate__actions .button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+/* Connection information */
+
+.gate__connection-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+
+  color: #aeb9d8;
+  background: rgba(93, 105, 164, 0.075);
+  border: 1px solid rgba(137, 151, 204, 0.14);
+  border-radius: 10px;
+}
+
+.gate__connection-note p {
+  min-width: 0;
+  margin: 0;
+
+  color: #929fbe;
+  font-size: 10px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.gate__connection-note strong {
+  color: #dce3ff;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.gate__connection-indicator {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+
+  background: #34d399;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.35);
+}
+
+/* Validation and microphone errors */
+
+.gate__card .alert--error {
+  padding: 11px 12px;
+
+  color: #fecdd3;
+  background: rgba(244, 63, 94, 0.09);
+  border: 1px solid rgba(251, 113, 133, 0.25);
+  border-radius: 9px;
+
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+/* Compact screens */
+
+@media (max-width: 560px) {
+  .gate__swatches {
+    gap: 9px;
+  }
+
+  .gate__avatars {
+    gap: 9px;
+  }
+
+  .gate__connection-note {
+    padding: 11px;
+  }
+
+  .gate__footer {
+    flex-wrap: wrap;
+    row-gap: 5px;
+    line-height: 1.7;
+  }
+}
+
+/* Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .gate__card .field > input:not([type="color"]),
+  .gate__swatches .swatch,
+  .gate__avatars .shape,
+  .gate__actions .button {
+    transition: none;
+  }
+
+  .gate__swatches .swatch:hover,
+  .gate__avatars .shape:hover,
+  .gate__actions .button:not(:disabled):hover {
+    transform: none;
+  }
+}
