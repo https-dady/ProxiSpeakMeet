@@ -6054,3 +6054,90 @@ transition: none;
     max-width: 100%;
   }
 }
+
+/* =========================================================
+   PHASE 3 — COMMIT 35
+   PREMIUM WORKSPACE SURFACE POLISH
+   UI ONLY — EXISTING FUNCTIONALITY PRESERVED
+   ========================================================= */
+
+/* Main workspace background */
+
+.app__workspace {
+  background:
+    radial-gradient(
+      ellipse at 80% 0%,
+      rgba(85, 75, 165, 0.075),
+      transparent 38%
+    ),
+    linear-gradient(
+      145deg,
+      #0c1120 0%,
+      #090d19 55%,
+      #0b1020 100%
+    );
+}
+
+/* Consistent panel surfaces */
+
+.app__sidebar > .panel {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(20, 27, 49, 0.96),
+      rgba(12, 17, 32, 0.98)
+    );
+
+  border-color: rgba(139, 151, 207, 0.16);
+
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+/* Subtle separation between workspace regions */
+
+.app__workspace > .statusbar {
+  border-bottom-color: rgba(139, 151, 207, 0.14);
+}
+
+/* Refined focus visibility */
+
+.app__workspace button:focus-visible,
+.app__workspace input:focus-visible,
+.app__workspace select:focus-visible,
+.app__workspace a:focus-visible,
+.office-sidebar button:focus-visible,
+.office-sidebar a:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 3px;
+}
+
+/* Keep surfaces stable on compact screens */
+
+@media (max-width: 560px) {
+  .app__workspace {
+    background:
+      linear-gradient(
+        160deg,
+        #0c1120,
+        #090d19 65%,
+        #0b1020
+      );
+  }
+
+  .app__sidebar > .panel {
+    box-shadow:
+      0 8px 22px rgba(0, 0, 0, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  }
+}
+
+/* Respect reduced-motion preferences */
+
+@media (prefers-reduced-motion: reduce) {
+  .app__workspace,
+  .app__sidebar > .panel {
+    scroll-behavior: auto;
+  }
+}
