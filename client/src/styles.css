@@ -6216,55 +6216,77 @@ transition: none;
   }
 }
 
-
 /* =========================================================
-   COMMIT 37 — MOBILE WORKSPACE HEIGHT FIX
-   UI ONLY — PRESERVE CANVAS AND AUDIO BEHAVIOR
+   CONSOLIDATED WORKSPACE LAYOUT CORRECTION
+   Replaces conflicting late mobile height overrides.
+   CSS only — application behavior remains unchanged.
    ========================================================= */
 
-@media (max-width: 560px) {
+/* Desktop: fit the workspace to the viewport and scroll only the panels. */
+@media (min-width: 821px) {
   .app:not(.app--gate) {
-    min-height: 100%;
-    height: auto;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
   }
 
-  .app__workspace {
-    flex: 1 0 auto;
+  .app:not(.app--gate) > .office-sidebar {
+    flex: 0 0 252px;
+    height: 100dvh;
     min-height: 0;
   }
 
-  .app__body {
+  .app:not(.app--gate) > .app__workspace {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    width: 0;
+    height: 100dvh;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app__workspace > .statusbar {
     flex: 0 0 auto;
+  }
+
+  .app__workspace > .app__body {
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 0;
-    align-content: start;
+    overflow: hidden;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+    align-items: stretch;
   }
 
   .app__body > .world {
+    min-width: 0;
     min-height: 0;
+    overflow: hidden;
   }
 
   .app__body > .world > .world__stage {
-    flex: 0 0 auto;
-    min-height: 240px;
-    height: clamp(240px, 48vh, 340px);
-  }
-
-  .app__body > .world > .world__controls {
-    min-width: 0;
-    max-width: 100%;
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
   }
 
   .app__sidebar {
+    height: 100%;
     min-height: 0;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 }
 
-/* =========================================================
-   COMMIT 38 — FIX MOBILE WORKSPACE OVERFLOW
-   UI ONLY — PRESERVE EXISTING FUNCTIONALITY
-   ========================================================= */
-
-@media (max-width: 560px) {
+/* Tablet and mobile: keep the top navigation visible and scroll workspace content. */
+@media (max-width: 820px) {
   .app:not(.app--gate) {
     display: flex;
     flex-direction: column;
@@ -6275,9 +6297,11 @@ transition: none;
   }
 
   .app:not(.app--gate) > .office-sidebar {
+    position: relative;
     flex: 0 0 auto;
     width: 100%;
-    min-width: 0;
+    height: auto;
+    min-height: 0;
   }
 
   .app:not(.app--gate) > .app__workspace {
@@ -6285,11 +6309,12 @@ transition: none;
     flex: 1 1 0;
     flex-direction: column;
     width: 100%;
+    height: 0;
     min-width: 0;
     min-height: 0;
-    height: 0;
-    overflow-y: auto;
     overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
   }
 
   .app__workspace > .statusbar {
@@ -6299,32 +6324,53 @@ transition: none;
   }
 
   .app__workspace > .app__body {
-    display: flex;
+    display: grid;
     flex: 0 0 auto;
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .app__body > .world {
     width: 100%;
     min-width: 0;
     min-height: 0;
   }
 
-  .app__body > .world {
-    flex: 0 0 auto;
-    width: 100%;
-    min-width: 0;
-  }
-
   .app__body > .world > .world__stage {
     flex: 0 0 auto;
     width: 100%;
-    height: clamp(240px, 42dvh, 300px);
+    height: clamp(240px, 42dvh, 360px);
     min-height: 240px;
   }
 
   .app__sidebar {
+    display: flex;
     flex: 0 0 auto;
+    flex-direction: column;
     width: 100%;
     min-width: 0;
     max-height: none;
     overflow: visible;
+  }
+}
+
+@media (max-width: 560px) {
+  .app__body {
+    gap: 12px;
+    padding: 9px;
+  }
+
+  .app__body > .world > .world__controls {
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app__sidebar > .panel {
+    min-width: 0;
+    max-width: 100%;
   }
 }
