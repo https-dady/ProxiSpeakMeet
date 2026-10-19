@@ -6215,3 +6215,116 @@ transition: none;
     scroll-behavior: auto;
   }
 }
+
+
+/* =========================================================
+   COMMIT 37 — MOBILE WORKSPACE HEIGHT FIX
+   UI ONLY — PRESERVE CANVAS AND AUDIO BEHAVIOR
+   ========================================================= */
+
+@media (max-width: 560px) {
+  .app:not(.app--gate) {
+    min-height: 100%;
+    height: auto;
+  }
+
+  .app__workspace {
+    flex: 1 0 auto;
+    min-height: 0;
+  }
+
+  .app__body {
+    flex: 0 0 auto;
+    min-height: 0;
+    align-content: start;
+  }
+
+  .app__body > .world {
+    min-height: 0;
+  }
+
+  .app__body > .world > .world__stage {
+    flex: 0 0 auto;
+    min-height: 240px;
+    height: clamp(240px, 48vh, 340px);
+  }
+
+  .app__body > .world > .world__controls {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app__sidebar {
+    min-height: 0;
+  }
+}
+
+/* =========================================================
+   COMMIT 38 — FIX MOBILE WORKSPACE OVERFLOW
+   UI ONLY — PRESERVE EXISTING FUNCTIONALITY
+   ========================================================= */
+
+@media (max-width: 560px) {
+  .app:not(.app--gate) {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app:not(.app--gate) > .office-sidebar {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app:not(.app--gate) > .app__workspace {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .app__workspace > .statusbar {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app__workspace > .app__body {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .app__body > .world {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app__body > .world > .world__stage {
+    flex: 0 0 auto;
+    width: 100%;
+    height: clamp(240px, 42dvh, 300px);
+    min-height: 240px;
+  }
+
+  .app__sidebar {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+    overflow: visible;
+  }
+}
