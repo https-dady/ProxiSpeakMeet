@@ -6374,3 +6374,23 @@ transition: none;
     max-width: 100%;
   }
 }
+
+/* =========================================================
+   COMMIT 39 — VIRTUAL OFFICE CANVAS ASPECT RATIO
+   UI ONLY — PRESERVE CANVAS RENDERING AND MOVEMENT
+   ========================================================= */
+
+@media (min-width: 1101px) {
+  .app__body > .world {
+    align-self: start;
+    min-height: 0;
+  }
+
+  .app__body > .world > .world__stage {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+  }
+}
