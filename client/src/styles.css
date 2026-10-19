@@ -6394,3 +6394,36 @@ transition: none;
     aspect-ratio: 16 / 9;
   }
 }
+
+/* =========================================================
+   COMMIT 40 — DESKTOP WORKSPACE PANEL ALIGNMENT
+   UI ONLY — PRESERVE CANVAS AND AUDIO BEHAVIOR
+   ========================================================= */
+
+@media (min-width: 1101px) {
+  .app__body {
+    align-items: stretch;
+    min-height: 0;
+  }
+
+  .app__body > .world {
+    align-self: stretch;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .app__body > .world > .world__stage {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+  }
+
+  .app__sidebar {
+    align-self: stretch;
+    min-height: 0;
+    max-height: calc(100vh - 110px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+}
