@@ -7523,3 +7523,241 @@ transition: none;
     transition: none;
   }
 }
+
+/* =========================================================
+   COMMIT 47 — PREMIUM STATUS BAR REFINEMENT
+   UI ONLY — PRESERVE STATUS AND AUDIO CONTROL LOGIC
+   ========================================================= */
+
+.statusbar {
+  position: relative;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(137, 157, 205, 0.14);
+  background:
+    linear-gradient(
+      110deg,
+      rgba(19, 27, 47, 0.98),
+      rgba(11, 16, 30, 0.98)
+    );
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+}
+
+.statusbar__left {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  gap: 9px;
+}
+
+.statusbar__connection {
+  color: #e0e7ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+.statusbar__detail {
+  max-width: 240px;
+  color: #a7b5d0;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.statusbar .dot {
+  position: relative;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.statusbar .dot--online {
+  color: #4adea0;
+}
+
+.statusbar .dot--connecting,
+.statusbar .dot--reconnecting {
+  color: #f4c76b;
+}
+
+.statusbar .dot--error {
+  color: #fb7185;
+}
+
+.statusbar__stats {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  gap: 7px;
+}
+
+.statusbar__stat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 1px solid rgba(137, 157, 205, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  color: #a7b5d0;
+  font-size: 10px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.statusbar .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 27px;
+  padding: 4px 9px;
+  border: 1px solid rgba(139, 130, 255, 0.24);
+  border-radius: 8px;
+  background: rgba(108, 92, 231, 0.11);
+  color: #c8c0ff;
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.statusbar__right {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusbar .volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 5px 10px;
+  border: 1px solid rgba(137, 157, 205, 0.16);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.statusbar .volume input[type="range"] {
+  width: 88px;
+  accent-color: #9488ff;
+  cursor: pointer;
+}
+
+.statusbar__right .button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 650;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.statusbar__right .button--toggle {
+  border-color: rgba(139, 130, 255, 0.25);
+}
+
+.statusbar__right .button--active {
+  border-color: rgba(251, 113, 133, 0.35);
+  background: rgba(251, 113, 133, 0.1);
+  color: #fda4af;
+}
+
+.statusbar__right .button:not(.button--active):hover {
+  border-color: rgba(139, 130, 255, 0.42);
+  background: rgba(108, 92, 231, 0.1);
+}
+
+.statusbar__right .button:focus-visible,
+.statusbar .volume input:focus-visible {
+  outline: 2px solid #a99fff;
+  outline-offset: 3px;
+}
+
+/* Compact desktop and tablet layouts */
+@media (max-width: 1100px) {
+  .statusbar {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .statusbar__left {
+    flex: 1 1 180px;
+  }
+
+  .statusbar__stats {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    order: 3;
+  }
+
+  .statusbar__right {
+    margin-left: auto;
+  }
+}
+
+/* Mobile status bar */
+@media (max-width: 560px) {
+  .statusbar {
+    gap: 10px;
+    padding: 11px 12px;
+  }
+
+  .statusbar__left {
+    flex: 1 1 100%;
+  }
+
+  .statusbar__detail {
+    max-width: 100%;
+  }
+
+  .statusbar__stats {
+    gap: 6px;
+  }
+
+  .statusbar__stat {
+    min-height: 26px;
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  .statusbar__right {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+
+  .statusbar .volume {
+    flex: 1 1 120px;
+    min-width: 0;
+  }
+
+  .statusbar .volume input[type="range"] {
+    flex: 1 1 auto;
+    min-width: 40px;
+    width: auto;
+  }
+
+  .statusbar__right .button {
+    flex: 0 0 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statusbar__right .button {
+    transition: none;
+  }
+}
