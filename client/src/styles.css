@@ -7988,3 +7988,245 @@ transition: none;
     transition: none;
   }
 }
+
+/* =========================================================
+   COMMIT 49 — PREMIUM LIVE CONNECTIONS PANEL
+   UI ONLY — PRESERVE REAL PEER AND SPATIAL AUDIO DATA
+   ========================================================= */
+
+.peers {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(137, 157, 205, 0.15);
+  border-radius: 15px;
+  background:
+    radial-gradient(
+      ellipse at 100% 0%,
+      rgba(108, 92, 231, 0.07),
+      transparent 45%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(20, 28, 48, 0.97),
+      rgba(12, 18, 33, 0.98)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 10px 26px rgba(0, 0, 0, 0.1);
+}
+
+.peers .panel__header {
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid rgba(137, 157, 205, 0.12);
+}
+
+.peers__heading {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.peers__eyebrow {
+  color: #8492b4;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 1.65px;
+}
+
+.peers .panel__header h2,
+.peers .panel__header h3 {
+  color: #edf0ff;
+  letter-spacing: -0.25px;
+}
+
+.peers__count {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 27px;
+  padding: 5px 9px;
+  border: 1px solid rgba(74, 222, 160, 0.19);
+  border-radius: 8px;
+  background: rgba(74, 222, 160, 0.07);
+  color: #a5edcf;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.peers__count-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #4adea0;
+  box-shadow: 0 0 9px rgba(74, 222, 160, 0.4);
+}
+
+.peers__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  list-style: none;
+}
+
+.peer {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(137, 157, 205, 0.12);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.022);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.peer--live {
+  border-color: rgba(139, 130, 255, 0.2);
+  background:
+    linear-gradient(
+      115deg,
+      rgba(108, 92, 231, 0.075),
+      rgba(255, 255, 255, 0.018)
+    );
+}
+
+.peer--live:hover {
+  border-color: rgba(139, 130, 255, 0.38);
+  background-color: rgba(108, 92, 231, 0.07);
+}
+
+.peer__avatar {
+  position: relative;
+  display: grid;
+  flex: 0 0 39px;
+  place-items: center;
+  width: 39px;
+  height: 39px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 3px rgba(139, 130, 255, 0.055),
+    0 4px 12px rgba(0, 0, 0, 0.14);
+}
+
+.peer__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.peer__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.peer__name {
+  min-width: 0;
+  color: #e7ebff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.peer__meter {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(137, 157, 205, 0.13);
+}
+
+.peer__meter > * {
+  border-radius: inherit;
+}
+
+.peer__gain,
+.peer__level {
+  color: #9b8cff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.peer__numbers {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 8px;
+  color: #8d9bbb;
+  font-size: 10px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.peer__numbers > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.peers__empty {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 28px 18px;
+  color: #9aa8c7;
+  text-align: center;
+}
+
+.peers__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(139, 130, 255, 0.19);
+  border-radius: 14px;
+  background: rgba(108, 92, 231, 0.09);
+  color: #b5aaff;
+  font-size: 19px;
+}
+
+@media (max-width: 560px) {
+  .peers {
+    border-radius: 12px;
+  }
+
+  .peers .panel__header {
+    padding: 13px;
+  }
+
+  .peers__list {
+    gap: 7px;
+    padding: 9px;
+  }
+
+  .peer {
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .peer__avatar {
+    flex-basis: 35px;
+    width: 35px;
+    height: 35px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .peer {
+    transition: none;
+  }
+}
