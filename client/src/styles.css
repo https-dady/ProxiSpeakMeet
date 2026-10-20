@@ -6376,28 +6376,8 @@ transition: none;
 }
 
 /* =========================================================
-   COMMIT 39 — VIRTUAL OFFICE CANVAS ASPECT RATIO
-   UI ONLY — PRESERVE CANVAS RENDERING AND MOVEMENT
-   ========================================================= */
-
-@media (min-width: 1101px) {
-  .app__body > .world {
-    align-self: start;
-    min-height: 0;
-  }
-
-  .app__body > .world > .world__stage {
-    flex: 0 0 auto;
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    aspect-ratio: 16 / 9;
-  }
-}
-
-/* =========================================================
-   COMMIT 40 — DESKTOP WORKSPACE PANEL ALIGNMENT
-   UI ONLY — PRESERVE CANVAS AND AUDIO BEHAVIOR
+   COMMIT 41 — CONSOLIDATED DESKTOP WORKSPACE LAYOUT
+   UI ONLY — PRESERVE CANVAS RENDERING AND AUDIO BEHAVIOR
    ========================================================= */
 
 @media (min-width: 1101px) {
@@ -6408,18 +6388,21 @@ transition: none;
 
   .app__body > .world {
     align-self: stretch;
+    min-width: 0;
     min-height: 0;
-    height: 100%;
   }
 
   .app__body > .world > .world__stage {
     flex: 0 0 auto;
     width: 100%;
+    height: auto;
+    min-height: 0;
     aspect-ratio: 16 / 9;
   }
 
   .app__sidebar {
     align-self: stretch;
+    min-width: 0;
     min-height: 0;
     max-height: calc(100vh - 110px);
     overflow-x: hidden;
