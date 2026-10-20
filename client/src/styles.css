@@ -7340,3 +7340,186 @@ transition: none;
     animation-iteration-count: 1;
   }
 }
+
+/* =========================================================
+   COMMIT 46 — PREMIUM VIRTUAL OFFICE MAP CONTROLS
+   UI ONLY — PRESERVE CANVAS, MOVEMENT AND AUDIO BEHAVIOR
+   ========================================================= */
+
+.world__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(137, 157, 205, 0.14);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(24, 33, 57, 0.96),
+      rgba(13, 19, 35, 0.98)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+  color: #aab8d4;
+  box-sizing: border-box;
+}
+
+.world__controls label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(137, 157, 205, 0.16);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.025);
+  color: #aab8d4;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.025em;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.world__controls label:hover {
+  border-color: rgba(139, 130, 255, 0.38);
+  background: rgba(108, 92, 231, 0.08);
+  color: #e0e7ff;
+}
+
+.world__controls label:has(input:checked) {
+  border-color: rgba(139, 130, 255, 0.32);
+  background: rgba(108, 92, 231, 0.12);
+  color: #dcd9ff;
+}
+
+.world__controls input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-content: center;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border: 1px solid #53617e;
+  border-radius: 4px;
+  background: #111a2d;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.world__controls input[type="checkbox"]::before {
+  content: "";
+  width: 7px;
+  height: 4px;
+  border: solid #ffffff;
+  border-width: 0 0 2px 2px;
+  transform: rotate(-45deg) scale(0);
+  transform-origin: center;
+  transition: transform 120ms ease;
+}
+
+.world__controls input[type="checkbox"]:checked {
+  border-color: #9488ff;
+  background: #7565e8;
+  box-shadow: 0 0 12px rgba(117, 101, 232, 0.2);
+}
+
+.world__controls input[type="checkbox"]:checked::before {
+  transform: rotate(-45deg) scale(1);
+}
+
+.world__controls input[type="checkbox"]:focus-visible {
+  outline: 2px solid #a99fff;
+  outline-offset: 3px;
+}
+
+.world__controls label:focus-within {
+  border-color: rgba(169, 159, 255, 0.65);
+}
+
+.world__hint {
+  display: inline-flex;
+  flex: 1 1 220px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 0 4px;
+  color: #7787a8;
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: right;
+}
+
+/* Tablet: keep controls readable without squeezing the map. */
+@media (max-width: 1100px) {
+  .world__controls {
+    gap: 8px;
+    padding: 11px;
+  }
+
+  .world__controls label {
+    padding: 0 10px;
+  }
+
+  .world__hint {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding: 3px 2px 0;
+    text-align: left;
+  }
+}
+
+/* Mobile: controls wrap naturally and remain touch-friendly. */
+@media (max-width: 560px) {
+  .world__controls {
+    gap: 7px;
+    margin-top: 9px;
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .world__controls label {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 10px;
+  }
+
+  .world__controls input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+  }
+
+  .world__hint {
+    flex-basis: 100%;
+    font-size: 10px;
+  }
+}
+
+/* Respect reduced-motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  .world__controls label,
+  .world__controls input[type="checkbox"],
+  .world__controls input[type="checkbox"]::before {
+    transition: none;
+  }
+}
