@@ -9090,3 +9090,389 @@ transition: none;
     transition: none;
   }
 }
+
+/* =========================================================
+   COMMIT 53 — PREMIUM SPATIAL AUDIO LEGEND
+   UI-only refinement.
+   Preserves existing React classes, legend data and behavior.
+   ========================================================= */
+
+.legend {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(99, 102, 241, 0.09),
+      transparent 42%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(17, 24, 45, 0.97),
+      rgba(10, 15, 30, 0.98)
+    );
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.legend::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(129, 140, 248, 0.42),
+    transparent
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.legend__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.legend__heading {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.legend__eyebrow {
+  color: #8b9bbd;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.17em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.legend__heading h2 {
+  margin: 0;
+  color: #f1f5ff;
+  font-size: clamp(17px, 1.3vw, 20px);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1.3;
+}
+
+.legend__badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid rgba(90, 209, 154, 0.19);
+  border-radius: 999px;
+  background: rgba(90, 209, 154, 0.07);
+  color: #a0e8c4;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.075em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.legend__badge::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #5ad19a;
+  box-shadow: 0 0 10px rgba(90, 209, 154, 0.48);
+  content: "";
+}
+
+.legend__list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend__item {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.075);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.018);
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.legend__item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(129, 140, 248, 0.2);
+  background: rgba(129, 140, 248, 0.045);
+}
+
+.legend__marker {
+  position: relative;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--legend-color, #818cf8) 28%,
+    transparent
+  );
+  border-radius: 12px;
+  background: color-mix(
+    in srgb,
+    var(--legend-color, #818cf8) 9%,
+    transparent
+  );
+  color: var(--legend-color, #818cf8);
+}
+
+.legend__marker > span {
+  position: relative;
+  display: block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 0 0 5px color-mix(
+      in srgb,
+      var(--legend-color, #818cf8) 13%,
+      transparent
+    ),
+    0 0 13px color-mix(
+      in srgb,
+      var(--legend-color, #818cf8) 45%,
+      transparent
+    );
+}
+
+.legend__item--distance .legend__marker > span {
+  width: 19px;
+  height: 19px;
+  border: 1px dashed currentColor;
+  background: transparent;
+  box-shadow: none;
+}
+
+.legend__item--distance .legend__marker > span::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.legend__item--speaking .legend__marker > span {
+  animation: proxi-legend-speaking 2s ease-out infinite;
+}
+
+.legend__item--blocked .legend__marker > span {
+  width: 20px;
+  height: 2px;
+  border: 0;
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    currentColor 0 4px,
+    transparent 4px 7px
+  );
+  box-shadow: none;
+}
+
+.legend__item--blocked .legend__marker > span::after {
+  position: absolute;
+  top: -4px;
+  left: 8px;
+  width: 4px;
+  height: 10px;
+  border-radius: 2px;
+  background: currentColor;
+  content: "";
+}
+
+.legend__content {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.legend__content strong {
+  color: #e6ecfb;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.legend__content > span {
+  color: #8d9ab6;
+  font-size: 11px;
+  font-weight: 450;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.legend__footnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 17px;
+  padding: 13px 12px;
+  border: 1px solid rgba(129, 140, 248, 0.12);
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.055);
+  color: #aab7d2;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.legend__footnote-dot {
+  position: relative;
+  top: 5px;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #818cf8;
+  box-shadow: 0 0 10px rgba(129, 140, 248, 0.35);
+}
+
+@keyframes proxi-legend-speaking {
+  0% {
+    box-shadow:
+      0 0 0 0 color-mix(
+        in srgb,
+        var(--legend-color, #5ad19a) 30%,
+        transparent
+      ),
+      0 0 10px color-mix(
+        in srgb,
+        var(--legend-color, #5ad19a) 35%,
+        transparent
+      );
+  }
+
+  70% {
+    box-shadow:
+      0 0 0 7px transparent,
+      0 0 13px color-mix(
+        in srgb,
+        var(--legend-color, #5ad19a) 25%,
+        transparent
+      );
+  }
+
+  100% {
+    box-shadow:
+      0 0 0 0 transparent,
+      0 0 10px color-mix(
+        in srgb,
+        var(--legend-color, #5ad19a) 35%,
+        transparent
+      );
+  }
+}
+
+/* Tablet and compact sidebar layout */
+@media (max-width: 1100px) {
+  .legend {
+    padding: 17px;
+    border-radius: 17px;
+  }
+
+  .legend__header {
+    margin-bottom: 16px;
+  }
+
+  .legend__item {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 11px;
+    padding: 10px;
+  }
+
+  .legend__marker {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+}
+
+/* Small screens */
+@media (max-width: 560px) {
+  .legend {
+    padding: 15px;
+  }
+
+  .legend__header {
+    gap: 8px;
+  }
+
+  .legend__badge {
+    padding: 6px 7px;
+    font-size: 8px;
+  }
+
+  .legend__item {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .legend__marker {
+    width: 32px;
+    height: 32px;
+  }
+
+  .legend__content strong {
+    font-size: 12px;
+  }
+
+  .legend__content > span {
+    font-size: 10px;
+  }
+
+  .legend__footnote {
+    margin-top: 13px;
+    padding: 11px;
+    font-size: 10px;
+  }
+}
+
+/* Keyboard accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .legend__item,
+  .legend__item--speaking .legend__marker > span {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .legend__item:hover {
+    transform: none;
+  }
+}
