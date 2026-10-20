@@ -1,11 +1,13 @@
 /**
- * Join gate (Week 1 + mic-permission UX).
+ * ProxiSpeak — Join Office
  *
- * UI refinement only:
- * - Preserves the existing join and microphone permission flow.
- * - Preserves name, room, colour and avatar state.
+ * UI refinement:
+ * - Premium split-layout join experience.
+ * - Preserves profile, avatar and microphone selection.
+ * - Supports room prefill from an invite URL.
  * - Preserves listen-only joining and existing error handling.
- * - Does not modify WebRTC, Socket.IO or spatial audio behavior.
+ *
+ * Socket.IO, WebRTC and spatial-audio behavior remain unchanged.
  */
 
 import { useState } from 'react';
@@ -23,16 +25,49 @@ const COLOR_SWATCHES = [
   '#ff9f45',
 ];
 
+const FEATURES = [
+  {
+    icon: '◉',
+    title: 'Real-time voice',
+    description: 'Talk naturally with teammates nearby.',
+  },
+  {
+    icon: '⌁',
+    title: 'Spatial audio',
+    description: 'Hear conversations change with distance.',
+  },
+  {
+    icon: '⌖',
+    title: 'Virtual office',
+    description: 'Move around a shared workspace.',
+  },
+];
+
+function getInitialRoom() {
+  try {
+    const invitedRoom = new URLSearchParams(
+      window.location.search
+    ).get('room');
+
+    return invitedRoom?.trim() || config.defaultRoom;
+  } catch {
+    return config.defaultRoom;
+  }
+}
+
 export function MicGate() {
   const { state, join, requestMicrophone } = useProxi();
 
-  const [roomId, setRoomId] = useState(config.defaultRoom);
+  const [roomId, setRoomId] = useState(getInitialRoom);
+
   const [name, setName] = useState(
     () => localStorage.getItem('proxispeak:name') ?? ''
   );
+
   const [color, setColor] = useState(
     () => localStorage.getItem('proxispeak:color') ?? '#4f8cff'
   );
+
   const [avatar, setAvatar] = useState('circle');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -47,9 +82,17 @@ export function MicGate() {
     localStorage.setItem('proxispeak:color', color);
 
     try {
-      if (withMic) await requestMicrophone();
+      if (withMic) {
+        await requestMicrophone();
+      }
 
-      await join({ roomId, name, color, avatar, withMic });
+      await join({
+        roomId,
+        name,
+        color,
+        avatar,
+        withMic,
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -58,180 +101,293 @@ export function MicGate() {
   };
 
   return (
-    <main className="gate">
-      <form
-        className="gate__card"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void doJoin(true);
-        }}
-      >
-        <div className="gate__brand">
-          <span className="gate__brand-mark" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
+    <main className="gate gate--split">
+      <div className="gate__layout">
+        <section
+          className="gate__hero"
+          aria-labelledby="gate-hero-title"
+        >
+          <div className="gate__hero-scene" aria-hidden="true">
+            <div className="gate__scene-glow gate__scene-glow--one" />
+            <div className="gate__scene-glow gate__scene-glow--two" />
 
-          <span className="gate__brand-name">ProxiSpeak</span>
+            <div className="gate__scene-orbit gate__scene-orbit--outer" />
+            <div className="gate__scene-orbit gate__scene-orbit--inner" />
 
-          <span className="gate__brand-badge">VIRTUAL OFFICE</span>
-        </div>
+            <div className="gate__scene-avatar gate__scene-avatar--one">
+              <span>●</span>
+            </div>
 
-        <div className="gate__intro">
-          <p className="gate__eyebrow">YOUR SPACE. YOUR PEOPLE.</p>
+            <div className="gate__scene-avatar gate__scene-avatar--two">
+              <span>●</span>
+            </div>
 
-          <h1 className="gate__title">Step into your office.</h1>
+            <div className="gate__scene-avatar gate__scene-avatar--three">
+              <span>●</span>
+            </div>
 
-          <p className="gate__subtitle">
-            A virtual workspace where distance matters. Move closer to
-            someone to hear them, and walk away to let the conversation fade.
-          </p>
-        </div>
+            <div className="gate__scene-center">
+              <span className="gate__scene-mark">
+                <span />
+                <span />
+                <span />
+              </span>
 
-        <div className="gate__section-heading">
-          <span className="gate__section-number">01</span>
-          <span>Set up your profile</span>
-        </div>
+              <span className="gate__scene-center-label">
+                YOUR OFFICE
+              </span>
+            </div>
 
-        <label className="field">
-          <span>Your name</span>
+            <div className="gate__scene-caption gate__scene-caption--left">
+              Lounge
+            </div>
 
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Ada Lovelace"
-            maxLength={24}
-            autoComplete="off"
-          />
-        </label>
+            <div className="gate__scene-caption gate__scene-caption--right">
+              Team space
+            </div>
 
-        <label className="field">
-          <span>Office room</span>
-
-          <input
-            value={roomId}
-            onChange={(event) =>
-              setRoomId(event.target.value.toLowerCase())
-            }
-            maxLength={48}
-          />
-
-          <span className="gate__field-hint">
-            Join the same room as your teammates to meet them.
-          </span>
-        </label>
-
-        <div className="field">
-          <span>Choose your colour</span>
-
-          <div className="gate__swatches">
-            {COLOR_SWATCHES.map((swatch) => (
-              <button
-                key={swatch}
-                type="button"
-                className={`swatch${
-                  color === swatch ? ' swatch--active' : ''
-                }`}
-                style={{ background: swatch }}
-                onClick={() => setColor(swatch)}
-                aria-label={`colour ${swatch}`}
-                aria-pressed={color === swatch}
-              />
-            ))}
-
-            <input
-              type="color"
-              value={color}
-              onChange={(event) => setColor(event.target.value)}
-              aria-label="custom colour"
-              title="Choose a custom colour"
-            />
-
-            <span className="gate__color-value">{color.toUpperCase()}</span>
+            <div className="gate__scene-caption gate__scene-caption--bottom">
+              Connected by proximity
+            </div>
           </div>
-        </div>
 
-        <div className="field">
-          <span>Choose your avatar</span>
+          <div className="gate__hero-content">
+            <div className="gate__brand">
+              <span className="gate__brand-mark" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
 
-          <div className="gate__avatars">
-            {AVATARS.map((shape) => (
-              <button
-                key={shape}
-                type="button"
-                className={`shape shape--${shape}${
-                  avatar === shape ? ' shape--active' : ''
-                }`}
-                onClick={() => setAvatar(shape)}
-                aria-label={`avatar ${shape}`}
-                aria-pressed={avatar === shape}
-              />
-            ))}
+              <span className="gate__brand-name">
+                ProxiSpeak
+              </span>
 
-            <span className="gate__avatar-label">
-              {avatar.charAt(0).toUpperCase() + avatar.slice(1)}
-            </span>
+              <span className="gate__brand-badge">
+                VIRTUAL OFFICE
+              </span>
+            </div>
+
+            <p className="gate__eyebrow">
+              YOUR SPACE. YOUR PEOPLE.
+            </p>
+
+            <h1
+              className="gate__title"
+              id="gate-hero-title"
+            >
+              Work together,
+              <br />
+              wherever you are.
+            </h1>
+
+            <p className="gate__subtitle">
+              Step into a shared virtual office where conversations
+              happen naturally. Move closer to teammates to hear them,
+              and walk away when it is time to focus.
+            </p>
+
+            <div className="gate__feature-list">
+              {FEATURES.map((feature) => (
+                <div
+                  className="gate__feature"
+                  key={feature.title}
+                >
+                  <span
+                    className="gate__feature-icon"
+                    aria-hidden="true"
+                  >
+                    {feature.icon}
+                  </span>
+
+                  <span className="gate__feature-copy">
+                    <strong>{feature.title}</strong>
+                    <span>{feature.description}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="gate__hero-footer">
+              <span className="gate__connection-indicator" />
+
+              <span>
+                Peer-to-peer audio powered by WebRTC
+              </span>
+            </div>
           </div>
-        </div>
+        </section>
 
-        {state.mic.error && (
-          <div className="alert alert--error" role="alert">
-            {state.mic.error}
-          </div>
-        )}
-
-        {error && (
-          <div className="alert alert--error" role="alert">
-            {error}
-          </div>
-        )}
-
-        <div className="gate__section-heading">
-          <span className="gate__section-number">02</span>
-          <span>Enter your workspace</span>
-        </div>
-
-        <div className="gate__actions">
-          <button
-            type="submit"
-            className="button button--primary"
-            disabled={busyState}
+        <section
+          className="gate__form-panel"
+          aria-labelledby="gate-form-title"
+        >
+          <form
+            className="gate__card"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void doJoin(true);
+            }}
           >
-            {busyState ? 'Connecting…' : 'Join with microphone'}
-          </button>
+            <div className="gate__form-heading">
+              <span className="gate__form-kicker">
+                GET STARTED
+              </span>
 
-          <button
-            type="button"
-            className="button"
-            disabled={busyState}
-            onClick={() => doJoin(false)}
-          >
-            Listen only
-          </button>
-        </div>
+              <h2 id="gate-form-title">
+                Join the office
+              </h2>
 
-        <div className="gate__connection-note">
-          <span
-            className="gate__connection-indicator"
-            aria-hidden="true"
-          />
+              <p>
+                Set up your profile and step into your workspace.
+              </p>
+            </div>
 
-          <p>
-            <strong>Your conversations stay direct.</strong>
-            <br />
-            Audio uses peer-to-peer WebRTC. The server relays connection
-            handshakes for people within your{' '}
-            {state.room?.width ?? 1920}px office radius.
-          </p>
-        </div>
+            <div className="gate__section-heading">
+              <span className="gate__section-number">01</span>
+              <span>Your profile</span>
+            </div>
 
-        <div className="gate__footer">
-          <span>PROXIMITY-BASED AUDIO</span>
-          <span aria-hidden="true">•</span>
-          <span>BUILT FOR COLLABORATION</span>
-        </div>
-      </form>
+            <label className="field">
+              <span>Your name</span>
+
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Enter your name"
+                maxLength={24}
+                autoComplete="name"
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Office room</span>
+
+              <input
+                value={roomId}
+                onChange={(event) =>
+                  setRoomId(event.target.value.toLowerCase())
+                }
+                maxLength={48}
+                required
+              />
+
+              <span className="gate__field-hint">
+                Join the same room as your teammates.
+              </span>
+            </label>
+
+            <div className="field">
+              <span>Choose your colour</span>
+
+              <div className="gate__swatches">
+                {COLOR_SWATCHES.map((swatch) => (
+                  <button
+                    key={swatch}
+                    type="button"
+                    className={`swatch${
+                      color === swatch ? ' swatch--active' : ''
+                    }`}
+                    style={{ background: swatch }}
+                    onClick={() => setColor(swatch)}
+                    aria-label={`Colour ${swatch}`}
+                    aria-pressed={color === swatch}
+                  />
+                ))}
+
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(event) => setColor(event.target.value)}
+                  aria-label="Custom colour"
+                  title="Choose a custom colour"
+                />
+
+                <span className="gate__color-value">
+                  {color.toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            <div className="field">
+              <span>Choose your avatar</span>
+
+              <div className="gate__avatars">
+                {AVATARS.map((shape) => (
+                  <button
+                    key={shape}
+                    type="button"
+                    className={`shape shape--${shape}${
+                      avatar === shape ? ' shape--active' : ''
+                    }`}
+                    onClick={() => setAvatar(shape)}
+                    aria-label={`Avatar ${shape}`}
+                    aria-pressed={avatar === shape}
+                  />
+                ))}
+
+                <span className="gate__avatar-label">
+                  {avatar.charAt(0).toUpperCase() + avatar.slice(1)}
+                </span>
+              </div>
+            </div>
+
+            {(state.mic.error || error) && (
+              <div className="alert alert--error" role="alert">
+                {error || state.mic.error}
+              </div>
+            )}
+
+            <div className="gate__section-heading">
+              <span className="gate__section-number">02</span>
+              <span>Enter your workspace</span>
+            </div>
+
+            <div className="gate__actions">
+              <button
+                type="submit"
+                className="button button--primary"
+                disabled={busyState}
+              >
+                {busyState
+                  ? 'Connecting…'
+                  : 'Join with microphone'}
+              </button>
+
+              <button
+                type="button"
+                className="button"
+                disabled={busyState}
+                onClick={() => void doJoin(false)}
+              >
+                Listen only
+              </button>
+            </div>
+
+            <div className="gate__connection-note">
+              <span
+                className="gate__connection-indicator"
+                aria-hidden="true"
+              />
+
+              <p>
+                <strong>Your conversations stay direct.</strong>
+                <br />
+                Audio uses peer-to-peer WebRTC. The server relays
+                connection handshakes for people within your{' '}
+                {state.room?.width ?? 1920}px office radius.
+              </p>
+            </div>
+
+            <div className="gate__footer">
+              <span>PROXIMITY-BASED AUDIO</span>
+              <span aria-hidden="true">•</span>
+              <span>BUILT FOR COLLABORATION</span>
+            </div>
+          </form>
+        </section>
+      </div>
     </main>
   );
 }
