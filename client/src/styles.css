@@ -8739,3 +8739,354 @@ transition: none;
     transition: none;
   }
 }
+
+/* =========================================================
+   COMMIT 52 — PREMIUM SPATIAL AUDIT DASHBOARD
+   UI ONLY — PRESERVE AUDIT AND WEBRTC MESH LOGIC
+   ========================================================= */
+
+.audit {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(137, 157, 205, 0.15);
+  border-radius: 15px;
+  background:
+    radial-gradient(
+      ellipse at 100% 0%,
+      rgba(108, 92, 231, 0.065),
+      transparent 42%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(20, 28, 48, 0.97),
+      rgba(12, 18, 33, 0.98)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 10px 26px rgba(0, 0, 0, 0.1);
+}
+
+.audit__header {
+  gap: 14px;
+  padding: 16px;
+  border-bottom: 1px solid rgba(137, 157, 205, 0.12);
+}
+
+.audit__heading {
+  min-width: 0;
+}
+
+.audit__eyebrow {
+  color: #8b98ba;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 1.6px;
+}
+
+.audit__heading h2,
+.audit__mesh-header h3 {
+  color: #edf0ff;
+  letter-spacing: -0.25px;
+}
+
+.audit__description {
+  max-width: 440px;
+  color: #96a4c3;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.audit__header .button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  border: 1px solid rgba(139, 130, 255, 0.29);
+  border-radius: 9px;
+  background: rgba(108, 92, 231, 0.12);
+  color: #ded9ff;
+  font-size: 11px;
+  font-weight: 700;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.audit__header .button:hover:not(:disabled) {
+  border-color: rgba(169, 159, 255, 0.6);
+  background: rgba(108, 92, 231, 0.2);
+}
+
+.audit__header .button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.audit__header .button:focus-visible {
+  outline: 2px solid #a99fff;
+  outline-offset: 3px;
+}
+
+.audit__run-indicator {
+  background: #a99fff;
+  box-shadow: 0 0 9px rgba(169, 159, 255, 0.45);
+}
+
+.audit__run-indicator--running {
+  animation: proxispeak-audit-pulse 900ms ease-in-out infinite alternate;
+}
+
+.audit__empty,
+.audit__mesh-empty {
+  gap: 9px;
+  padding: 24px 16px;
+  color: #9aa8c7;
+}
+
+.audit__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(139, 130, 255, 0.2);
+  border-radius: 13px;
+  background: rgba(108, 92, 231, 0.1);
+  color: #b7adff;
+  font-size: 19px;
+}
+
+.audit__empty strong,
+.audit__mesh-empty strong {
+  color: #e1e7ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.audit__empty > span:last-child,
+.audit__mesh-empty > span {
+  max-width: 360px;
+  color: #95a3c2;
+  font-size: 11px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.audit__results {
+  display: grid;
+  gap: 14px;
+  padding: 15px;
+}
+
+.audit .verdict {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 8px;
+  min-height: 31px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.035em;
+  font-variant-numeric: tabular-nums;
+}
+
+.audit .verdict--ok {
+  border: 1px solid rgba(74, 222, 160, 0.22);
+  background: rgba(74, 222, 160, 0.075);
+  color: #8be4bd;
+}
+
+.audit .verdict--bad {
+  border: 1px solid rgba(251, 113, 133, 0.24);
+  background: rgba(251, 113, 133, 0.08);
+  color: #fda4af;
+}
+
+.audit__verdict-indicator {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.audit__section-label {
+  color: #9caaca;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.audit__grid {
+  gap: 9px;
+}
+
+.audit__metric {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(137, 157, 205, 0.13);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.023);
+}
+
+.audit__metric dt {
+  color: #8e9cbb;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.audit__metric dd {
+  margin-top: 7px;
+  color: #e5e9ff;
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.audit__metric .audit__metric-detail {
+  color: #bcb3ff;
+  font-size: 11px;
+}
+
+.audit__mesh-section {
+  margin-top: 2px;
+  border-top: 1px solid rgba(137, 157, 205, 0.12);
+}
+
+.audit__mesh-header {
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.audit__mesh-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border: 1px solid rgba(74, 222, 160, 0.17);
+  border-radius: 8px;
+  background: rgba(74, 222, 160, 0.055);
+  color: #a4dfc5;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.audit__mesh-dot,
+.audit__peer-state-dot {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4adea0;
+  box-shadow: 0 0 8px rgba(74, 222, 160, 0.32);
+}
+
+.audit__mesh-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 12px;
+  list-style: none;
+}
+
+.audit__mesh-list li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(137, 157, 205, 0.12);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.audit__peer-id {
+  border: 1px solid rgba(139, 130, 255, 0.2);
+  background: rgba(108, 92, 231, 0.09);
+  color: #c9c1ff;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.audit__peer-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #b7c4de;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.audit__rtt {
+  margin-left: auto;
+  color: #9ba9c8;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes proxispeak-audit-pulse {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 560px) {
+  .audit {
+    border-radius: 12px;
+  }
+
+  .audit__header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 13px;
+  }
+
+  .audit__header .button {
+    max-width: 100%;
+  }
+
+  .audit__results {
+    gap: 11px;
+    padding: 10px;
+  }
+
+  .audit__metric {
+    padding: 10px;
+  }
+
+  .audit__metric dd {
+    font-size: 15px;
+  }
+
+  .audit__mesh-header {
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+
+  .audit__mesh-list {
+    padding: 9px;
+  }
+
+  .audit__mesh-list li {
+    gap: 7px;
+    padding: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audit__run-indicator--running {
+    animation: none;
+  }
+
+  .audit__header .button {
+    transition: none;
+  }
+}
