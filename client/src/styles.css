@@ -7761,3 +7761,230 @@ transition: none;
     transition: none;
   }
 }
+
+/* =========================================================
+   COMMIT 48 — PREMIUM WORKSPACE SIDEBAR POLISH
+   UI ONLY — PRESERVE EXISTING NAVIGATION AND USER STATE
+   ========================================================= */
+
+.office-sidebar {
+  color: #e7ebff;
+  background:
+    radial-gradient(
+      ellipse at 0% 0%,
+      rgba(108, 92, 231, 0.11),
+      transparent 38%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(15, 21, 39, 0.99),
+      rgba(10, 15, 29, 0.99)
+    );
+  border-right: 1px solid rgba(137, 157, 205, 0.14);
+}
+
+.office-sidebar__brand {
+  padding-top: 22px;
+  padding-bottom: 24px;
+}
+
+.office-sidebar__brand-mark {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(178, 166, 255, 0.36);
+  border-radius: 13px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(139, 124, 255, 0.32),
+      rgba(69, 92, 190, 0.2)
+    );
+  box-shadow:
+    0 5px 18px rgba(79, 70, 229, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.office-sidebar__brand-copy strong {
+  color: #f0f2ff;
+  letter-spacing: -0.45px;
+}
+
+.office-sidebar__brand-copy > span {
+  color: #8d9abd;
+  letter-spacing: 1.8px;
+}
+
+.office-sidebar__section-label {
+  color: #7583a7;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 1.7px;
+}
+
+.office-sidebar__navigation {
+  gap: 5px;
+}
+
+.office-sidebar__nav-item {
+  position: relative;
+  min-height: 43px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #9eabc9;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.office-sidebar__nav-item:not(
+  .office-sidebar__nav-item--active
+) {
+  background: transparent;
+}
+
+.office-sidebar__nav-item:not(
+  .office-sidebar__nav-item--active
+):hover {
+  border-color: rgba(137, 157, 205, 0.12);
+  background: rgba(137, 157, 205, 0.055);
+  color: #e1e7ff;
+}
+
+.office-sidebar__nav-item--active {
+  border-color: rgba(139, 130, 255, 0.23);
+  background:
+    linear-gradient(
+      100deg,
+      rgba(108, 92, 231, 0.19),
+      rgba(108, 92, 231, 0.055)
+    );
+  color: #e3e0ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.office-sidebar__nav-item--active .office-sidebar__nav-icon {
+  color: #b5aaff;
+}
+
+.office-sidebar__nav-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  color: #8998ba;
+  font-size: 17px;
+  transition: color 160ms ease;
+}
+
+.office-sidebar__nav-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.office-sidebar__active-indicator {
+  width: 4px;
+  height: 19px;
+  border-radius: 999px;
+  background: #9b8cff;
+  box-shadow: 0 0 12px rgba(139, 130, 255, 0.42);
+}
+
+.office-sidebar__divider {
+  background: rgba(137, 157, 205, 0.13);
+}
+
+.office-sidebar__audio {
+  min-width: 0;
+}
+
+.office-sidebar__profile {
+  gap: 11px;
+  padding: 13px 10px;
+  border: 1px solid rgba(137, 157, 205, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      125deg,
+      rgba(35, 44, 72, 0.58),
+      rgba(19, 26, 45, 0.66)
+    );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.office-sidebar__profile-avatar {
+  flex: 0 0 auto;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 0 0 3px rgba(137, 130, 255, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.office-sidebar__profile-name {
+  color: #e9edff;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.office-sidebar__profile-status {
+  color: #98a6c6;
+  font-size: 10px;
+}
+
+.office-sidebar__status-dot--online {
+  box-shadow: 0 0 9px rgba(74, 222, 160, 0.36);
+}
+
+.office-sidebar__status-dot--connecting,
+.office-sidebar__status-dot--reconnecting {
+  box-shadow: 0 0 9px rgba(244, 199, 107, 0.28);
+}
+
+.office-sidebar__status-dot--error {
+  box-shadow: 0 0 9px rgba(251, 113, 133, 0.32);
+}
+
+.office-sidebar__profile-menu {
+  color: #8795b6;
+  transition: color 160ms ease;
+}
+
+.office-sidebar__profile:hover .office-sidebar__profile-menu {
+  color: #d5dcf6;
+}
+
+@media (max-width: 1100px) {
+  .office-sidebar__brand {
+    padding-top: 16px;
+    padding-bottom: 18px;
+  }
+
+  .office-sidebar__nav-item {
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 560px) {
+  .office-sidebar__brand {
+    padding-top: 12px;
+    padding-bottom: 14px;
+  }
+
+  .office-sidebar__nav-item {
+    min-height: 42px;
+  }
+
+  .office-sidebar__profile {
+    padding: 11px 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .office-sidebar__nav-item,
+  .office-sidebar__nav-icon,
+  .office-sidebar__profile-menu {
+    transition: none;
+  }
+}
