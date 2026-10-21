@@ -1,291 +1,532 @@
-
 /**
- * Dynamic canvas renderer: avatars, conversation links and the earshot circle.
- * Everything here reads from `worldRef`, never from React state, so the frame
- * budget is spent on pixels instead of reconciliation.
- *
- * Visual refinement:
- * - Premium violet-blue conversation links.
- * - Refined avatar outlines and speaking halos.
- * - Subtle dark labels and earshot visualization.
- *
- * Rendering order, geometry, distance/gain calculations, avatar dimensions
- * and spatial-audio behavior remain unchanged.
+ * Dynamic canvas renderer for real peers, spatial audio links and live state.
+ * Only visual drawing is handled here; geometry, audio gain and networking
+ * continue to use the existing world state and gainAtDistance implementation.
  */
 
 import { PALETTE } from './officeLayout.js';
 import { gainAtDistance } from '../audio/spatialMath.js';
 
-const AVATAR_RADIUS = 14;
+const AVATAR_RADIUS = 15;
+
+const AVATAR_FACES = {
+  circle: { skin: '#f4c5a2', hair: '#33252b' },
+  square: { skin: '#d9a27e', hair: '#202b3d' },
+  triangle: { skin: '#efbd91', hair: '#4a2e2a' },
+  hex: { skin: '#c98f6c', hair: '#302633' },
+};
 
 export function drawFrame(
   context,
-  { world, dpr, view, viewport, showLabels, showLinks, showClusters }
+  {
+    world,
+    dpr,
+    view,
+    viewport,
+    showLabels,
+    showLinks,
+    showClusters,
+  }
 ) {
+  if (!context || !world?.self || !view || !viewport) return;
+
   const scale = view.scale;
 
-  // One transform for both layers: viewport pixels -> letterboxed world pixels.
   context.setTransform(dpr, 0, 0, dpr, 0, 0);
   context.clearRect(0, 0, viewport.width, viewport.height);
+
+  context.save();
   context.translate(view.offsetX, view.offsetY);
   context.scale(scale, scale);
 
   const self = world.self;
   const earshot = world.earshotRadiusPx;
 
-  if (showClusters) drawClusters(context, world);
+  if (showClusters) {
+    drawClusters(context, world);
+  }
 
-  // Earshot circle: what you can currently hear.
-  context.beginPath();
-  context.arc(self.x, self.y, earshot, 0, Math.PI * 2);
-  context.strokeStyle = 'rgba(139, 130, 255, 0.32)';
-  context.lineWidth = 2 / scale;
-  context.setLineDash([10 / scale, 12 / scale]);
-  context.stroke();
-  context.setLineDash([]);
-
-  context.beginPath();
-  context.arc(self.x, self.y, earshot * 0.35, 0, Math.PI * 2);
-  context.fillStyle = 'rgba(108, 92, 231, 0.055)';
-  context.fill();
+  drawEarshot(context, self, earshot, scale);
 
   if (showLinks) {
     for (const peer of world.peers.values()) {
-      const distancePx = Math.hypot(peer.x - self.x, peer.y - self.y);
+      const distancePx = Math.hypot(
+        peer.x - self.x,
+        peer.y - self.y
+      );
+
       const gain = gainAtDistance(distancePx, {
         earshotPx: earshot,
         soundFactor: peer.soundFactor ?? 1,
       });
 
-      if (gain <= 0.01) continue;
-
-      drawLink(context, self, peer, gain, scale);
+      if (gain > 0.01) {
+        drawLink(context, self, peer, gain, scale);
+      }
     }
   }
 
-  // Peers first, self last (self is always on top).
   for (const peer of world.peers.values()) {
-    drawPeer(context, peer, world, scale, showLabels);
+    drawAvatar(context, peer, scale, showLabels, false);
   }
 
-  drawSelf(context, self, world, scale, showLabels);
+  drawAvatar(context, self, scale, showLabels, true);
+
+  context.restore();
+}
+
+function drawEarshot(context, self, earshot, scale) {
+  const gradient = context.createRadialGradient(
+    self.x,
+    self.y,
+    earshot * 0.12,
+    self.x,
+    self.y,
+    earshot
+  );
+
+  gradient.addColorStop(0, 'rgba(93, 117, 255, .06)');
+  gradient.addColorStop(1, 'rgba(93, 117, 255, 0)');
+
+  context.beginPath();
+  context.arc(self.x, self.y, earshot, 0, Math.PI * 2);
+
+  context.fillStyle = gradient;
+  context.fill();
+
+  context.strokeStyle = 'rgba(116, 147, 255, .35)';
+  context.lineWidth = 1.6 / scale;
+
+  context.setLineDash([9 / scale, 12 / scale]);
+  context.stroke();
+  context.setLineDash([]);
+
+  context.beginPath();
+  context.arc(
+    self.x,
+    self.y,
+    earshot * 0.35,
+    0,
+    Math.PI * 2
+  );
+
+  context.strokeStyle = 'rgba(116, 147, 255, .16)';
+  context.lineWidth = 1 / scale;
+  context.stroke();
 }
 
 function drawClusters(context, world) {
   for (const cluster of world.clusters ?? []) {
     if (cluster.size < 2) continue;
 
+    const radius = cluster.size * 14 + 18;
+
+    const gradient = context.createRadialGradient(
+      cluster.centroid.x,
+      cluster.centroid.y,
+      0,
+      cluster.centroid.x,
+      cluster.centroid.y,
+      radius
+    );
+
+    gradient.addColorStop(0, 'rgba(110, 100, 255, .12)');
+    gradient.addColorStop(1, 'rgba(110, 100, 255, .015)');
+
     context.beginPath();
+
     context.arc(
       cluster.centroid.x,
       cluster.centroid.y,
-      cluster.size * 14 + 18,
+      radius,
       0,
       Math.PI * 2
     );
 
-    context.fillStyle = PALETTE.cluster;
+    context.fillStyle = gradient;
     context.fill();
 
-    context.strokeStyle = 'rgba(139, 130, 255, 0.28)';
-    context.lineWidth = 1.5;
+    context.strokeStyle = PALETTE.cluster;
+    context.lineWidth = 1.4;
     context.stroke();
   }
 }
 
-/** The line between two people is literally the volume you hear. */
-function drawLink(context, a, b, gain, scale) {
-  const muted = (b.soundFactor ?? 1) < 0.5;
+function drawLink(context, from, peer, gain, scale) {
+  const muted = (peer.soundFactor ?? 1) < 0.5;
+
+  const gradient = context.createLinearGradient(
+    from.x,
+    from.y,
+    peer.x,
+    peer.y
+  );
+
+  gradient.addColorStop(
+    0,
+    muted
+      ? 'rgba(255, 140, 120, .12)'
+      : `rgba(100, 151, 255, ${0.08 + gain * 0.22})`
+  );
+
+  gradient.addColorStop(
+    1,
+    muted
+      ? `rgba(255, 140, 120, ${0.12 + gain * 0.22})`
+      : `rgba(130, 117, 255, ${0.16 + gain * 0.34})`
+  );
 
   context.beginPath();
-  context.moveTo(a.x, a.y);
-  context.lineTo(b.x, b.y);
+  context.moveTo(from.x, from.y);
+  context.lineTo(peer.x, peer.y);
 
-  context.strokeStyle = muted
-    ? `rgba(255, 140, 120, ${0.12 + gain * 0.25})`
-    : `rgba(120, 170, 255, ${gain * 0.45})`;
+  context.strokeStyle = gradient;
+  context.lineWidth = (1 + gain * 3) / scale;
 
-  context.lineWidth = (1 + gain * 3.5) / scale;
-
-  if (muted) context.setLineDash([4 / scale, 6 / scale]);
+  if (muted) {
+    context.setLineDash([4 / scale, 6 / scale]);
+  }
 
   context.stroke();
   context.setLineDash([]);
 }
 
-function drawPeer(context, peer, world, scale, showLabels) {
+function drawAvatar(context, person, scale, showLabels, isSelf) {
   const radius = AVATAR_RADIUS;
-  const speaking = peer.speaking === true;
-  const level = Math.min(1, (peer.level ?? 0) * 8);
+  const speaking = person.speaking === true;
 
-  // Speaking halo grows with the live RMS level from the Web Audio analyser.
+  const level = Math.min(
+    1,
+    (person.level ?? 0) * 8
+  );
+
+  const alpha =
+    person.micEnabled === false && !isSelf
+      ? 0.52
+      : 1;
+
+  const palette =
+    AVATAR_FACES[person.avatar] ?? AVATAR_FACES.circle;
+
+  context.save();
+  context.globalAlpha = alpha;
+
+  // Avatar shadow.
+  context.beginPath();
+
+  context.arc(
+    person.x,
+    person.y + 4,
+    radius + 2,
+    0,
+    Math.PI * 2
+  );
+
+  context.fillStyle = 'rgba(0, 0, 0, .34)';
+  context.fill();
+
+  // Speaking halo follows real microphone analyser state.
   if (speaking) {
-    context.beginPath();
-    context.arc(
-      peer.x,
-      peer.y,
-      radius + 6 + level * 16,
-      0,
-      Math.PI * 2
+    const halo = radius + 8 + level * 14;
+
+    const glow = context.createRadialGradient(
+      person.x,
+      person.y,
+      radius,
+      person.x,
+      person.y,
+      halo
     );
 
-    context.fillStyle = `rgba(90, 220, 160, ${0.12 + level * 0.2})`;
+    glow.addColorStop(
+      0,
+      `rgba(67, 230, 166, ${0.28 + level * 0.24})`
+    );
+
+    glow.addColorStop(
+      1,
+      'rgba(67, 230, 166, 0)'
+    );
+
+    context.beginPath();
+    context.arc(person.x, person.y, halo, 0, Math.PI * 2);
+
+    context.fillStyle = glow;
     context.fill();
   }
 
-  // Muted peers are dimmed.
-  const alpha = peer.micEnabled === false ? 0.4 : 1;
-  context.globalAlpha = alpha;
-
+  // Outer proximity ring.
   context.beginPath();
-  context.arc(peer.x, peer.y + 3, radius, 0, Math.PI * 2);
-  context.fillStyle = 'rgba(0, 0, 0, 0.4)';
-  context.fill();
 
-  context.beginPath();
-  avatarPath(context, peer, radius);
-  context.fillStyle = peer.color ?? '#8899aa';
-  context.fill();
+  context.arc(
+    person.x,
+    person.y,
+    radius + (isSelf ? 7 : 5),
+    0,
+    Math.PI * 2
+  );
 
-  context.strokeStyle = 'rgba(214, 225, 255, 0.55)';
-  context.lineWidth = 2 / scale;
+  context.strokeStyle = isSelf
+    ? 'rgba(113, 132, 255, .95)'
+    : speaking
+      ? 'rgba(68, 225, 162, .92)'
+      : `${person.color ?? '#8b9aff'}cc`;
+
+  context.lineWidth = (isSelf ? 2.5 : 1.8) / scale;
   context.stroke();
 
-  // Facing indicator.
+  // Avatar silhouette.
+  context.beginPath();
+  avatarPath(context, person, radius);
+
+  context.fillStyle = person.color ?? '#617cff';
+  context.fill();
+
+  // Face illustration clipped to the selected avatar shape.
+  context.save();
+
+  context.beginPath();
+  avatarPath(context, person, radius - 1);
+  context.clip();
+
+  // Hair.
+  context.fillStyle = palette.hair;
+  context.beginPath();
+
+  context.ellipse(
+    person.x,
+    person.y - 5,
+    radius * 0.73,
+    radius * 0.58,
+    0,
+    Math.PI,
+    Math.PI * 2
+  );
+
+  context.fill();
+
+  // Face.
+  context.fillStyle = palette.skin;
+  context.beginPath();
+
+  context.ellipse(
+    person.x,
+    person.y + 1,
+    radius * 0.57,
+    radius * 0.63,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  context.fill();
+
+  // Eyes.
+  context.fillStyle = '#263044';
+  context.beginPath();
+
+  context.arc(
+    person.x - 4,
+    person.y + 1,
+    1.2,
+    0,
+    Math.PI * 2
+  );
+
+  context.arc(
+    person.x + 4,
+    person.y + 1,
+    1.2,
+    0,
+    Math.PI * 2
+  );
+
+  context.fill();
+
+  // Smile.
+  context.strokeStyle = 'rgba(111, 49, 43, .8)';
+  context.lineWidth = 1;
+  context.beginPath();
+
+  context.arc(
+    person.x,
+    person.y + 4,
+    3,
+    0.2,
+    Math.PI - 0.2
+  );
+
+  context.stroke();
+
+  context.restore();
+
+  // Avatar outline.
+  context.strokeStyle = isSelf
+    ? '#e6eaff'
+    : 'rgba(232, 238, 255, .8)';
+
+  context.lineWidth = 1.5 / scale;
+  context.beginPath();
+
+  context.arc(
+    person.x,
+    person.y,
+    radius,
+    0,
+    Math.PI * 2
+  );
+
+  context.stroke();
+
+  // Direction marker follows the existing movement angle.
   context.beginPath();
 
   context.moveTo(
-    peer.x + Math.cos(peer.angle ?? 0) * radius,
-    peer.y + Math.sin(peer.angle ?? 0) * radius
+    person.x + Math.cos(person.angle ?? 0) * (radius + 2),
+    person.y + Math.sin(person.angle ?? 0) * (radius + 2)
   );
 
   context.lineTo(
-    peer.x + Math.cos(peer.angle ?? 0) * (radius + 7),
-    peer.y + Math.sin(peer.angle ?? 0) * (radius + 7)
+    person.x + Math.cos(person.angle ?? 0) * (radius + 8),
+    person.y + Math.sin(person.angle ?? 0) * (radius + 8)
   );
 
-  context.strokeStyle = 'rgba(220, 229, 255, 0.8)';
-  context.lineWidth = 2 / scale;
+  context.strokeStyle = 'rgba(235, 239, 255, .85)';
+  context.lineWidth = 1.8 / scale;
   context.stroke();
 
+  // Names.
   if (showLabels) {
+    const label = isSelf
+      ? `${person.name ?? 'You'} · You`
+      : person.name ?? 'Guest';
+
     drawLabel(
       context,
-      peer.name ?? 'Guest',
-      peer.x,
-      peer.y - radius - 10,
-      peer.micEnabled === false ? 'muted' : ''
+      label,
+      person.x,
+      person.y - radius - 13,
+      isSelf
+        ? 'self'
+        : person.micEnabled === false
+          ? 'muted'
+          : 'peer',
+      scale
     );
   }
 
-  context.globalAlpha = 1;
+  context.restore();
 }
 
-function drawSelf(context, self, world, scale, showLabels) {
-  const radius = AVATAR_RADIUS;
+function avatarPath(context, person, radius) {
+  const shape = person.avatar ?? 'circle';
 
   context.beginPath();
-  context.arc(self.x, self.y, radius + 5, 0, Math.PI * 2);
-  context.strokeStyle = 'rgba(139, 130, 255, 0.65)';
-  context.lineWidth = 2 / scale;
-  context.stroke();
-
-  context.beginPath();
-  avatarPath(context, self, radius);
-  context.fillStyle = self.color ?? '#4f8cff';
-  context.fill();
-
-  context.strokeStyle = '#e7e9ff';
-  context.lineWidth = 2.5 / scale;
-  context.stroke();
-
-  if (showLabels) {
-    drawLabel(
-      context,
-      `${self.name ?? 'You'} (you)`,
-      self.x,
-      self.y - radius - 12,
-      'self'
-    );
-  }
-}
-
-function avatarPath(context, peer, radius) {
-  const shape = peer.avatar ?? 'circle';
 
   if (shape === 'square') {
-    context.rect(
-      peer.x - radius,
-      peer.y - radius,
-      radius * 2,
-      radius * 2
+    const size = radius * 1.8;
+
+    context.roundRect(
+      person.x - size / 2,
+      person.y - size / 2,
+      size,
+      size,
+      5
     );
-    return;
-  }
+  } else if (shape === 'triangle') {
+    context.moveTo(
+      person.x,
+      person.y - radius * 1.08
+    );
 
-  if (shape === 'triangle') {
-    context.moveTo(peer.x, peer.y - radius * 1.15);
-    context.lineTo(peer.x + radius, peer.y + radius * 0.8);
-    context.lineTo(peer.x - radius, peer.y + radius * 0.8);
+    context.lineTo(
+      person.x + radius,
+      person.y + radius * 0.82
+    );
+
+    context.lineTo(
+      person.x - radius,
+      person.y + radius * 0.82
+    );
+
     context.closePath();
-    return;
-  }
-
-  if (shape === 'hex') {
+  } else if (shape === 'hex') {
     for (let i = 0; i < 6; i += 1) {
-      const angle = (Math.PI / 3) * i - Math.PI / 2;
-      const x = peer.x + Math.cos(angle) * radius;
-      const y = peer.y + Math.sin(angle) * radius;
+      const angle =
+        (Math.PI / 3) * i - Math.PI / 2;
 
-      if (i === 0) context.moveTo(x, y);
-      else context.lineTo(x, y);
+      const x =
+        person.x + Math.cos(angle) * radius;
+
+      const y =
+        person.y + Math.sin(angle) * radius;
+
+      if (i === 0) {
+        context.moveTo(x, y);
+      } else {
+        context.lineTo(x, y);
+      }
     }
 
     context.closePath();
-    return;
+  } else {
+    context.arc(
+      person.x,
+      person.y,
+      radius,
+      0,
+      Math.PI * 2
+    );
   }
-
-  context.arc(peer.x, peer.y, radius, 0, Math.PI * 2);
 }
 
-function drawLabel(context, text, x, y, variant) {
+function drawLabel(context, text, x, y, variant, scale) {
+  context.save();
+
   context.font =
-    '600 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+    `600 ${12 / Math.max(scale, 0.65)}px Inter, ui-sans-serif, system-ui, sans-serif`;
 
   context.textAlign = 'center';
   context.textBaseline = 'middle';
 
-  const width = context.measureText(text).width + 12;
+  const width =
+    context.measureText(text).width + 18;
 
-  context.fillStyle = 'rgba(8, 12, 24, 0.9)';
-  roundRect(context, x - width / 2, y - 9, width, 18, 9);
-  context.fill();
+  const height = 25;
+  const left = x - width / 2;
+  const top = y - height / 2;
 
-  context.strokeStyle = 'rgba(143, 164, 202, 0.2)';
-  context.lineWidth = 0.75;
-  roundRect(context, x - width / 2, y - 9, width, 18, 9);
-  context.stroke();
+  context.beginPath();
+
+  context.roundRect(
+    left,
+    top,
+    width,
+    height,
+    height / 2
+  );
 
   context.fillStyle =
     variant === 'self'
-      ? '#e7e9ff'
-      : variant === 'muted'
-        ? 'rgba(190, 200, 215, 0.6)'
-        : '#dce5f8';
+      ? 'rgba(45, 57, 128, .96)'
+      : 'rgba(8, 13, 25, .9)';
 
-  context.fillText(text, x, y);
+  context.fill();
+
+  context.strokeStyle =
+    variant === 'self'
+      ? 'rgba(130, 145, 255, .85)'
+      : 'rgba(168, 184, 222, .2)';
+
+  context.lineWidth = 1 / scale;
+  context.stroke();
+
+  context.fillStyle =
+    variant === 'muted'
+      ? '#a5adbf'
+      : '#f0f3ff';
+
+  context.fillText(text, x, y + 0.5);
+
+  context.restore();
 }
-
-function roundRect(context, x, y, width, height, radius) {
-  context.beginPath();
-  context.moveTo(x + radius, y);
-  context.arcTo(x + width, y, x + width, y + height, radius);
-  context.arcTo(x + width, y + height, x, y + height, radius);
-  context.arcTo(x, y + height, x, y, radius);
-  context.arcTo(x, y, x + width, y, radius);
-  context.closePath();
-}
-
-export { AVATAR_RADIUS };
-export default drawFrame;
-
