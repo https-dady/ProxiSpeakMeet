@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" fill="none">
+<defs>
+ <linearGradient id="room" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1d2d43"/><stop offset=".55" stop-color="#121d2d"/><stop offset="1" stop-color="#090f1b"/></linearGradient>
+ <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#214564"/><stop offset="1" stop-color="#0c1728"/></linearGradient>
+ <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#c28a5b"/><stop offset="1" stop-color="#71452e"/></linearGradient>
+ <linearGradient id="sofa" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d69678"/><stop offset="1" stop-color="#874e51"/></linearGradient>
+ <radialGradient id="warm"><stop stop-color="#ffbd79" stop-opacity=".7"/><stop offset="1" stop-color="#ffbd79" stop-opacity="0"/></radialGradient>
+ <pattern id="tiles" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80M40 0V80M0 40H80" stroke="#b8c4d6" stroke-opacity=".055"/></pattern>
+ <filter id="blur"><feGaussianBlur stdDeviation="28"/></filter>
+</defs>
+<rect width="1600" height="1000" fill="url(#room)"/><rect width="1600" height="1000" fill="url(#tiles)"/>
+<!-- panoramic office windows with night skyline -->
+<rect x="55" y="60" width="1490" height="390" rx="12" fill="#070d17" stroke="#44536b" stroke-width="12"/><rect x="78" y="82" width="1444" height="345" fill="url(#glass)"/>
+<path d="M78 315L180 235 260 290 365 170 465 275 585 215 705 295 830 178 945 270 1085 185 1200 286 1325 164 1522 272V427H78Z" fill="#122139"/>
+<path d="M78 363L205 318 300 355 430 298 552 360 690 314 815 366 950 315 1080 364 1220 315 1370 365 1522 328V427H78Z" fill="#0b1627"/>
+<g fill="#f5c47f" fill-opacity=".55"><path d="M130 294h7v22h-7zM170 276h7v29h-7zM280 305h7v20h-7zM340 258h8v28h-8zM485 293h7v22h-7zM605 314h7v18h-7zM755 286h7v26h-7zM900 312h7v20h-7zM1045 272h7v29h-7zM1190 307h7v20h-7zM1345 260h7v28h-7zM1465 294h7v22h-7z"/></g>
+<path d="M430 82V427M790 82V427M1150 82V427" stroke="#53647b" stroke-width="13"/><path d="M430 82V427M790 82V427M1150 82V427" stroke="#d0d9e7" stroke-opacity=".18" stroke-width="2"/>
+<!-- floor and warm pools of light -->
+<ellipse cx="800" cy="650" rx="720" ry="360" fill="#e7a96e" fill-opacity=".08" filter="url(#blur)"/><ellipse cx="275" cy="620" rx="250" ry="230" fill="url(#warm)"/><ellipse cx="1340" cy="630" rx="260" ry="240" fill="url(#warm)"/>
+<path d="M70 450H1530L1580 960H20Z" fill="#1b2635" stroke="#667287" stroke-opacity=".5" stroke-width="4"/><path d="M115 490H1485L1535 925H65Z" fill="#263243" stroke="#c2966b" stroke-opacity=".22" stroke-width="3"/><path d="M115 490H1485L1535 925H65Z" fill="url(#tiles)"/>
+<!-- left lounge sofa -->
+<g transform="translate(145 555) rotate(-5)"><rect x="-12" y="20" width="310" height="155" rx="28" fill="#070b12" fill-opacity=".6"/><rect width="280" height="138" rx="22" fill="url(#sofa)" stroke="#e7ae8a" stroke-opacity=".6" stroke-width="3"/><rect x="14" y="12" width="118" height="112" rx="15" fill="#d99b7f"/><rect x="145" y="12" width="121" height="112" rx="15" fill="#c98670"/><rect x="-8" y="-9" width="296" height="42" rx="16" fill="#e0a183"/><rect x="-10" y="10" width="32" height="120" rx="12" fill="#b66f62"/><rect x="258" y="10" width="32" height="120" rx="12" fill="#a85e58"/><path d="M140 20V119" stroke="#8d554d" stroke-opacity=".5" stroke-width="3"/></g>
+<!-- coffee table -->
+<ellipse cx="500" cy="735" rx="130" ry="28" fill="#050a12" fill-opacity=".5"/><ellipse cx="500" cy="708" rx="118" ry="70" fill="#63452f" stroke="#d4a06b" stroke-width="5"/><ellipse cx="500" cy="698" rx="104" ry="57" fill="url(#wood)"/><circle cx="500" cy="694" r="25" fill="#d4a06b" fill-opacity=".28"/>
+<!-- right armchair and side table -->
+<g transform="translate(1230 605) rotate(9)"><rect width="210" height="180" rx="35" fill="#5a3442" stroke="#b56b70" stroke-width="4"/><rect x="18" y="20" width="174" height="142" rx="25" fill="#7e4855"/><rect x="30" y="31" width="150" height="118" rx="20" fill="#9c5c61"/></g><ellipse cx="1175" cy="810" rx="86" ry="23" fill="#050a12" fill-opacity=".5"/><ellipse cx="1175" cy="790" rx="78" ry="42" fill="#745039" stroke="#c89561" stroke-width="4"/><ellipse cx="1175" cy="782" rx="66" ry="32" fill="url(#wood)"/>
+<!-- floor lamps -->
+<g><ellipse cx="280" cy="465" rx="75" ry="85" fill="url(#warm)"/><path d="M280 460V555" stroke="#b4a18a" stroke-width="7"/><path d="M244 464L280 420L316 464Z" fill="#d4b38b"/><ellipse cx="280" cy="557" rx="36" ry="9" fill="#78614a"/><ellipse cx="1355" cy="465" rx="78" ry="88" fill="url(#warm)"/><path d="M1355 460V555" stroke="#b4a18a" stroke-width="7"/><path d="M1318 464L1355 420L1392 464Z" fill="#d4b38b"/><ellipse cx="1355" cy="557" rx="36" ry="9" fill="#78614a"/></g>
+<!-- leafy plants -->
+<g transform="translate(80 790)"><ellipse cx="55" cy="92" rx="56" ry="16" fill="#050a12" fill-opacity=".5"/><path d="M23 60L18 8Q40 18 43 52Q48 4 66 0Q78 34 60 60Q90 15 105 30Q103 62 68 75Z" fill="#287e5c"/><path d="M37 75L26 34Q52 40 58 72Q72 34 88 42L73 81Z" fill="#45a16d"/><path d="M15 72H98L88 120H27Z" fill="#684b38" stroke="#a57b57" stroke-width="4"/></g>
+<g transform="translate(1430 790)"><ellipse cx="55" cy="92" rx="56" ry="16" fill="#050a12" fill-opacity=".5"/><path d="M23 60L18 8Q40 18 43 52Q48 4 66 0Q78 34 60 60Q90 15 105 30Q103 62 68 75Z" fill="#287e5c"/><path d="M37 75L26 34Q52 40 58 72Q72 34 88 42L73 81Z" fill="#45a16d"/><path d="M15 72H98L88 120H27Z" fill="#684b38" stroke="#a57b57" stroke-width="4"/></g>
+<!-- foreground desk -->
+<g transform="translate(565 845)"><rect x="-10" y="10" width="470" height="100" rx="18" fill="#070c15" fill-opacity=".45"/><rect width="450" height="82" rx="15" fill="url(#wood)" stroke="#d5a16c" stroke-width="4"/><rect x="18" y="12" width="412" height="58" rx="8" fill="#95623f"/><rect x="42" y="22" width="75" height="8" rx="4" fill="#d5a16c" fill-opacity=".55"/><rect x="42" y="38" width="54" height="6" rx="3" fill="#d5a16c" fill-opacity=".3"/><rect x="315" y="18" width="80" height="42" rx="6" fill="#17263a" stroke="#6b94c1" stroke-width="3"/><path d="M326 28H384M326 36H372M326 44H380" stroke="#75b8ed" stroke-opacity=".5" stroke-width="2"/></g>
+<rect width="1600" height="1000" fill="#050912" fill-opacity=".2"/><rect x="14" y="14" width="1572" height="972" rx="24" stroke="#a6b7d5" stroke-opacity=".2" stroke-width="2"/>
+</svg>

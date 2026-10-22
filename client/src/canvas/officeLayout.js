@@ -119,19 +119,20 @@ export function renderStaticLayer(
   drawFloorGrid(context, width, height);
   drawAmbientLighting(context, width, height);
 
+  /*
+   * Render authoritative server obstacles before detailed furniture.
+   * This prevents plain obstacle rectangles from painting over the
+   * furniture details. Obstacle geometry remains unchanged.
+   */
+  for (const obstacle of room.obstacles ?? []) {
+    drawObstacle(context, obstacle);
+  }
+
   drawLounge(context, width, height);
   drawMeetingRoom(context, width, height);
   drawWorkZone(context, width, height);
   drawBreakArea(context, width, height);
   drawFocusZone(context, width, height);
-
-  /*
-   * Preserve the actual obstacle objects supplied by the application.
-   * Decorative furniture above does not modify their geometry.
-   */
-  for (const obstacle of room.obstacles ?? []) {
-    drawObstacle(context, obstacle);
-  }
 
   drawPerimeterPlants(context, width, height);
   drawPerimeterLighting(context, width, height);
@@ -443,7 +444,6 @@ function drawAmbientLighting(context, width, height) {
 function drawLounge(context, width, height) {
   const unit = Math.min(width, height);
 
-  // Lounge rug.
   context.save();
 
   roundedRect(
@@ -464,7 +464,6 @@ function drawLounge(context, width, height) {
 
   context.restore();
 
-  // Main sofa and secondary sofa.
   drawSofa(
     context,
     width * 0.065,
@@ -483,7 +482,6 @@ function drawLounge(context, width, height) {
     '#bc7449'
   );
 
-  // Low coffee table between the sofas.
   drawCoffeeTable(
     context,
     width * 0.105,
@@ -506,7 +504,6 @@ function drawLounge(context, width, height) {
     unit * 0.025
   );
 
-  // Additional large leafy planter in the lounge.
   drawPlantPot(
     context,
     width * 0.245,
@@ -543,7 +540,6 @@ function drawSofa(
 
   context.shadowColor = 'transparent';
 
-  // Upholstered seat.
   roundedRect(
     context,
     x + width * 0.045,
@@ -560,7 +556,6 @@ function drawSofa(
   context.lineWidth = 1.5;
   context.stroke();
 
-  // Seat division.
   context.fillStyle = 'rgba(255, 235, 208, .2)';
 
   context.fillRect(
@@ -570,7 +565,6 @@ function drawSofa(
     height * 0.62
   );
 
-  // Cushions.
   roundedRect(
     context,
     x + width * 0.08,
@@ -629,7 +623,6 @@ function drawCoffeeTable(
   context.lineWidth = 1.5;
   context.stroke();
 
-  // Decorative plant on the tabletop.
   context.beginPath();
 
   context.ellipse(
@@ -645,7 +638,6 @@ function drawCoffeeTable(
   context.fillStyle = '#477e60';
   context.fill();
 
-  // Decorative cup.
   context.beginPath();
 
   context.arc(
@@ -676,6 +668,7 @@ function drawSideTable(context, x, y, size) {
   context.stroke();
 
   context.beginPath();
+
   context.arc(
     x,
     y,
@@ -754,7 +747,6 @@ function drawFloorLamp(context, x, y, size) {
 function drawMeetingRoom(context, width, height) {
   const unit = Math.min(width, height);
 
-  // Conference table.
   drawConferenceTable(
     context,
     width * 0.385,
@@ -763,7 +755,6 @@ function drawMeetingRoom(context, width, height) {
     height * 0.09
   );
 
-  // Chairs on both sides of the table.
   for (let index = 0; index < 4; index += 1) {
     const chairX = width * (0.395 + index * 0.052);
 
@@ -784,7 +775,6 @@ function drawMeetingRoom(context, width, height) {
     );
   }
 
-  // Display mounted on the meeting room wall.
   drawScreenGlow(
     context,
     width * 0.465,
@@ -793,7 +783,6 @@ function drawMeetingRoom(context, width, height) {
     height * 0.009
   );
 
-  // Plant beside the meeting area.
   drawPlantPot(
     context,
     width * 0.625,
@@ -952,7 +941,6 @@ function drawWorkZone(context, width, height) {
     height * 0.085
   );
 
-  // Greenery between workstations.
   drawPlantPot(
     context,
     width * 0.815,
@@ -992,7 +980,6 @@ function drawWorkstation(
   context.lineWidth = 1.5;
   context.stroke();
 
-  // Monitor.
   roundedRect(
     context,
     x + width * 0.32,
@@ -1017,7 +1004,6 @@ function drawWorkstation(
     height * 0.26
   );
 
-  // Keyboard.
   roundedRect(
     context,
     x + width * 0.39,
@@ -1030,7 +1016,6 @@ function drawWorkstation(
   context.fillStyle = '#c9d1d9';
   context.fill();
 
-  // Office chair.
   drawOfficeChair(
     context,
     x + width / 2,
@@ -1112,7 +1097,6 @@ function drawOfficeChair(
 function drawBreakArea(context, width, height) {
   const unit = Math.min(width, height);
 
-  // Rug.
   context.save();
 
   roundedRect(
@@ -1132,7 +1116,6 @@ function drawBreakArea(context, width, height) {
 
   context.restore();
 
-  // Two lounge sofas.
   drawSofa(
     context,
     width * 0.065,
@@ -1268,7 +1251,6 @@ function drawPlantPot(
 ) {
   context.save();
 
-  // Soft shadow.
   context.shadowColor = 'rgba(0, 0, 0, .32)';
   context.shadowBlur = radius * 0.4;
   context.shadowOffsetY = 3;
@@ -1288,7 +1270,6 @@ function drawPlantPot(
 
   context.shadowColor = 'transparent';
 
-  // Pot rim.
   context.beginPath();
 
   context.arc(
@@ -1302,7 +1283,6 @@ function drawPlantPot(
   context.fillStyle = '#694c38';
   context.fill();
 
-  // Nine leaves around the planter.
   for (
     let index = 0;
     index < 9;
@@ -1346,7 +1326,6 @@ function drawPlantPot(
     context.restore();
   }
 
-  // Centre leaves.
   context.beginPath();
 
   context.arc(
@@ -1555,7 +1534,6 @@ function drawObstacle(context, obstacle) {
     }
   }
 
-  // Preserve the existing sound-obstruction visual condition.
   if (
     obstacle.blocksAudio !== false &&
     obstacle.attenuation <= 0.3
