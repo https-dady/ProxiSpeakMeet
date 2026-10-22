@@ -1,3 +1,4 @@
+
 {
   "name": "proxispeak-server",
   "version": "1.0.0",
@@ -8,6 +9,7 @@
     "node": ">=18.17"
   },
   "scripts": {
+    "build": "node --check src/index.js",
     "start": "node src/index.js",
     "dev": "nodemon --watch src --watch .env src/index.js",
     "seed": "node scripts/seed.js",
