@@ -12,13 +12,13 @@
  */
 
 export const PALETTE = {
-  floor: '#252a38',
-  floorAlt: '#171d2b',
-  grid: 'rgba(224, 211, 190, 0.055)',
-  gridMajor: 'rgba(224, 211, 190, 0.12)',
-  border: '#26334a',
-  borderGlow: 'rgba(100, 126, 255, 0.34)',
-  text: '#d8deee',
+  floor: '#171b2a',
+  floorAlt: '#101522',
+  grid: 'rgba(148, 163, 184, 0.045)',
+  gridMajor: 'rgba(129, 140, 248, 0.11)',
+  border: '#252d43',
+  borderGlow: 'rgba(129, 140, 248, 0.38)',
+  text: '#e2e8f0',
   wall: '#1a2233',
   wallEdge: '#3b455b',
   desk: '#704a32',
@@ -215,9 +215,9 @@ function drawFloor(context, width, height) {
     height
   );
 
-  gradient.addColorStop(0, '#303342');
-  gradient.addColorStop(0.48, '#252b39');
-  gradient.addColorStop(1, '#171e2b');
+  gradient.addColorStop(0, '#20263a');
+  gradient.addColorStop(0.48, '#171d2c');
+  gradient.addColorStop(1, '#101522');
 
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
@@ -241,7 +241,7 @@ function drawFloor(context, width, height) {
         (row * 7 + column * 11) % 5;
 
       context.fillStyle =
-        `rgba(210, 204, 190, ${0.008 + shade * 0.003})`;
+        `rgba(148, 163, 184, ${0.006 + shade * 0.0025})`;
 
       context.fillRect(
         column * tileSize + 1,
@@ -306,8 +306,8 @@ function drawOfficeZones(context, width, height) {
       y: 0.035,
       w: 0.245,
       h: 0.37,
-      fill: 'rgba(191, 125, 82, .18)',
-      edge: 'rgba(235, 183, 135, .24)',
+      fill: 'rgba(139, 92, 246, .12)',
+      edge: 'rgba(167, 139, 250, .24)',
     },
     {
       name: 'meeting',
@@ -315,8 +315,8 @@ function drawOfficeZones(context, width, height) {
       y: 0.035,
       w: 0.315,
       h: 0.225,
-      fill: 'rgba(198, 151, 92, .15)',
-      edge: 'rgba(239, 198, 135, .26)',
+      fill: 'rgba(56, 189, 248, .09)',
+      edge: 'rgba(125, 211, 252, .22)',
     },
     {
       name: 'work',
@@ -324,8 +324,8 @@ function drawOfficeZones(context, width, height) {
       y: 0.035,
       w: 0.265,
       h: 0.405,
-      fill: 'rgba(172, 120, 87, .15)',
-      edge: 'rgba(235, 177, 127, .24)',
+      fill: 'rgba(59, 130, 246, .09)',
+      edge: 'rgba(96, 165, 250, .22)',
     },
     {
       name: 'break',
@@ -333,8 +333,8 @@ function drawOfficeZones(context, width, height) {
       y: 0.68,
       w: 0.265,
       h: 0.275,
-      fill: 'rgba(127, 145, 157, .12)',
-      edge: 'rgba(184, 204, 218, .2)',
+      fill: 'rgba(45, 212, 191, .075)',
+      edge: 'rgba(94, 234, 212, .18)',
     },
     {
       name: 'focus',
@@ -342,8 +342,8 @@ function drawOfficeZones(context, width, height) {
       y: 0.68,
       w: 0.265,
       h: 0.275,
-      fill: 'rgba(130, 112, 171, .13)',
-      edge: 'rgba(186, 164, 237, .23)',
+      fill: 'rgba(167, 139, 250, .09)',
+      edge: 'rgba(196, 181, 253, .22)',
     },
   ];
 
@@ -368,7 +368,7 @@ function drawOfficeZones(context, width, height) {
     context.fill();
 
     context.strokeStyle = zone.edge;
-    context.lineWidth = 2;
+    context.lineWidth = 1.5;
     context.stroke();
 
     context.restore();
@@ -385,31 +385,31 @@ function drawAmbientLighting(context, width, height) {
       width * 0.12,
       height * 0.12,
       width * 0.17,
-      'rgba(255, 174, 105, .17)',
+      'rgba(139, 92, 246, .13)',
     ],
     [
       width * 0.48,
       height * 0.08,
       width * 0.15,
-      'rgba(255, 198, 130, .13)',
+      'rgba(56, 189, 248, .10)',
     ],
     [
       width * 0.86,
       height * 0.16,
       width * 0.18,
-      'rgba(255, 164, 98, .16)',
+      'rgba(59, 130, 246, .12)',
     ],
     [
       width * 0.13,
       height * 0.87,
       width * 0.17,
-      'rgba(255, 181, 111, .12)',
+      'rgba(45, 212, 191, .09)',
     ],
     [
       width * 0.86,
       height * 0.86,
       width * 0.16,
-      'rgba(166, 128, 255, .12)',
+      'rgba(167, 139, 250, .12)',
     ],
   ];
 
@@ -813,12 +813,34 @@ function drawConferenceTable(
     12
   );
 
-  context.fillStyle = '#815638';
+  context.fillStyle = '#493d43';
   context.fill();
 
   context.shadowColor = 'transparent';
 
-  context.strokeStyle = '#c08d5b';
+  const gradient = context.createLinearGradient(
+    x,
+    y,
+    x + width,
+    y + height
+  );
+
+  gradient.addColorStop(0, '#a17b61');
+  gradient.addColorStop(1, '#65483d');
+
+  roundedRect(
+    context,
+    x,
+    y,
+    width,
+    height,
+    12
+  );
+
+  context.fillStyle = gradient;
+  context.fill();
+
+  context.strokeStyle = '#c09268';
   context.lineWidth = 2;
   context.stroke();
 
@@ -971,10 +993,32 @@ function drawWorkstation(
     7
   );
 
-  context.fillStyle = '#77533b';
+  context.fillStyle = '#3b4659';
   context.fill();
 
   context.shadowColor = 'transparent';
+
+  const deskGradient = context.createLinearGradient(
+    x,
+    y,
+    x + width,
+    y + height
+  );
+
+  deskGradient.addColorStop(0, '#8b694f');
+  deskGradient.addColorStop(1, '#604633');
+
+  roundedRect(
+    context,
+    x,
+    y,
+    width,
+    height,
+    7
+  );
+
+  context.fillStyle = deskGradient;
+  context.fill();
 
   context.strokeStyle = '#c09268';
   context.lineWidth = 1.5;
@@ -995,14 +1039,54 @@ function drawWorkstation(
   context.strokeStyle = '#5da5cf';
   context.stroke();
 
-  context.fillStyle = 'rgba(88, 178, 230, .28)';
+  const screenGradient = context.createLinearGradient(
+    x + width * 0.32,
+    y + height * 0.12,
+    x + width * 0.68,
+    y + height * 0.48
+  );
 
-  context.fillRect(
+  screenGradient.addColorStop(0, '#204a68');
+  screenGradient.addColorStop(1, '#14253c');
+
+  roundedRect(
+    context,
     x + width * 0.35,
     y + height * 0.16,
     width * 0.30,
-    height * 0.26
+    height * 0.26,
+    3
   );
+
+  context.fillStyle = screenGradient;
+  context.fill();
+
+  context.strokeStyle = 'rgba(125, 211, 252, .6)';
+  context.lineWidth = 1;
+
+  context.beginPath();
+
+  context.moveTo(
+    x + width * 0.39,
+    y + height * 0.23
+  );
+
+  context.lineTo(
+    x + width * 0.60,
+    y + height * 0.23
+  );
+
+  context.moveTo(
+    x + width * 0.39,
+    y + height * 0.30
+  );
+
+  context.lineTo(
+    x + width * 0.55,
+    y + height * 0.30
+  );
+
+  context.stroke();
 
   roundedRect(
     context,
@@ -1208,10 +1292,10 @@ function drawAcousticScreen(
     height / 2
   );
 
-  context.fillStyle = '#4e526f';
+  context.fillStyle = '#343b5c';
   context.fill();
 
-  context.strokeStyle = '#9b91ca';
+  context.strokeStyle = '#8b83c7';
   context.lineWidth = 1.5;
   context.stroke();
 
@@ -1240,7 +1324,7 @@ function drawAcousticScreen(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Plants                                                                       */
+/* Plants                                                                      */
 /* -------------------------------------------------------------------------- */
 
 function drawPlantPot(
@@ -1265,7 +1349,7 @@ function drawPlantPot(
     Math.PI * 2
   );
 
-  context.fillStyle = '#3a2f2b';
+  context.fillStyle = '#292c43';
   context.fill();
 
   context.shadowColor = 'transparent';
@@ -1280,7 +1364,7 @@ function drawPlantPot(
     Math.PI * 2
   );
 
-  context.fillStyle = '#694c38';
+  context.fillStyle = '#493d47';
   context.fill();
 
   for (
@@ -1418,12 +1502,12 @@ function drawFloorLight(
 
   gradient.addColorStop(
     0,
-    'rgba(255, 190, 120, .36)'
+    'rgba(129, 140, 248, .3)'
   );
 
   gradient.addColorStop(
     1,
-    'rgba(255, 190, 120, 0)'
+    'rgba(129, 140, 248, 0)'
   );
 
   context.fillStyle = gradient;
@@ -1445,7 +1529,7 @@ function drawFloorLight(
     Math.PI * 2
   );
 
-  context.fillStyle = '#f4c990';
+  context.fillStyle = '#a5b4fc';
   context.fill();
 
   context.restore();
@@ -1622,13 +1706,28 @@ function drawRoomLabels(context, width, height) {
       boxHeight / 2
     );
 
-    context.fillStyle =
-      'rgba(8, 13, 25, .72)';
+    const badgeGradient = context.createLinearGradient(
+      x - boxWidth / 2,
+      y - boxHeight / 2,
+      x + boxWidth / 2,
+      y + boxHeight / 2
+    );
 
+    badgeGradient.addColorStop(
+      0,
+      'rgba(22, 28, 48, .96)'
+    );
+
+    badgeGradient.addColorStop(
+      1,
+      'rgba(12, 18, 33, .96)'
+    );
+
+    context.fillStyle = badgeGradient;
     context.fill();
 
     context.strokeStyle =
-      'rgba(171, 184, 220, .2)';
+      'rgba(129, 140, 248, .32)';
 
     context.lineWidth = 1;
     context.stroke();
@@ -1646,6 +1745,8 @@ function drawRoomLabels(context, width, height) {
 }
 
 function drawRoomBorder(context, width, height) {
+  context.save();
+
   context.strokeStyle = PALETTE.border;
   context.lineWidth = 8;
 
@@ -1665,6 +1766,8 @@ function drawRoomBorder(context, width, height) {
     width - 24,
     height - 24
   );
+
+  context.restore();
 }
 
 export default renderStaticLayer;
