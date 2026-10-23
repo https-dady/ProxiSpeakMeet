@@ -1,4 +1,3 @@
-
 /**
  * 2D Virtual World (Week 1 + 4).
  *
@@ -34,10 +33,13 @@ const WORLD_FALLBACK = {
 
 export function WorldCanvas() {
   const { worldRef, inputRef, sendPosition, audioRef, state } = useProxi();
+
   const containerRef = useRef(null);
   const staticRef = useRef(null);
   const dynamicRef = useRef(null);
+
   const velocityRef = useRef({ x: 0, y: 0 });
+
   const fpsRef = useRef({
     frames: 0,
     last: performance.now(),
@@ -63,32 +65,46 @@ export function WorldCanvas() {
     enabled: joined,
   });
 
-  // ---- sizing + static layer ---------------------------------------------
+  // -------------------------------------------------------------------------
+  // Canvas sizing and static office rendering
+  // -------------------------------------------------------------------------
+
   useEffect(() => {
     const container = containerRef.current;
     const staticCanvas = staticRef.current;
 
-    if (!container || !staticCanvas) return undefined;
+    if (!container || !staticCanvas) {
+      return undefined;
+    }
 
     const repaint = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const rect = container.getBoundingClientRect();
 
-      if (rect.width === 0 || rect.height === 0) return;
+      if (rect.width === 0 || rect.height === 0) {
+        return;
+      }
 
       const width = Math.floor(rect.width * dpr);
       const height = Math.floor(rect.height * dpr);
 
       for (const canvas of [staticCanvas, dynamicRef.current]) {
-        if (!canvas) continue;
+        if (!canvas) {
+          continue;
+        }
 
         canvas.width = width;
         canvas.height = height;
+
         canvas.style.width = `${rect.width}px`;
         canvas.style.height = `${rect.height}px`;
       }
 
-      const viewport = { width: rect.width, height: rect.height };
+      const viewport = {
+        width: rect.width,
+        height: rect.height,
+      };
+
       const view = computeView(viewport, room);
 
       renderStaticLayer(staticCanvas.getContext('2d'), {
@@ -102,48 +118,76 @@ export function WorldCanvas() {
     repaint();
 
     const observer = new ResizeObserver(repaint);
+
     observer.observe(container);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, [room.width, room.height, room.obstacles]);
 
-  // ---- the single animation loop -----------------------------------------
+  // -------------------------------------------------------------------------
+  // Animation loop: movement, collisions, networking, audio and rendering
+  // -------------------------------------------------------------------------
+
   const frame = useCallback(
     (delta, now) => {
       const canvas = dynamicRef.current;
       const context = canvas?.getContext('2d');
 
-      if (!context) return;
+      if (!context) {
+        return;
+      }
 
       const world = worldRef.current;
 
-      // Nothing to simulate or paint before the first successful join.
-      if (!world.self.id) return;
+      // Do not simulate or paint before the first successful join.
+      if (!world.self.id) {
+        return;
+      }
 
-      const world_ = { width: room.width, height: room.height };
-      const { speed, clickSpeed, acceleration, friction, avatarRadius } =
-        config.movement;
+      const world_ = {
+        width: room.width,
+        height: room.height,
+      };
 
-      // 1. Input -> target velocity
+      const {
+        speed,
+        clickSpeed,
+        acceleration,
+        friction,
+        avatarRadius,
+      } = config.movement;
+
+      // 1. Convert keyboard or pointer input into movement direction.
+
       const input = inputRef.current;
+
       const { dx, dy, arrived } = desiredDirection(
         input.keys,
         input.moveTarget,
         world.self
       );
 
-      if (arrived && input.moveTarget) input.moveTarget = null;
+      if (arrived && input.moveTarget) {
+        input.moveTarget = null;
+      }
 
       const targetSpeed = input.moveTarget ? clickSpeed : speed;
+
       const targetVx = dx * targetSpeed;
       const targetVy = dy * targetSpeed;
+
       const velocity = velocityRef.current;
-      const rate = (dx === 0 && dy === 0 ? friction : acceleration) * delta;
+
+      const rate =
+        (dx === 0 && dy === 0 ? friction : acceleration) * delta;
 
       velocity.x = approach(velocity.x, targetVx, rate);
       velocity.y = approach(velocity.y, targetVy, rate);
 
-      // 2. Integrate + collide
+      // 2. Integrate movement and resolve collisions.
+
       let x = world.self.x + velocity.x * delta;
       let y = world.self.y + velocity.y * delta;
 
@@ -167,15 +211,18 @@ export function WorldCanvas() {
       world.self.x = x;
       world.self.y = y;
 
-      // Facing follows the direction of travel.
+      // Update avatar facing direction while moving.
+
       if (Math.hypot(velocity.x, velocity.y) > 12) {
         world.self.angle = Math.atan2(velocity.y, velocity.x);
       }
 
-      // 3. Reconcile with the authoritative server position.
+      // 3. Reconcile local movement with the authoritative server position.
+
       if (world.self.authority) {
         const dxA = world.self.authority.x - x;
         const dyA = world.self.authority.y - y;
+
         const error = Math.hypot(dxA, dyA);
 
         if (error > 90) {
@@ -187,10 +234,17 @@ export function WorldCanvas() {
         }
       }
 
-      // 4. Network (throttled inside sendPosition).
-      sendPosition(world.self.x, world.self.y, world.self.angle);
+      // 4. Synchronize the local avatar position with the server.
+      // sendPosition handles its own throttling.
 
-      // 5. Audio geometry (throttled inside the engine).
+      sendPosition(
+        world.self.x,
+        world.self.y,
+        world.self.angle
+      );
+
+      // 5. Update spatial-audio listener and peer geometry.
+
       const audio = audioRef.current;
 
       if (audio) {
@@ -203,10 +257,16 @@ export function WorldCanvas() {
         audio.update(now);
       }
 
-      // 6. Paint
+      // 6. Render the dynamic canvas layer.
+
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
       const rect = canvas.getBoundingClientRect();
-      const viewport = { width: rect.width, height: rect.height };
+
+      const viewport = {
+        width: rect.width,
+        height: rect.height,
+      };
 
       drawFrame(context, {
         world,
@@ -218,7 +278,8 @@ export function WorldCanvas() {
         showClusters: layers.showClusters,
       });
 
-      // 7. FPS meter (kept in a ref; the HUD samples it).
+      // 7. Update the FPS meter without triggering React renders.
+
       const meter = fpsRef.current;
 
       meter.frames += 1;
@@ -226,7 +287,10 @@ export function WorldCanvas() {
       const elapsed = now - meter.last;
 
       if (elapsed >= 500) {
-        meter.fps = Math.round((meter.frames * 1000) / elapsed);
+        meter.fps = Math.round(
+          (meter.frames * 1000) / elapsed
+        );
+
         meter.frameMs =
           Math.round((elapsed / meter.frames) * 100) / 100;
 
@@ -250,8 +314,15 @@ export function WorldCanvas() {
 
   useAnimationFrame(frame, true);
 
+  // -------------------------------------------------------------------------
+  // Accessible office canvas and display controls
+  // -------------------------------------------------------------------------
+
   return (
-    <section className="world" aria-label="Virtual office">
+    <section
+      className="world"
+      aria-label="Virtual office"
+    >
       <div
         className="world__stage"
         ref={containerRef}
@@ -267,7 +338,9 @@ export function WorldCanvas() {
           ref={dynamicRef}
           className="world__layer world__layer--dynamic"
           onPointerDown={onPointerDown}
-          style={{ cursor: joined ? 'crosshair' : 'default' }}
+          style={{
+            cursor: joined ? 'crosshair' : 'default',
+          }}
           role="img"
           aria-label={
             joined
@@ -277,7 +350,10 @@ export function WorldCanvas() {
         />
 
         {!joined && (
-          <div className="world__veil" role="status">
+          <div
+            className="world__veil"
+            role="status"
+          >
             Join an office to start moving
           </div>
         )}
@@ -339,4 +415,3 @@ export function WorldCanvas() {
 }
 
 export default WorldCanvas;
-
