@@ -87,7 +87,12 @@ function reducer(state, action) {
     case 'stats':
       return { ...state, stats: { ...state.stats, ...action.stats } };
     case 'reset':
-      return { ...initialState, sessionIntent: state.sessionIntent };
+  return {
+    ...initialState,
+    sessionIntent: action.clearIntent
+      ? null
+      : state.sessionIntent,
+  };
     default:
       return state;
   }
@@ -484,14 +489,45 @@ export function ProxiProvider({ children, serverUrl = config.serverUrl }) {
     [applyJoinAck, requestMicrophone],
   );
 
-  const leave = useCallback(() => {
+  const leave = useCallback(async () => {
+  const client = clientRef.current;
+
+  // Ask the server to remove this user from the current room first.
+  // Keep local cleanup independent so leaving still works if disconnected.
+  try {
+    if (client?.connected && stateRef.current.sessionIntent) {
+      await client.request('room:leave', {});
+    }
+  } catch (err) {
+    dispatch({
+      type: 'notice',
+      notice: {
+        level: 'warn',
+        message: `Server leave confirmation failed: ${err.message}`,
+      },
+    });
+  } finally {
     peersRef.current?.closeAll();
     audioRef.current?.dispose();
+
     worldRef.current.peers.clear();
     worldRef.current.edges.clear();
-    dispatch({ type: 'reset' });
+    worldRef.current.obstacles = [];
+    worldRef.current.clusters = [];
+    worldRef.current.room = null;
+    worldRef.current.self = {
+      ...worldRef.current.self,
+      id: null,
+      x: 0,
+      y: 0,
+      angle: 0,
+      authority: null,
+    };
+
+    dispatch({ type: 'reset', clearIntent: true });
     dispatch({ type: 'status', status: 'idle' });
-  }, []);
+  }
+}, []);
 
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
