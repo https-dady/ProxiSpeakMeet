@@ -1,7 +1,16 @@
-/** MongoDB connection lifecycle. A database is mandatory for this project. */
+/**
+ * MongoDB connection lifecycle.
+ *
+ * MongoDB is mandatory for the geospatial engine.
+ * Connection listeners are registered once, and concurrent connection
+ * requests share the same pending connection attempt.
+ */
+
 import mongoose from 'mongoose';
+
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
+
 import UserPresence from '../models/UserPresence.js';
 import Room from '../models/Room.js';
 import SpatialAudit from '../models/SpatialAudit.js';
@@ -10,47 +19,116 @@ mongoose.set('strictQuery', true);
 
 const log = logger.child('mongo');
 
-export async function connectMongo({ uri = config.mongo.uri } = {}) {
-  mongoose.connection.on('connected', () => log.info('connected'));
-  mongoose.connection.on('error', (err) => log.error('connection error:', err.message));
-  mongoose.connection.on('disconnected', () => log.warn('disconnected'));
+let connectionListenersRegistered = false;
+let connectionPromise = null;
 
-  try {
-    await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: config.mongo.serverSelectionTimeoutMS,
-      maxPoolSize: 50,
-      minPoolSize: 5,
-      retryWrites: true,
-    });
-  } catch (err) {
-    log.error(
-      `Cannot reach MongoDB at "${uri}".\n` +
-        '  Start it with:  docker compose up -d mongo   (or: mongod --dbpath ./data)\n' +
-        '  The geospatial engine stores every avatar as a 2dsphere GeoJSON point, so MongoDB is required.',
-    );
-    throw err;
+function registerConnectionListeners() {
+  if (connectionListenersRegistered) {
+    return;
   }
 
-  return mongoose.connection;
-}
+  const connection = mongoose.connection;
 
-export async function disconnectMongo() {
-  if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
+  connection.on('connected', () => {
+    log.info('connected');
+  });
+
+  connection.on('error', (err) => {
+    log.error('connection error:', err.message);
+  });
+
+  connection.on('disconnected', () => {
+    log.warn('disconnected');
+  });
+
+  connectionListenersRegistered = true;
 }
 
 /**
- * Create every index the app depends on — most importantly the 2dsphere index
- * on UserPresence.location that backs $near / $geoWithin. Idempotent, and run
- * on every boot so a fresh (remote) database is usable immediately without a
- * manual migration step.
+ * Establish a MongoDB connection.
+ *
+ * Concurrent callers share one pending connection attempt.
+ * Initial connection failures are propagated to the caller.
+ */
+export async function connectMongo({
+  uri = config.mongo.uri,
+} = {}) {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
+  registerConnectionListeners();
+
+  connectionPromise = mongoose
+    .connect(uri, {
+      serverSelectionTimeoutMS:
+        config.mongo.serverSelectionTimeoutMS,
+      maxPoolSize: 50,
+      minPoolSize: 5,
+      retryWrites: true,
+    })
+    .then(() => mongoose.connection)
+    .catch((err) => {
+      log.error(
+        `Cannot reach MongoDB at "${uri}".\n` +
+          '  Start it with: docker compose up -d mongo ' +
+          '(or: mongod --dbpath ./data)\n' +
+          '  MongoDB is required by the geospatial engine.',
+      );
+
+      throw err;
+    })
+    .finally(() => {
+      connectionPromise = null;
+    });
+
+  return connectionPromise;
+}
+
+/**
+ * Disconnect MongoDB safely.
+ *
+ * If a connection attempt is still pending, wait for it to settle
+ * before deciding whether a disconnect is necessary.
+ */
+export async function disconnectMongo() {
+  if (connectionPromise) {
+    await connectionPromise.catch(() => {});
+  }
+
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+}
+
+/**
+ * Create every index required by the application.
+ *
+ * Index creation is idempotent and runs during startup.
+ * MongoDB must already be connected.
  */
 export async function ensureIndexes() {
+  if (mongoose.connection.readyState !== 1) {
+    throw new Error(
+      'Cannot ensure MongoDB indexes: database is not connected.',
+    );
+  }
+
   const [presence, room, audit] = await Promise.all([
     UserPresence.createIndexes(),
     Room.createIndexes(),
     SpatialAudit.createIndexes(),
   ]);
-  return { presence, room, audit };
+
+  return {
+    presence,
+    room,
+    audit,
+  };
 }
 
 export { mongoose };
