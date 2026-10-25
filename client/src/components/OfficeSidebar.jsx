@@ -1,15 +1,3 @@
-/**
- * ProxiSpeak — Office Sidebar
- *
- * Responsibilities:
- * - Render accessible workspace navigation.
- * - Notify the parent when the active workspace view changes.
- * - Preserve the current user identity and connection status.
- * - Reuse the existing SoundLegend component.
- *
- * Navigation views are controlled by the parent component.
- */
-
 import { useProxi } from '../state/ProxiContext.jsx';
 import { SoundLegend } from './SoundLegend.jsx';
 
@@ -22,7 +10,10 @@ const NAV_ITEMS = [
 
 function BrandMark() {
   return (
-    <span className="office-sidebar__brand-mark" aria-hidden="true">
+    <span
+      className="office-sidebar__brand-mark"
+      aria-hidden="true"
+    >
       <span />
       <span />
       <span />
@@ -84,19 +75,20 @@ function UserProfile() {
   const { state, worldRef } = useProxi();
 
   const self = worldRef.current.self;
+
   const displayName = self.name || 'You';
   const avatarColor = self.color || '#4f8cff';
 
+  const statusLabels = {
+    online: 'Online',
+    connecting: 'Connecting',
+    reconnecting: 'Reconnecting',
+    error: 'Connection error',
+    idle: 'Offline',
+  };
+
   const statusLabel =
-    state.status === 'online'
-      ? 'Online'
-      : state.status === 'connecting'
-        ? 'Connecting'
-        : state.status === 'reconnecting'
-          ? 'Reconnecting'
-          : state.status === 'error'
-            ? 'Connection error'
-            : 'Offline';
+    statusLabels[state.status] ?? 'Offline';
 
   return (
     <section
