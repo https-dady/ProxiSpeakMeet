@@ -182,24 +182,26 @@ export function createApp({
       const roomId = parseRoomId(params.roomId ?? 'lobby');
       const room = await requireRoom(roomId);
 
+      // Validate audit coordinates against the selected room's geometry,
+      // not the global world dimensions.
       const x = clamp(
         requireFiniteNumber(
           Number(params.x ?? room.width / 2),
           'x',
-          { min: 0, max: cfg.world.width },
+          { min: 0, max: room.width },
         ),
         0,
-        cfg.world.width,
+        room.width,
       );
 
       const y = clamp(
         requireFiniteNumber(
           Number(params.y ?? room.height / 2),
           'y',
-          { min: 0, max: cfg.world.height },
+          { min: 0, max: room.height },
         ),
         0,
-        cfg.world.height,
+        room.height,
       );
 
       const radiusPx = clamp(

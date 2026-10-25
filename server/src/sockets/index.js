@@ -147,15 +147,38 @@ function onConnection({
   socket.on(
     'room:join',
     safe(async (payload) => {
+      // Validate identity and room ID first. The global dimensions are used
+      // only for this initial validation; spawn is validated against the
+      // selected room after its configuration has been loaded.
       const {
         roomId,
         name,
         color,
         avatar,
-        spawn,
       } = validateRoomJoin(payload, {
         world: cfg.world,
       });
+
+      const room = await getRoom(roomId, {
+        persist: true,
+      });
+
+      if (
+        !room ||
+        !Number.isFinite(room.width) ||
+        !Number.isFinite(room.height) ||
+        room.width < AVATAR_RADIUS * 2 ||
+        room.height < AVATAR_RADIUS * 2
+      ) {
+        throw new ValidationError(
+          'room configuration has invalid dimensions',
+        );
+      }
+
+      const roomWorld = {
+        width: room.width,
+        height: room.height,
+      };
 
       const occupants = store.byRoom(roomId);
 
@@ -170,10 +193,6 @@ function onConnection({
           { status: 503 },
         );
       }
-
-      const room = await getRoom(roomId, {
-        persist: true,
-      });
 
       /*
        * Idempotent same-room join:
@@ -198,8 +217,55 @@ function onConnection({
         }
       }
 
-      const position =
-        spawn ?? chooseSpawn(room.spawnPoints, occupants);
+      /*
+       * If a caller explicitly supplies a spawn point, validate it against
+       * the actual room. Do not silently clamp a point from one room into
+       * another room's coordinate system.
+       */
+      let requestedSpawn = null;
+
+      if (payload?.spawn !== undefined && payload?.spawn !== null) {
+        const spawn = payload.spawn;
+
+        if (
+          typeof spawn !== 'object' ||
+          Array.isArray(spawn) ||
+          !Number.isFinite(spawn.x) ||
+          !Number.isFinite(spawn.y)
+        ) {
+          throw new ValidationError(
+            'spawn must contain finite x and y coordinates',
+            { field: 'spawn' },
+          );
+        }
+
+        if (
+          spawn.x < AVATAR_RADIUS ||
+          spawn.y < AVATAR_RADIUS ||
+          spawn.x > roomWorld.width - AVATAR_RADIUS ||
+          spawn.y > roomWorld.height - AVATAR_RADIUS
+        ) {
+          throw new ValidationError(
+            'spawn coordinates must be within the selected room boundaries',
+            { field: 'spawn' },
+          );
+        }
+
+        requestedSpawn = {
+          x: spawn.x,
+          y: spawn.y,
+        };
+      }
+
+      const preferredSpawn =
+        requestedSpawn ??
+        chooseSpawn(room.spawnPoints, occupants);
+
+      const position = resolveSafeSpawn({
+        room,
+        preferredSpawn,
+        occupants,
+      });
 
       /*
        * Switching rooms must remove the old room membership and presence
@@ -306,64 +372,63 @@ function onConnection({
         throw new ValidationError('unknown session');
       }
 
-      // Resolve the active room's actual geometry instead of using global
-// dimensions. The room is normally cached during room:join.
-const room = services.getCachedRoom(identity.roomId);
+      // Use the actual dimensions of the active room.
+      const room = services.getCachedRoom(identity.roomId);
 
-if (!room) {
-  throw new ValidationError('room configuration is unavailable');
-}
+      if (!room) {
+        throw new ValidationError(
+          'room configuration is unavailable',
+        );
+      }
 
-const roomWorld = {
-  width: room.width,
-  height: room.height,
-};
+      const roomWorld = {
+        width: room.width,
+        height: room.height,
+      };
 
-// Validate and anti-teleport-clamp against this room's dimensions.
-const next = validatePosition(payload, {
-  world: roomWorld,
-  previous,
-  maxSpeedPxPerSec: cfg.world.maxSpeedPxPerSec,
-  minDtMs: cfg.presence.positionThrottleMs,
-  now: Date.now(),
-});
+      const next = validatePosition(payload, {
+        world: roomWorld,
+        previous,
+        maxSpeedPxPerSec: cfg.world.maxSpeedPxPerSec,
+        minDtMs: cfg.presence.positionThrottleMs,
+        now: Date.now(),
+      });
 
-// Keep the avatar center far enough inside the room boundaries
-// to account for its collision radius.
-const boundedX = Math.min(
-  Math.max(next.x, AVATAR_RADIUS),
-  roomWorld.width - AVATAR_RADIUS,
-);
+      // Keep the avatar center inside the room, accounting for its radius.
+      const boundedX = Math.min(
+        Math.max(next.x, AVATAR_RADIUS),
+        roomWorld.width - AVATAR_RADIUS,
+      );
 
-const boundedY = Math.min(
-  Math.max(next.y, AVATAR_RADIUS),
-  roomWorld.height - AVATAR_RADIUS,
-);
+      const boundedY = Math.min(
+        Math.max(next.y, AVATAR_RADIUS),
+        roomWorld.height - AVATAR_RADIUS,
+      );
 
-// Furniture blocks movement, not just sound.
-const resolved = resolveCollision(
-  boundedX,
-  boundedY,
-  AVATAR_RADIUS,
-  room.obstacles,
-);
+      // Resolve furniture and wall collisions.
+      const resolved = resolveCollision(
+        boundedX,
+        boundedY,
+        AVATAR_RADIUS,
+        room.obstacles,
+      );
 
-// Collision resolution must not leave the avatar outside the room.
-const finalX = Math.min(
-  Math.max(resolved.x, AVATAR_RADIUS),
-  roomWorld.width - AVATAR_RADIUS,
-);
+      // Collision resolution must not move the avatar outside the room.
+      const finalX = Math.min(
+        Math.max(resolved.x, AVATAR_RADIUS),
+        roomWorld.width - AVATAR_RADIUS,
+      );
 
-const finalY = Math.min(
-  Math.max(resolved.y, AVATAR_RADIUS),
-  roomWorld.height - AVATAR_RADIUS,
-);
+      const finalY = Math.min(
+        Math.max(resolved.y, AVATAR_RADIUS),
+        roomWorld.height - AVATAR_RADIUS,
+      );
 
-const user = store.move(socket.id, {
-  x: finalX,
-  y: finalY,
-  angle: next.angle,
-});
+      const user = store.move(socket.id, {
+        x: finalX,
+        y: finalY,
+        angle: next.angle,
+      });
 
       store.markDirty(socket.id);
 
@@ -559,6 +624,137 @@ const user = store.move(socket.id, {
     scaleMode: redisBus?.mode ?? 'single',
     serverTime: Date.now(),
   });
+}
+
+/**
+ * Resolve an initial spawn against the selected room's dimensions and
+ * solid obstacles. Prefer the requested/configured spawn, then try the
+ * remaining configured spawn points, followed by deterministic fallback
+ * candidates. If the room has no safe spawn, reject the join rather than
+ * placing the avatar inside furniture or outside the room.
+ */
+function resolveSafeSpawn({
+  room,
+  preferredSpawn,
+  occupants,
+}) {
+  const minX = AVATAR_RADIUS;
+  const minY = AVATAR_RADIUS;
+  const maxX = room.width - AVATAR_RADIUS;
+  const maxY = room.height - AVATAR_RADIUS;
+
+  const configuredPoints = Array.isArray(room.spawnPoints)
+    ? room.spawnPoints
+    : [];
+
+  const candidates = [
+    preferredSpawn,
+    ...configuredPoints,
+    { x: 60, y: 60 },
+    { x: room.width / 2, y: room.height / 2 },
+    { x: room.width - 60, y: 60 },
+    { x: 60, y: room.height - 60 },
+    { x: room.width - 60, y: room.height - 60 },
+  ];
+
+  // Add a deterministic grid as a final fallback for rooms whose configured
+  // spawn points happen to overlap obstacles.
+  const step = Math.max(AVATAR_RADIUS * 3, 48);
+
+  for (let y = minY + step; y < maxY; y += step) {
+    for (let x = minX + step; x < maxX; x += step) {
+      candidates.push({ x, y });
+    }
+  }
+
+  const seen = new Set();
+
+  for (const candidate of candidates) {
+    if (
+      !candidate ||
+      !Number.isFinite(candidate.x) ||
+      !Number.isFinite(candidate.y)
+    ) {
+      continue;
+    }
+
+    const candidateX = clampNumber(candidate.x, minX, maxX);
+    const candidateY = clampNumber(candidate.y, minY, maxY);
+    const key = `${candidateX}:${candidateY}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+
+    const resolved = resolveCollision(
+      candidateX,
+      candidateY,
+      AVATAR_RADIUS,
+      room.obstacles ?? [],
+    );
+
+    const x = clampNumber(resolved.x, minX, maxX);
+    const y = clampNumber(resolved.y, minY, maxY);
+
+    if (!isSpawnClear(x, y, room.obstacles ?? [])) {
+      continue;
+    }
+
+    /*
+     * Prefer a valid candidate with reasonable separation from other users.
+     * If all candidates are close to occupants, the first collision-free
+     * candidate remains a valid fallback.
+     */
+    const occupiedByAvatar = occupants.some(
+      (occupant) =>
+        Math.hypot(occupant.x - x, occupant.y - y) <
+        AVATAR_RADIUS * 2,
+    );
+
+    if (!occupiedByAvatar) {
+      return { x, y };
+    }
+  }
+
+  throw new ValidationError(
+    'no safe spawn position is available in this room',
+    { field: 'spawn' },
+  );
+}
+
+/**
+ * A spawn is clear only if the avatar circle does not overlap any solid
+ * obstacle. Non-solid obstacles are intentionally ignored.
+ */
+function isSpawnClear(x, y, obstacles) {
+  return !obstacles.some((obstacle) => {
+    if (obstacle.solid === false) {
+      return false;
+    }
+
+    const nearestX = clampNumber(
+      x,
+      obstacle.x,
+      obstacle.x + obstacle.w,
+    );
+
+    const nearestY = clampNumber(
+      y,
+      obstacle.y,
+      obstacle.y + obstacle.h,
+    );
+
+    const dx = x - nearestX;
+    const dy = y - nearestY;
+
+    return dx * dx + dy * dy < AVATAR_RADIUS * AVATAR_RADIUS;
+  });
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 const wireUser = (user) => ({

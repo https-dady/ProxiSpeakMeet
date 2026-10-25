@@ -457,10 +457,12 @@ export async function getRoom(roomId, { persist = false } = {}) {
 }
 
 export async function listRooms() {
-  let docs = [];
+  const roomsById = new Map();
+  let databaseAvailable = false;
 
+  // 1. Load persisted rooms from MongoDB.
   try {
-    docs = await Room.find(
+    const docs = await Room.find(
       {},
       {
         roomId: 1,
@@ -475,6 +477,14 @@ export async function listRooms() {
       .sort({ roomId: 1 })
       .limit(100)
       .lean();
+
+    databaseAvailable = true;
+
+    for (const doc of docs) {
+      if (doc?.roomId) {
+        roomsById.set(doc.roomId, toRoomWire(doc));
+      }
+    }
   } catch (err) {
     if (
       !isTransientMongoError(err) &&
@@ -484,18 +494,35 @@ export async function listRooms() {
     }
 
     log.warn(
-      `room catalogue unavailable; using default lobby: ${err.message}`,
+      `room catalogue unavailable; falling back to in-memory rooms: ${err.message}`,
     );
-
-    return [buildDefaultRoom('lobby')];
   }
 
-  const rooms = docs.map(toRoomWire);
-  const hasLobby = rooms.some((room) => room.roomId === 'lobby');
-
-  if (!hasLobby) {
-    rooms.push(buildDefaultRoom('lobby'));
+  // 2. Add pending rooms.
+  // Pending rooms may contain newer room configuration that MongoDB
+  // has not successfully persisted yet, so they take precedence.
+  for (const [roomId, room] of pendingPersistence.entries()) {
+    if (room?.roomId) {
+      roomsById.set(roomId, toRoomWire(room));
+    }
   }
+
+  // 3. Add cached rooms that are not already present.
+  // Persisted rooms remain authoritative unless a pending write exists.
+  for (const [roomId, room] of cache.entries()) {
+    if (room?.roomId && !roomsById.has(roomId)) {
+      roomsById.set(roomId, toRoomWire(room));
+    }
+  }
+
+  // 4. Guarantee a usable lobby.
+  // Prefer a persisted, pending, or cached lobby if one already exists.
+  if (!roomsById.has('lobby')) {
+    roomsById.set('lobby', buildDefaultRoom('lobby'));
+  }
+
+  // 5. Return a deterministic, duplicate-free catalogue.
+  const rooms = [...roomsById.values()];
 
   rooms.sort((a, b) => a.roomId.localeCompare(b.roomId));
 
