@@ -1,14 +1,13 @@
 /**
  * ProxiSpeak — Office Sidebar
  *
- * UI-only component.
+ * Responsibilities:
+ * - Render accessible workspace navigation.
+ * - Notify the parent when the active workspace view changes.
+ * - Preserve the current user identity and connection status.
+ * - Reuse the existing SoundLegend component.
  *
- * LOCKED:
- * - Does not change navigation or routing behavior.
- * - Does not modify Socket.IO, WebRTC, or spatial audio.
- * - Reads the existing user identity from ProxiContext.
- * - Reuses the existing SoundLegend component.
- * - Navigation functionality will be implemented in a later phase.
+ * Navigation views are controlled by the parent component.
  */
 
 import { useProxi } from '../state/ProxiContext.jsx';
@@ -31,43 +30,52 @@ function BrandMark() {
   );
 }
 
-function Navigation() {
+function Navigation({ activeView, onNavigate }) {
   return (
     <nav
       className="office-sidebar__navigation"
       aria-label="Office navigation"
     >
-      <span className="office-sidebar__section-label">WORKSPACE</span>
+      <span className="office-sidebar__section-label">
+        WORKSPACE
+      </span>
 
-      {NAV_ITEMS.map((item) => (
-        <div
-          key={item.id}
-          className={`office-sidebar__nav-item${
-            item.id === 'office'
-              ? ' office-sidebar__nav-item--active'
-              : ''
-          }`}
-          aria-current={item.id === 'office' ? 'page' : undefined}
-        >
-          <span
-            className="office-sidebar__nav-icon"
-            aria-hidden="true"
+      {NAV_ITEMS.map((item) => {
+        const isActive = activeView === item.id;
+
+        return (
+          <button
+            key={item.id}
+            type="button"
+            className={`office-sidebar__nav-item${
+              isActive
+                ? ' office-sidebar__nav-item--active'
+                : ''
+            }`}
+            aria-current={isActive ? 'page' : undefined}
+            aria-label={item.label}
+            onClick={() => onNavigate?.(item.id)}
           >
-            {item.icon}
-          </span>
-
-          <span className="office-sidebar__nav-label">
-            {item.label}
-          </span>
-
-          {item.id === 'office' && (
             <span
-              className="office-sidebar__active-indicator"
+              className="office-sidebar__nav-icon"
               aria-hidden="true"
-            />
-          )}
-        </div>
-      ))}
+            >
+              {item.icon}
+            </span>
+
+            <span className="office-sidebar__nav-label">
+              {item.label}
+            </span>
+
+            {isActive && (
+              <span
+                className="office-sidebar__active-indicator"
+                aria-hidden="true"
+              />
+            )}
+          </button>
+        );
+      })}
     </nav>
   );
 }
@@ -97,7 +105,9 @@ function UserProfile() {
     >
       <span
         className="office-sidebar__profile-avatar"
-        style={{ '--profile-avatar-color': avatarColor }}
+        style={{
+          '--profile-avatar-color': avatarColor,
+        }}
         aria-hidden="true"
       >
         <span />
@@ -113,21 +123,18 @@ function UserProfile() {
             className={`office-sidebar__status-dot office-sidebar__status-dot--${state.status}`}
             aria-hidden="true"
           />
+
           {statusLabel}
         </span>
-      </span>
-
-      <span
-        className="office-sidebar__profile-menu"
-        aria-hidden="true"
-      >
-        ⋯
       </span>
     </section>
   );
 }
 
-export function OfficeSidebar() {
+export function OfficeSidebar({
+  activeView = 'office',
+  onNavigate,
+}) {
   return (
     <aside
       className="office-sidebar"
@@ -142,7 +149,10 @@ export function OfficeSidebar() {
         </span>
       </header>
 
-      <Navigation />
+      <Navigation
+        activeView={activeView}
+        onNavigate={onNavigate}
+      />
 
       <div className="office-sidebar__divider" />
 
