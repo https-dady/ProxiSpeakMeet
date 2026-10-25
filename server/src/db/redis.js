@@ -78,7 +78,7 @@ export async function createRedisBus() {
 
   // Verify the TLS chain first; only if it is not trusted do we retry once
   // without verification, and we say so loudly when we do.
-  const attempts = isTls ? [{ tls: {} }, { tls: { rejectUnauthorized: false }, insecure: true }] : [{}];
+  const attempts = [{}];
   let lastError = null;
 
   for (const attempt of attempts) {
@@ -185,8 +185,8 @@ function singleInstanceBus(reason) {
     pub: null,
     sub: null,
     adapter: null,
-    publish() {},
-    subscribe() {},
-    async close() {},
+    publish() { },
+    subscribe() { },
+    async close() { },
   };
 }
