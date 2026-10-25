@@ -1,18 +1,41 @@
 /**
- * Room persistence (Week 4). Layouts + furniture obstacles live in MongoDB and
- * are shipped to every client on join so the canvas and the occlusion model
- * agree on where the walls are.
+ * Room persistence and in-memory room cache.
  *
- * A room that is not in MongoDB is materialised from the default blueprint the
- * first time somebody asks for it, so the app is usable with an empty database.
+ * Default rooms remain available when MongoDB is temporarily unreachable.
+ * Failed persistence is retained in a per-room retry queue and retried after
+ * MongoDB reconnects or when that room is requested again.
  */
+import mongoose from 'mongoose';
 import Room from '../models/Room.js';
 import config from '../config/index.js';
+import logger from '../utils/logger.js';
 import { NotFoundError } from '../utils/errors.js';
 
-const cache = new Map(); // roomId -> room document (plain object)
+const log = logger.child('rooms');
+const cache = new Map();
+const pendingPersistence = new Map();
+const inFlightPersistence = new Map();
 
-/** Deterministic blueprint so every instance builds the same default room. */
+let retryOnReconnectRunning = false;
+
+function isTransientMongoError(err) {
+  const name = String(err?.name ?? '');
+  const message = String(err?.message ?? '');
+
+  return (
+    [
+      'MongoServerSelectionError',
+      'MongoNetworkError',
+      'MongoNetworkTimeoutError',
+      'MongooseServerSelectionError',
+    ].includes(name) ||
+    /not connected|ECONNREFUSED|buffering timed out|MongoServerSelectionError|server selection timed out|connection closed|connection refused/i.test(
+      message,
+    )
+  );
+}
+
+/** Generate a deterministic default office blueprint. */
 export function buildDefaultRoom(roomId, world = config.world) {
   const { width: w, height: h } = world;
 
@@ -143,13 +166,13 @@ export function buildDefaultRoom(roomId, world = config.world) {
 }
 
 const prettyRoomName = (roomId) =>
-  roomId
+  String(roomId)
     .split(/[-_\s]+/)
     .filter(Boolean)
     .map((word) => word[0].toUpperCase() + word.slice(1))
     .join(' ') || 'Lobby';
 
-/** Normalise a mongoose doc / plain object into the wire format used by clients. */
+/** Convert a Mongoose document or plain object to the client wire format. */
 export function toRoomWire(doc) {
   return {
     roomId: doc.roomId,
@@ -174,36 +197,158 @@ export function toRoomWire(doc) {
   };
 }
 
+function rememberPending(room) {
+  pendingPersistence.set(room.roomId, room);
+}
+
+/**
+ * Persist a room once per roomId.
+ * Failed writes remain pending for a later retry.
+ */
+async function persistWithRetryQueue(room) {
+  const roomId = room.roomId;
+  const existingOperation = inFlightPersistence.get(roomId);
+
+  if (existingOperation) {
+    return existingOperation;
+  }
+
+  const operation = (async () => {
+    try {
+      const doc = await Room.findOneAndUpdate(
+        { roomId },
+        { $set: room },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+          runValidators: true,
+        },
+      ).lean();
+
+      if (!doc) {
+        throw new Error(`MongoDB did not return persisted room "${roomId}"`);
+      }
+
+      const wire = toRoomWire(doc);
+
+      cache.set(roomId, wire);
+      pendingPersistence.delete(roomId);
+
+      log.info(`room "${roomId}" persisted`);
+
+      return wire;
+    } catch (err) {
+      rememberPending(room);
+
+      if (
+        isTransientMongoError(err) ||
+        mongoose.connection.readyState !== 1
+      ) {
+        log.warn(
+          `room "${roomId}" persistence deferred: ${err.message}`,
+        );
+      } else {
+        log.error(
+          `room "${roomId}" persistence failed: ${err.message}`,
+        );
+      }
+
+      throw err;
+    } finally {
+      inFlightPersistence.delete(roomId);
+    }
+  })();
+
+  inFlightPersistence.set(roomId, operation);
+
+  return operation;
+}
+
+/** Retry pending room writes sequentially after MongoDB reconnects. */
+export async function retryPendingRoomPersistence() {
+  if (
+    retryOnReconnectRunning ||
+    mongoose.connection.readyState !== 1
+  ) {
+    return;
+  }
+
+  retryOnReconnectRunning = true;
+
+  try {
+    for (const room of [...pendingPersistence.values()]) {
+      if (mongoose.connection.readyState !== 1) {
+        break;
+      }
+
+      try {
+        await persistWithRetryQueue(room);
+      } catch {
+        // Keep the room queued for the next retry opportunity.
+      }
+    }
+  } finally {
+    retryOnReconnectRunning = false;
+  }
+}
+
+mongoose.connection.on('connected', () => {
+  void retryPendingRoomPersistence();
+});
+
 export async function getRoom(roomId, { persist = false } = {}) {
   const cached = cache.get(roomId);
-  if (cached) return cached;
+
+  if (cached) {
+    if (persist && pendingPersistence.has(roomId)) {
+      try {
+        await persistWithRetryQueue(
+          pendingPersistence.get(roomId),
+        );
+      } catch {
+        // The cached room remains available if persistence is unavailable.
+      }
+    }
+
+    return cache.get(roomId) ?? cached;
+  }
 
   let doc = null;
 
   try {
     doc = await Room.findOne({ roomId }).lean();
   } catch (err) {
-    // A missing room is normal on a cold database.
-    if (!/not connected|ECONNREFUSED|buffering timed out/i.test(err.message)) {
+    if (
+      !isTransientMongoError(err) &&
+      mongoose.connection.readyState === 1
+    ) {
       throw err;
     }
+
+    log.warn(
+      `room "${roomId}" lookup unavailable; using default blueprint: ${err.message}`,
+    );
   }
 
-  if (!doc) {
-    const blueprint = buildDefaultRoom(roomId);
-    cache.set(roomId, blueprint);
+  if (doc) {
+    const room = toRoomWire(doc);
+    cache.set(roomId, room);
+    return room;
+  }
 
-    if (persist) {
-      void persistRoom(blueprint).catch(() => {});
+  const blueprint = buildDefaultRoom(roomId);
+  cache.set(roomId, blueprint);
+
+  if (persist) {
+    try {
+      await persistWithRetryQueue(blueprint);
+    } catch {
+      // The room remains usable and queued for persistence retry.
     }
-
-    return blueprint;
   }
 
-  const room = toRoomWire(doc);
-  cache.set(roomId, room);
-
-  return room;
+  return cache.get(roomId) ?? blueprint;
 }
 
 export async function listRooms() {
@@ -226,14 +371,16 @@ export async function listRooms() {
       .limit(100)
       .lean();
   } catch (err) {
-    // A cold/unreachable database should not take the room catalogue down.
     if (
-      !/not connected|ECONNREFUSED|buffering timed out|MongoServerSelectionError/i.test(
-        err.message,
-      )
+      !isTransientMongoError(err) &&
+      mongoose.connection.readyState === 1
     ) {
       throw err;
     }
+
+    log.warn(
+      `room catalogue unavailable; using default lobby: ${err.message}`,
+    );
   }
 
   if (docs.length === 0) {
@@ -254,16 +401,8 @@ export async function requireRoom(roomId) {
 }
 
 export async function persistRoom(room) {
-  const doc = await Room.findOneAndUpdate(
-    { roomId: room.roomId },
-    { $set: room },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  ).lean();
-
-  const wire = toRoomWire(doc);
-  cache.set(room.roomId, wire);
-
-  return wire;
+  const wire = toRoomWire(room);
+  return persistWithRetryQueue(wire);
 }
 
 export function invalidateRoomCache(roomId) {
@@ -274,12 +413,12 @@ export function invalidateRoomCache(roomId) {
   }
 }
 
-/** Synchronous cache read — used by the PeerGraph, which runs on the hot path. */
+/** Synchronous cache read for hot-path services. */
 export function getCachedRoom(roomId) {
   return cache.get(roomId) ?? null;
 }
 
-/** Pick the spawn point furthest from everyone already standing in the room. */
+/** Choose the spawn point furthest from current occupants. */
 export function chooseSpawn(spawnPoints, occupants = []) {
   if (!spawnPoints?.length) {
     return { x: 60, y: 60 };
@@ -298,8 +437,8 @@ export function chooseSpawn(spawnPoints, occupants = []) {
       );
     }
 
-    // Also prefer points that are at least one earshot from the walls' neighbours.
-    const score = nearest === Number.POSITIVE_INFINITY ? 0 : nearest;
+    const score =
+      nearest === Number.POSITIVE_INFINITY ? 0 : nearest;
 
     if (score > bestScore) {
       bestScore = score;
