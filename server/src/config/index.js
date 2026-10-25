@@ -1,7 +1,6 @@
 /**
  * Central configuration. Every tunable lives here and is sourced from .env
- * (server/.env wins over the repo-root .env). Nothing else in the codebase
- * reads process.env directly.
+ * (server/.env wins over the repo-root .env).
  */
 
 import fs from 'node:fs';
@@ -14,8 +13,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const SERVER_ROOT = path.resolve(__dirname, '..', '..');
 export const REPO_ROOT = path.resolve(SERVER_ROOT, '..');
 
-// Load server/.env first. Existing process environment variables take
-// precedence, and the root .env supplies values that are still missing.
 for (const candidate of [
   path.join(SERVER_ROOT, '.env'),
   path.join(REPO_ROOT, '.env'),
@@ -58,14 +55,13 @@ const num = (
   return value;
 };
 
-const list = (key, fallback) => {
-  return str(key, fallback)
+const list = (key, fallback) =>
+  str(key, fallback)
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
-};
 
-function enumValue(key, fallback, allowedValues) {
+const enumValue = (key, fallback, allowedValues) => {
   const value = str(key, fallback);
 
   if (!allowedValues.includes(value)) {
@@ -75,7 +71,7 @@ function enumValue(key, fallback, allowedValues) {
   }
 
   return value;
-}
+};
 
 const nodeEnv = enumValue(
   'NODE_ENV',
@@ -100,7 +96,6 @@ const mongoUri = str(
   'mongodb://127.0.0.1:27017/proxispeak',
 );
 
-// Production must never silently fall back to a local MongoDB instance.
 if (nodeEnv === 'production' && !process.env.MONGO_URI?.trim()) {
   throw new Error(
     'MONGO_URI must be explicitly configured in production.',
@@ -113,7 +108,6 @@ export const config = Object.freeze({
   logLevel,
 
   server: Object.freeze({
-    // Render and other hosting platforms inject PORT.
     port: num('PORT', 4000, {
       min: 1,
       max: 65535,
@@ -121,13 +115,8 @@ export const config = Object.freeze({
 
     host: str('HOST', '0.0.0.0'),
 
-    /**
-     * Allowed browser origins.
-     * Empty means no explicit origin allowlist is configured.
-     */
     clientOrigins: list('CLIENT_URL', ''),
 
-    // Directory holding the built client. Auto-detected by the app.
     clientDist: str('CLIENT_DIST', ''),
 
     instanceId:
@@ -144,7 +133,6 @@ export const config = Object.freeze({
   }),
 
   redis: Object.freeze({
-    // Empty means single-instance mode without the Redis adapter.
     url: str('REDIS_URL', ''),
 
     keyPrefix: str('REDIS_PREFIX', 'proxispeak:'),
@@ -200,8 +188,6 @@ export const config = Object.freeze({
   }),
 
   spatial: Object.freeze({
-    // hybrid = in-memory hot path + MongoDB source of truth.
-    // mongo = proximity queries use MongoDB geospatial queries.
     queryMode: spatialQueryMode,
 
     auditBudgetMs: num('SPATIAL_AUDIT_BUDGET_MS', 20, {
