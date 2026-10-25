@@ -7,28 +7,40 @@ import { MicGate } from './components/MicGate.jsx';
 import { StatusBar } from './components/StatusBar.jsx';
 import { PeerList } from './components/PeerList.jsx';
 import { AuditPanel } from './components/AuditPanel.jsx';
-import { SoundLegend } from './components/SoundLegend.jsx';
 import { OfficeSidebar } from './components/OfficeSidebar.jsx';
 import { Notices } from './components/Notices.jsx';
 
-import { useUiTick } from './hooks/useUiTick.js';
+const WORKSPACE_VIEWS = {
+  office: {
+    title: 'Office Floor',
+    description: 'Your virtual workspace and spatial environment.',
+  },
+  people: {
+    title: 'People',
+    description: 'Discover nearby participants and their spatial audio status.',
+  },
+  audio: {
+    title: 'Audio & Connections',
+    description: 'Monitor live connectivity and spatial audio diagnostics.',
+  },
+  settings: {
+    title: 'Settings',
+    description: 'Manage your audio preferences and workspace information.',
+  },
+};
 
 function ConnectionAudioPanel() {
   const { state, audioRef, peersRef } = useProxi();
 
-  useUiTick(500);
-
   const connections = peersRef.current?.snapshot?.() ?? [];
 
   const connectedPeers = connections.filter(
-    (connection) => connection.state === 'connected'
+    (connection) => connection.state === 'connected',
   ).length;
 
   const socketConnected = state.status === 'online';
 
-  const audioReady = Boolean(
-    state.selfId && audioRef.current
-  );
+  const audioReady = Boolean(state.selfId && audioRef.current);
 
   const microphoneLabel = state.muted
     ? 'Muted'
@@ -166,9 +178,8 @@ function RoomInfoPanel() {
     state.room?.roomId ||
     'Office room';
 
-  const participantCount = state.roster.length + (
-    state.selfId ? 1 : 0
-  );
+  const participantCount =
+    state.roster.length + (state.selfId ? 1 : 0);
 
   const copyInvite = async () => {
     const inviteUrl = new URL(window.location.href);
@@ -228,17 +239,12 @@ function RoomInfoPanel() {
 
       <div className="room-info__details">
         <div className="room-info__item">
-          <span
-            className="room-info__icon"
-            aria-hidden="true"
-          >
+          <span className="room-info__icon" aria-hidden="true">
             ⌂
           </span>
 
           <div className="room-info__copy">
-            <span className="room-info__label">
-              Room
-            </span>
+            <span className="room-info__label">Room</span>
 
             <strong className="room-info__value">
               {roomName}
@@ -247,17 +253,12 @@ function RoomInfoPanel() {
         </div>
 
         <div className="room-info__item">
-          <span
-            className="room-info__icon"
-            aria-hidden="true"
-          >
+          <span className="room-info__icon" aria-hidden="true">
             ♙
           </span>
 
           <div className="room-info__copy">
-            <span className="room-info__label">
-              Participants
-            </span>
+            <span className="room-info__label">Participants</span>
 
             <strong className="room-info__value">
               {participantCount}
@@ -266,17 +267,12 @@ function RoomInfoPanel() {
         </div>
 
         <div className="room-info__item">
-          <span
-            className="room-info__icon"
-            aria-hidden="true"
-          >
+          <span className="room-info__icon" aria-hidden="true">
             #
           </span>
 
           <div className="room-info__copy">
-            <span className="room-info__label">
-              Room ID
-            </span>
+            <span className="room-info__label">Room ID</span>
 
             <strong className="room-info__value">
               {roomId}
@@ -301,26 +297,135 @@ function RoomInfoPanel() {
   );
 }
 
-function Office() {
-  const { state } = useProxi();
-
-  if (!state.selfId) {
-    return (
-      <div className="app app--gate">
-        <StatusBar />
-        <MicGate />
-        <Notices />
-      </div>
-    );
-  }
+function SettingsPanel() {
+  const { state, toggleMute, setVolume } = useProxi();
 
   return (
-    <div className="app">
-      <OfficeSidebar />
+    <section
+      className="panel"
+      aria-labelledby="settings-panel-title"
+    >
+      <header className="panel__header">
+        <div>
+          <span className="connection-panel__eyebrow">
+            PREFERENCES
+          </span>
 
-      <div className="app__workspace">
-        <StatusBar />
+          <h2 id="settings-panel-title">
+            Audio settings
+          </h2>
+        </div>
+      </header>
 
+      <div className="room-info__details">
+        <div className="room-info__item">
+          <span className="room-info__icon" aria-hidden="true">
+            ♫
+          </span>
+
+          <div className="room-info__copy">
+            <span className="room-info__label">
+              Microphone
+            </span>
+
+            <strong className="room-info__value">
+              {state.muted ? 'Muted' : 'Unmuted'}
+            </strong>
+          </div>
+
+          <button
+            type="button"
+            className="button button--small"
+            onClick={toggleMute}
+            aria-pressed={state.muted}
+          >
+            {state.muted ? 'Unmute' : 'Mute'}
+          </button>
+        </div>
+
+        <div className="room-info__item">
+          <span className="room-info__icon" aria-hidden="true">
+            🔊
+          </span>
+
+          <div className="room-info__copy">
+            <label
+              className="room-info__label"
+              htmlFor="settings-master-volume"
+            >
+              Master output volume
+            </label>
+
+            <strong className="room-info__value">
+              {Math.round(state.masterVolume * 100)}%
+            </strong>
+          </div>
+
+          <input
+            id="settings-master-volume"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={state.masterVolume}
+            onChange={(event) =>
+              setVolume(Number(event.target.value))
+            }
+            aria-label="Master output volume"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function WorkspaceView({ activeView }) {
+  switch (activeView) {
+    case 'people':
+      return (
+        <main
+          className="app__body"
+          aria-label="People workspace"
+          style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}
+        >
+          <div className="app__sidebar">
+            <PeerList />
+            <RoomInfoPanel />
+          </div>
+        </main>
+      );
+
+    case 'audio':
+      return (
+        <main
+          className="app__body"
+          aria-label="Audio and diagnostics workspace"
+          style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}
+        >
+          <div className="app__sidebar">
+            <ConnectionAudioPanel />
+            <AuditPanel />
+          </div>
+        </main>
+      );
+
+    case 'settings':
+      return (
+        <main
+          className="app__body"
+          aria-label="Workspace settings"
+          style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}
+        >
+          <div className="app__sidebar">
+            <SettingsPanel />
+            <RoomInfoPanel />
+          </div>
+        </main>
+      );
+
+    case 'office':
+    default:
+      return (
         <main
           className="app__body"
           aria-label="Virtual office workspace"
@@ -332,14 +437,55 @@ function Office() {
             aria-label="Workspace information and diagnostics"
           >
             <PeerList />
-
             <ConnectionAudioPanel />
-
             <RoomInfoPanel />
-
             <AuditPanel />
           </aside>
         </main>
+      );
+  }
+}
+
+function Office() {
+  const { state } = useProxi();
+
+  const [activeView, setActiveView] = useState('office');
+
+  if (!state.selfId) {
+    return (
+      <div className="app app--gate">
+        <StatusBar />
+        <MicGate />
+        <Notices />
+      </div>
+    );
+  }
+
+  const currentView = WORKSPACE_VIEWS[activeView] ?? WORKSPACE_VIEWS.office;
+
+  return (
+    <div className="app">
+      <OfficeSidebar
+        activeView={activeView}
+        onNavigate={setActiveView}
+      />
+
+      <div className="app__workspace">
+        <StatusBar />
+
+        {activeView !== 'office' && (
+          <header
+            className="panel__header"
+            style={{ padding: '16px 20px 0' }}
+          >
+            <div>
+              <h1>{currentView.title}</h1>
+              <p>{currentView.description}</p>
+            </div>
+          </header>
+        )}
+
+        <WorkspaceView activeView={activeView} />
       </div>
 
       <Notices />
