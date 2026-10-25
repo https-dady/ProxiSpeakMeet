@@ -1,16 +1,18 @@
 /**
  * ProxiSpeak — Join Office
  *
- * UI refinement:
+ * Features:
  * - Premium split-layout join experience.
- * - Preserves profile, avatar and microphone selection.
- * - Supports room prefill from an invite URL.
- * - Preserves listen-only joining and existing error handling.
+ * - Profile, avatar, colour and microphone selection.
+ * - Room prefill from invite URLs.
+ * - Room suggestions from the backend room catalogue.
+ * - Free-text room IDs remain supported.
+ * - Catalogue failures never block joining an office.
  *
  * Socket.IO, WebRTC and spatial-audio behavior remain unchanged.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useProxi } from '../state/ProxiContext.jsx';
 import config from '../config.js';
 
@@ -43,29 +45,37 @@ const FEATURES = [
   },
 ];
 
+const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
+
 function getInitialRoom() {
   try {
     const invitedRoom = new URLSearchParams(
-      window.location.search
+      window.location.search,
     ).get('room');
 
-    return invitedRoom?.trim() || config.defaultRoom;
+    return invitedRoom?.trim().toLowerCase() || config.defaultRoom;
   } catch {
     return config.defaultRoom;
   }
+}
+
+function getApiBaseUrl() {
+  return String(config.serverUrl).replace(/\/+$/, '');
 }
 
 export function MicGate() {
   const { state, join, requestMicrophone } = useProxi();
 
   const [roomId, setRoomId] = useState(getInitialRoom);
+  const [rooms, setRooms] = useState([]);
+  const [catalogueStatus, setCatalogueStatus] = useState('loading');
 
   const [name, setName] = useState(
-    () => localStorage.getItem('proxispeak:name') ?? ''
+    () => localStorage.getItem('proxispeak:name') ?? '',
   );
 
   const [color, setColor] = useState(
-    () => localStorage.getItem('proxispeak:color') ?? '#4f8cff'
+    () => localStorage.getItem('proxispeak:color') ?? '#4f8cff',
   );
 
   const [avatar, setAvatar] = useState('circle');
@@ -74,11 +84,86 @@ export function MicGate() {
 
   const busyState = busy || state.status === 'connecting';
 
+  // Room discovery is helpful, but must never block manual room joining.
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadRooms() {
+      setCatalogueStatus('loading');
+
+      try {
+        const response = await fetch(
+          `${getApiBaseUrl()}/api/rooms`,
+          {
+            method: 'GET',
+            headers: {
+              Accept: 'application/json',
+            },
+            signal: controller.signal,
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Room catalogue request failed (${response.status})`,
+          );
+        }
+
+        const payload = await response.json();
+        const availableRooms = Array.isArray(payload?.rooms)
+          ? payload.rooms.filter(
+              (room) =>
+                room &&
+                typeof room.roomId === 'string' &&
+                ROOM_ID_PATTERN.test(room.roomId),
+            )
+          : [];
+
+        setRooms(availableRooms);
+        setCatalogueStatus('loaded');
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          return;
+        }
+
+        // Keep manual room entry available when the API is unavailable.
+        setRooms([]);
+        setCatalogueStatus('unavailable');
+      }
+    }
+
+    void loadRooms();
+
+    return () => controller.abort();
+  }, []);
+
+  const normalizedRoomId = roomId.trim().toLowerCase();
+
+  const selectedRoom = rooms.find(
+    (room) => room.roomId === normalizedRoomId,
+  );
+
   const doJoin = async (withMic) => {
     setBusy(true);
     setError(null);
 
-    localStorage.setItem('proxispeak:name', name);
+    const normalizedName = name.trim();
+
+    if (!normalizedName) {
+      setError('Please enter your name.');
+      setBusy(false);
+      return;
+    }
+
+    if (!ROOM_ID_PATTERN.test(normalizedRoomId)) {
+      setError(
+        'Room ID must start with a letter or number and contain only letters, numbers, hyphens or underscores.',
+      );
+      setBusy(false);
+      return;
+    }
+
+    localStorage.setItem('proxispeak:name', normalizedName);
     localStorage.setItem('proxispeak:color', color);
 
     try {
@@ -87,8 +172,8 @@ export function MicGate() {
       }
 
       await join({
-        roomId,
-        name,
+        roomId: normalizedRoomId,
+        name: normalizedName,
         color,
         avatar,
         withMic,
@@ -269,12 +354,37 @@ export function MicGate() {
                 onChange={(event) =>
                   setRoomId(event.target.value.toLowerCase())
                 }
+                list="proxispeak-room-options"
                 maxLength={48}
+                pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{0,47}"
+                title="Use letters, numbers, hyphens or underscores. Start with a letter or number."
+                autoComplete="off"
+                aria-describedby="office-room-hint"
                 required
               />
 
-              <span className="gate__field-hint">
-                Join the same room as your teammates.
+              <datalist id="proxispeak-room-options">
+                {rooms.map((room) => (
+                  <option
+                    key={room.roomId}
+                    value={room.roomId}
+                    label={`${room.name} · ${room.liveUsers ?? 0} online`}
+                  />
+                ))}
+              </datalist>
+
+              <span
+                className="gate__field-hint"
+                id="office-room-hint"
+                aria-live="polite"
+              >
+                {selectedRoom
+                  ? `${selectedRoom.name} · ${selectedRoom.liveUsers ?? 0} online`
+                  : catalogueStatus === 'loading'
+                    ? 'Loading available offices… You can still enter a room ID.'
+                    : catalogueStatus === 'loaded'
+                      ? 'Choose a suggested office or enter a new room ID.'
+                      : 'Enter your team room ID. Existing room suggestions are temporarily unavailable.'}
               </span>
             </label>
 

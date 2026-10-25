@@ -9,7 +9,7 @@ import mongoose from 'mongoose';
 import Room from '../models/Room.js';
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
-import { NotFoundError } from '../utils/errors.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
 
 const log = logger.child('rooms');
 const cache = new Map();
@@ -32,6 +32,21 @@ function isTransientMongoError(err) {
     /not connected|ECONNREFUSED|buffering timed out|MongoServerSelectionError|server selection timed out|connection closed|connection refused/i.test(
       message,
     )
+  );
+}
+
+/**
+ * Errors that retrying without changing the submitted room cannot fix.
+ */
+function isPermanentPersistenceError(err) {
+  const name = String(err?.name ?? '');
+  const code = Number(err?.code);
+
+  return (
+    name === 'ValidationError' ||
+    name === 'CastError' ||
+    code === 11000 || // Duplicate key
+    code === 121       // MongoDB document validation failure
   );
 }
 
@@ -202,10 +217,96 @@ function rememberPending(room) {
 }
 
 /**
+ * Validate geometry before query-based persistence.
+ *
+ * Mongoose document pre('validate') hooks do not run for findOneAndUpdate().
+ * These checks therefore protect every room write through this service.
+ */
+function assertRoomGeometry(room) {
+  const width = room?.width;
+  const height = room?.height;
+
+  if (!Number.isFinite(width) || width < 200) {
+    throw new ValidationError(
+      'Room width must be a finite number of at least 200',
+      { field: 'width' },
+    );
+  }
+
+  if (!Number.isFinite(height) || height < 200) {
+    throw new ValidationError(
+      'Room height must be a finite number of at least 200',
+      { field: 'height' },
+    );
+  }
+
+  const obstacles = room.obstacles ?? [];
+  const spawnPoints = room.spawnPoints ?? [];
+
+  if (!Array.isArray(obstacles)) {
+    throw new ValidationError('Room obstacles must be an array', {
+      field: 'obstacles',
+    });
+  }
+
+  if (!Array.isArray(spawnPoints)) {
+    throw new ValidationError('Room spawn points must be an array', {
+      field: 'spawnPoints',
+    });
+  }
+
+  for (const [index, obstacle] of obstacles.entries()) {
+    const validObstacle =
+      obstacle !== null &&
+      typeof obstacle === 'object' &&
+      Number.isFinite(obstacle.x) &&
+      Number.isFinite(obstacle.y) &&
+      Number.isFinite(obstacle.w) &&
+      Number.isFinite(obstacle.h) &&
+      obstacle.x >= 0 &&
+      obstacle.y >= 0 &&
+      obstacle.w >= 1 &&
+      obstacle.h >= 1 &&
+      obstacle.x + obstacle.w <= width &&
+      obstacle.y + obstacle.h <= height;
+
+    if (!validObstacle) {
+      throw new ValidationError(
+        `Obstacle at index ${index} must have positive dimensions and fit within room bounds`,
+        { field: 'obstacles', index },
+      );
+    }
+  }
+
+  for (const [index, point] of spawnPoints.entries()) {
+    const validSpawnPoint =
+      point !== null &&
+      typeof point === 'object' &&
+      Number.isFinite(point.x) &&
+      Number.isFinite(point.y) &&
+      point.x >= 0 &&
+      point.y >= 0 &&
+      point.x <= width &&
+      point.y <= height;
+
+    if (!validSpawnPoint) {
+      throw new ValidationError(
+        `Spawn point at index ${index} must be within room bounds`,
+        { field: 'spawnPoints', index },
+      );
+    }
+  }
+}
+
+/**
  * Persist a room once per roomId.
  * Failed writes remain pending for a later retry.
  */
 async function persistWithRetryQueue(room) {
+  // Validate before entering the persistence/retry path.
+  // Invalid geometry must never be queued as a temporary database failure.
+  assertRoomGeometry(room);
+
   const roomId = room.roomId;
   const existingOperation = inFlightPersistence.get(roomId);
 
@@ -227,7 +328,9 @@ async function persistWithRetryQueue(room) {
       ).lean();
 
       if (!doc) {
-        throw new Error(`MongoDB did not return persisted room "${roomId}"`);
+        throw new Error(
+          `MongoDB did not return persisted room "${roomId}"`,
+        );
       }
 
       const wire = toRoomWire(doc);
@@ -238,19 +341,21 @@ async function persistWithRetryQueue(room) {
       log.info(`room "${roomId}" persisted`);
 
       return wire;
-    } catch (err) {
-      rememberPending(room);
+        } catch (err) {
+      const permanent = isPermanentPersistenceError(err);
+      const databaseUnavailable =
+        mongoose.connection.readyState !== 1;
+      const transient = isTransientMongoError(err);
 
-      if (
-        isTransientMongoError(err) ||
-        mongoose.connection.readyState !== 1
-      ) {
+      if (!permanent && (transient || databaseUnavailable)) {
+        rememberPending(room);
+
         log.warn(
           `room "${roomId}" persistence deferred: ${err.message}`,
         );
       } else {
         log.error(
-          `room "${roomId}" persistence failed: ${err.message}`,
+          `room "${roomId}" persistence failed permanently: ${err.message}`,
         );
       }
 
@@ -381,13 +486,20 @@ export async function listRooms() {
     log.warn(
       `room catalogue unavailable; using default lobby: ${err.message}`,
     );
-  }
 
-  if (docs.length === 0) {
     return [buildDefaultRoom('lobby')];
   }
 
-  return docs.map(toRoomWire);
+  const rooms = docs.map(toRoomWire);
+  const hasLobby = rooms.some((room) => room.roomId === 'lobby');
+
+  if (!hasLobby) {
+    rooms.push(buildDefaultRoom('lobby'));
+  }
+
+  rooms.sort((a, b) => a.roomId.localeCompare(b.roomId));
+
+  return rooms;
 }
 
 export async function requireRoom(roomId) {
@@ -401,7 +513,10 @@ export async function requireRoom(roomId) {
 }
 
 export async function persistRoom(room) {
+  assertRoomGeometry(room);
+
   const wire = toRoomWire(room);
+
   return persistWithRetryQueue(wire);
 }
 
