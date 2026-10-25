@@ -1,17 +1,15 @@
 /**
  * ProxiSpeak — Spatial Audit Panel
  *
- * Responsibilities:
- * - Run the existing backend spatial audit.
- * - Display the latest audit report.
- * - Load persisted audit history from the backend.
- * - Refresh history after a new audit completes.
- * - Display loading and error states without breaking the workspace.
+ * Supports both:
+ * 1. Detailed reports returned by GET /api/spatial-audit.
+ * 2. Summary payloads emitted through Socket.IO audit:completed.
  *
- * Existing audit request contracts and WebRTC mesh diagnostics are preserved.
+ * Audit history is loaded from GET /api/spatial-audit/history.
  */
 
 import { useCallback, useEffect, useState } from 'react';
+
 import config from '../config.js';
 import { useProxi } from '../state/ProxiContext.jsx';
 
@@ -40,6 +38,52 @@ function formatLatency(value) {
     : 'N/A';
 }
 
+function getReportMetrics(report) {
+  if (!report) return null;
+
+  const nearP95 =
+    report.queries?.near?.p95Ms ??
+    report.p95Ms ??
+    null;
+
+  const withinP95 =
+    report.queries?.within?.p95Ms ??
+    null;
+
+  const clusterP95 =
+    report.queries?.cluster?.p95Ms ??
+    null;
+
+  const matchedPeers =
+    report.accuracy?.matchedPeers ??
+    report.matched ??
+    null;
+
+  const budgetMs =
+    report.budgetMs ??
+    config.audit.budgetMs;
+
+  const passed =
+    typeof report.ok === 'boolean'
+      ? report.ok
+      : typeof report.withinBudget === 'boolean'
+        ? report.withinBudget
+        : null;
+
+  return {
+    nearP95,
+    withinP95,
+    clusterP95,
+    matchedPeers,
+    budgetMs,
+    passed,
+    operatorsAgree: report.accuracy?.operatorsAgree,
+    maxDistanceDriftPx: report.accuracy?.maxDistanceDriftPx,
+    indexName: report.index?.indexName,
+    stage: report.index?.stage,
+  };
+}
+
 export function AuditPanel() {
   const { state, requestAudit, peersRef } = useProxi();
 
@@ -49,61 +93,66 @@ export function AuditPanel() {
   const [historyError, setHistoryError] = useState('');
 
   const report = state.stats.audit;
-  const mesh = peersRef.current?.snapshot() ?? [];
-  const roomId = state.room?.roomId ?? 'lobby';
+  const metrics = getReportMetrics(report);
+  const mesh = peersRef.current?.snapshot?.() ?? [];
+  const roomId = state.room?.roomId ?? config.defaultRoom;
 
-  const loadHistory = useCallback(
-    async (signal) => {
-      setHistoryLoading(true);
-      setHistoryError('');
+  const loadHistory = useCallback(async (signal) => {
+    setHistoryLoading(true);
+    setHistoryError('');
+
+    try {
+      const params = new URLSearchParams({
+        roomId,
+        limit: '10',
+      });
+
+      const response = await fetch(
+        `${getApiBaseUrl()}/api/spatial-audit/history?${params}`,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+          signal,
+        },
+      );
+
+      let payload;
 
       try {
-        const params = new URLSearchParams({
-          roomId,
-          limit: '10',
-        });
-
-        const response = await fetch(
-          `${getApiBaseUrl()}/api/spatial-audit/history?${params}`,
-          { signal },
-        );
-
-        let payload;
-
-        try {
-          payload = await response.json();
-        } catch {
-          throw new Error('The server returned an invalid history response.');
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            payload?.error?.message ||
-              payload?.message ||
-              `Could not load audit history (${response.status}).`,
-          );
-        }
-
-        if (!payload || !Array.isArray(payload.history)) {
-          throw new Error('The server returned an unexpected history format.');
-        }
-
-        setHistory(payload);
-      } catch (error) {
-        if (error.name === 'AbortError') return;
-
-        setHistoryError(
-          error.message || 'Unable to load spatial audit history.',
-        );
-      } finally {
-        if (!signal?.aborted) {
-          setHistoryLoading(false);
-        }
+        payload = await response.json();
+      } catch {
+        throw new Error('The server returned an invalid history response.');
       }
-    },
-    [roomId],
-  );
 
+      if (!response.ok) {
+        throw new Error(
+          payload?.message ||
+            payload?.error?.message ||
+            `History request failed (${response.status}).`,
+        );
+      }
+
+      if (!Array.isArray(payload?.history)) {
+        throw new Error('The server returned an unexpected history format.');
+      }
+
+      setHistory(payload);
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+
+      setHistoryError(
+        error.message || 'Unable to load spatial audit history.',
+      );
+    } finally {
+      if (!signal?.aborted) {
+        setHistoryLoading(false);
+      }
+    }
+  }, [roomId]);
+
+  // Load history initially and when the active room changes.
   useEffect(() => {
     const controller = new AbortController();
 
@@ -114,6 +163,20 @@ export function AuditPanel() {
     };
   }, [loadHistory]);
 
+  // state.stats.audit can change from either an HTTP report or a
+  // Socket.IO audit:completed event. Refresh persisted history for both.
+  useEffect(() => {
+    if (!report) return undefined;
+
+    const timer = window.setTimeout(() => {
+      void loadHistory();
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [report, loadHistory]);
+
   const handleRunAudit = async () => {
     if (running || !state.selfId) return;
 
@@ -121,13 +184,9 @@ export function AuditPanel() {
 
     try {
       await requestAudit();
-
-      // The audit endpoint persists its result before returning.
-      // Refresh the history only after the new run has completed.
       await loadHistory();
     } catch {
-      // requestAudit already reports failures through the application notices.
-      // Keep the panel mounted and allow another attempt.
+      // requestAudit reports errors through the application's notices.
     } finally {
       setRunning(false);
     }
@@ -163,7 +222,7 @@ export function AuditPanel() {
         </button>
       </header>
 
-      {!report && (
+      {!metrics && (
         <div className="panel__empty audit__empty">
           <span className="audit__empty-icon" aria-hidden="true">
             ◈
@@ -172,16 +231,20 @@ export function AuditPanel() {
           <strong>No audit results yet</strong>
 
           <span>
-            Run the audit to measure $near, $geoWithin and $geoNear latency.
+            Run the audit to measure spatial query performance.
           </span>
         </div>
       )}
 
-      {report && (
+      {metrics && (
         <div className="audit__results">
           <div
             className={`verdict ${
-              report.ok ? 'verdict--ok' : 'verdict--bad'
+              metrics.passed === true
+                ? 'verdict--ok'
+                : metrics.passed === false
+                  ? 'verdict--bad'
+                  : ''
             }`}
             role="status"
           >
@@ -191,9 +254,11 @@ export function AuditPanel() {
             />
 
             <span>
-              {report.ok
-                ? `PASS · budget ${report.budgetMs}ms`
-                : 'FAIL'}
+              {metrics.passed === true
+                ? `PASS · budget ${metrics.budgetMs}ms`
+                : metrics.passed === false
+                  ? 'FAIL · audit is outside its acceptance criteria'
+                  : 'Audit result received · detailed report unavailable'}
             </span>
           </div>
 
@@ -204,36 +269,38 @@ export function AuditPanel() {
           <dl className="audit__grid">
             <div className="audit__metric">
               <dt>$near p95</dt>
-              <dd>{formatLatency(report.queries?.near?.p95Ms)}</dd>
+              <dd>{formatLatency(metrics.nearP95)}</dd>
             </div>
 
             <div className="audit__metric">
               <dt>$geoWithin p95</dt>
-              <dd>{formatLatency(report.queries?.within?.p95Ms)}</dd>
+              <dd>{formatLatency(metrics.withinP95)}</dd>
             </div>
 
             <div className="audit__metric">
               <dt>$geoNear p95</dt>
-              <dd>{formatLatency(report.queries?.cluster?.p95Ms)}</dd>
+              <dd>{formatLatency(metrics.clusterP95)}</dd>
             </div>
 
             <div className="audit__metric">
               <dt>Peers matched</dt>
-              <dd>{report.accuracy?.matchedPeers ?? 'N/A'}</dd>
+              <dd>{metrics.matchedPeers ?? 'N/A'}</dd>
             </div>
 
             <div className="audit__metric">
               <dt>Operators agree</dt>
               <dd>
-                {report.accuracy?.operatorsAgree ? 'Yes' : 'No'}
+                {typeof metrics.operatorsAgree === 'boolean'
+                  ? metrics.operatorsAgree ? 'Yes' : 'No'
+                  : 'N/A'}
               </dd>
             </div>
 
             <div className="audit__metric">
               <dt>Distance drift</dt>
               <dd>
-                {typeof report.accuracy?.maxDistanceDriftPx === 'number'
-                  ? `${report.accuracy.maxDistanceDriftPx}px`
+                {typeof metrics.maxDistanceDriftPx === 'number'
+                  ? `${metrics.maxDistanceDriftPx}px`
                   : 'N/A'}
               </dd>
             </div>
@@ -241,13 +308,13 @@ export function AuditPanel() {
             <div className="audit__metric">
               <dt>Index</dt>
               <dd className="audit__metric-detail">
-                {report.index?.indexName ?? 'N/A'}
+                {metrics.indexName ?? 'N/A'}
               </dd>
             </div>
 
             <div className="audit__metric">
               <dt>Plan stage</dt>
-              <dd>{report.index?.stage ?? 'N/A'}</dd>
+              <dd>{metrics.stage ?? 'N/A'}</dd>
             </div>
           </dl>
         </div>
@@ -297,8 +364,7 @@ export function AuditPanel() {
             <div className="panel__empty">
               <strong>No saved audit runs</strong>
               <span>
-                Run a spatial audit to create the first history entry for
-                this room.
+                Completed audits will appear here when persisted by the server.
               </span>
             </div>
           )}
@@ -326,19 +392,12 @@ export function AuditPanel() {
 
             <ul className="mesh__list audit__mesh-list">
               {history.history.map((item, index) => (
-                <li
-                  key={`${item.at ?? 'audit'}-${index}`}
-                >
-                  <span
-                    className="chip"
-                    title={item.withinBudget ? 'Within budget' : 'Over budget'}
-                  >
+                <li key={`${item.at ?? 'audit'}-${index}`}>
+                  <span className="chip">
                     {item.withinBudget ? 'PASS' : 'OVER'}
                   </span>
 
-                  <span>
-                    {formatTimestamp(item.at)}
-                  </span>
+                  <span>{formatTimestamp(item.at)}</span>
 
                   <span className="panel__meta">
                     p95 {formatLatency(item.p95Ms)}
@@ -374,7 +433,9 @@ export function AuditPanel() {
         {mesh.length === 0 && (
           <div className="panel__empty audit__mesh-empty">
             <strong>No peer connections</strong>
-            <span>Walk near another person to establish a connection.</span>
+            <span>
+              Walk near another person to establish a connection.
+            </span>
           </div>
         )}
 
