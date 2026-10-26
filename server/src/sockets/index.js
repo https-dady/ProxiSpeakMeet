@@ -17,6 +17,8 @@ import { requireString } from '../utils/validate.js';
 import { resolveCollision } from '../services/obstacleService.js';
 import { makeEvent } from '../db/redis.js';
 import { corsOrigin } from '../utils/origin.js';
+import { requireActiveRoomMembership } from './membership.js';
+
 import {
   validateRoomJoin,
   validatePosition,
@@ -144,12 +146,10 @@ function onConnection({
   }
 
   // ------------------------------------------------------------- room join
+
   socket.on(
     'room:join',
     safe(async (payload) => {
-      // Validate identity and room ID first. The global dimensions are used
-      // only for this initial validation; spawn is validated against the
-      // selected room after its configuration has been loaded.
       const {
         roomId,
         name,
@@ -195,9 +195,7 @@ function onConnection({
       }
 
       /*
-       * Idempotent same-room join:
-       * return the existing session and roster instead of re-adding the user
-       * or broadcasting a duplicate peer:joined event.
+       * Idempotent same-room join.
        */
       if (identity?.roomId === roomId) {
         const existingUser = store.get(socket.id);
@@ -218,13 +216,15 @@ function onConnection({
       }
 
       /*
-       * If a caller explicitly supplies a spawn point, validate it against
-       * the actual room. Do not silently clamp a point from one room into
-       * another room's coordinate system.
+       * Validate explicitly requested spawn coordinates against
+       * the actual selected room dimensions.
        */
       let requestedSpawn = null;
 
-      if (payload?.spawn !== undefined && payload?.spawn !== null) {
+      if (
+        payload?.spawn !== undefined &&
+        payload?.spawn !== null
+      ) {
         const spawn = payload.spawn;
 
         if (
@@ -268,8 +268,7 @@ function onConnection({
       });
 
       /*
-       * Switching rooms must remove the old room membership and presence
-       * before adding the user to the destination room.
+       * Remove old membership before joining another room.
        */
       if (identity && identity.roomId !== roomId) {
         await leaveRoom('room-switch');
@@ -324,12 +323,15 @@ function onConnection({
   );
 
   // ------------------------------------------------------ media readiness
+
   socket.on(
     'peer:media-ready',
     safe(async (payload) => {
-      if (!identity) {
-        throw new ValidationError('join a room first');
-      }
+      requireActiveRoomMembership({
+        identity,
+        socket,
+        store,
+      });
 
       const { micEnabled } = validateMediaState(payload);
       const user = store.get(socket.id);
@@ -355,12 +357,15 @@ function onConnection({
   );
 
   // ------------------------------------------------------------- movement
+
   socket.on(
     'position:update',
     safe(async (payload) => {
-      if (!identity) {
-        throw new ValidationError('join a room first');
-      }
+      requireActiveRoomMembership({
+        identity,
+        socket,
+        store,
+      });
 
       if (!positionBucket.take()) {
         return {};
@@ -372,7 +377,6 @@ function onConnection({
         throw new ValidationError('unknown session');
       }
 
-      // Use the actual dimensions of the active room.
       const room = services.getCachedRoom(identity.roomId);
 
       if (!room) {
@@ -394,7 +398,6 @@ function onConnection({
         now: Date.now(),
       });
 
-      // Keep the avatar center inside the room, accounting for its radius.
       const boundedX = Math.min(
         Math.max(next.x, AVATAR_RADIUS),
         roomWorld.width - AVATAR_RADIUS,
@@ -405,7 +408,6 @@ function onConnection({
         roomWorld.height - AVATAR_RADIUS,
       );
 
-      // Resolve furniture and wall collisions.
       const resolved = resolveCollision(
         boundedX,
         boundedY,
@@ -413,7 +415,6 @@ function onConnection({
         room.obstacles,
       );
 
-      // Collision resolution must not move the avatar outside the room.
       const finalX = Math.min(
         Math.max(resolved.x, AVATAR_RADIUS),
         roomWorld.width - AVATAR_RADIUS,
@@ -455,29 +456,48 @@ function onConnection({
   );
 
   // ------------------------------------------------------------ heartbeat
+
   socket.on(
     'presence:heartbeat',
     safe(async () => {
-      store.touch(socket.id);
+      requireActiveRoomMembership({
+        identity,
+        socket,
+        store,
+      });
+
+      const user = store.touch(socket.id);
+
+      if (!user) {
+        throw new ValidationError(
+          'active room membership is required',
+        );
+      }
+
       return {};
     }),
   );
 
+  // ------------------------------------------------------- presence sync
+
   socket.on(
     'presence:request-sync',
     safe(async (payload) => {
-      if (!identity) {
-        throw new ValidationError('join a room first');
-      }
+      requireActiveRoomMembership({
+        identity,
+        socket,
+        store,
+      });
 
       const roomId = requireString(
         payload?.roomId ?? identity.roomId,
         'roomId',
       );
 
-      // A connected socket may only request the presence snapshot for its
-      // authoritative room. Never trust a client-supplied roomId here: the
-      // payload must not be usable to enumerate participants in another room.
+      /*
+       * Preserve Step 1.1: clients cannot request another room's
+       * presence snapshot.
+       */
       if (roomId !== identity.roomId) {
         throw new ValidationError(
           'cannot synchronize presence for another room',
@@ -501,12 +521,15 @@ function onConnection({
   );
 
   // ----------------------------------------------------------- WebRTC relay
+
   socket.on(
     'peer:signal',
     safe(async (payload) => {
-      if (!identity) {
-        throw new ValidationError('join a room first');
-      }
+      requireActiveRoomMembership({
+        identity,
+        socket,
+        store,
+      });
 
       if (!signalBucket.take()) {
         throw Object.assign(
@@ -546,6 +569,7 @@ function onConnection({
   );
 
   // ------------------------------------------------------------- room leave
+
   async function leaveRoom(reason) {
     if (leaveInProgress) {
       return leaveInProgress;
@@ -570,7 +594,7 @@ function onConnection({
         try {
           await Promise.resolve(socket.leave(roomId));
         } catch {
-          // The socket adapter may already have removed room membership.
+          // The adapter may already have removed room membership.
         }
 
         store.remove(socket.id);
@@ -613,6 +637,7 @@ function onConnection({
   );
 
   // ------------------------------------------------------------- disconnect
+
   socket.on('disconnect', async (reason) => {
     try {
       await leaveRoom(reason);
@@ -636,11 +661,8 @@ function onConnection({
 }
 
 /**
- * Resolve an initial spawn against the selected room's dimensions and
- * solid obstacles. Prefer the requested/configured spawn, then try the
- * remaining configured spawn points, followed by deterministic fallback
- * candidates. If the room has no safe spawn, reject the join rather than
- * placing the avatar inside furniture or outside the room.
+ * Resolve a safe initial spawn using the selected room's dimensions
+ * and obstacles.
  */
 function resolveSafeSpawn({
   room,
@@ -666,8 +688,6 @@ function resolveSafeSpawn({
     { x: room.width - 60, y: room.height - 60 },
   ];
 
-  // Add a deterministic grid as a final fallback for rooms whose configured
-  // spawn points happen to overlap obstacles.
   const step = Math.max(AVATAR_RADIUS * 3, 48);
 
   for (let y = minY + step; y < maxY; y += step) {
@@ -687,8 +707,18 @@ function resolveSafeSpawn({
       continue;
     }
 
-    const candidateX = clampNumber(candidate.x, minX, maxX);
-    const candidateY = clampNumber(candidate.y, minY, maxY);
+    const candidateX = clampNumber(
+      candidate.x,
+      minX,
+      maxX,
+    );
+
+    const candidateY = clampNumber(
+      candidate.y,
+      minY,
+      maxY,
+    );
+
     const key = `${candidateX}:${candidateY}`;
 
     if (seen.has(key)) {
@@ -711,11 +741,6 @@ function resolveSafeSpawn({
       continue;
     }
 
-    /*
-     * Prefer a valid candidate with reasonable separation from other users.
-     * If all candidates are close to occupants, the first collision-free
-     * candidate remains a valid fallback.
-     */
     const occupiedByAvatar = occupants.some(
       (occupant) =>
         Math.hypot(occupant.x - x, occupant.y - y) <
@@ -734,8 +759,7 @@ function resolveSafeSpawn({
 }
 
 /**
- * A spawn is clear only if the avatar circle does not overlap any solid
- * obstacle. Non-solid obstacles are intentionally ignored.
+ * Check whether the avatar overlaps any solid obstacle.
  */
 function isSpawnClear(x, y, obstacles) {
   return !obstacles.some((obstacle) => {
@@ -758,7 +782,10 @@ function isSpawnClear(x, y, obstacles) {
     const dx = x - nearestX;
     const dy = y - nearestY;
 
-    return dx * dx + dy * dy < AVATAR_RADIUS * AVATAR_RADIUS;
+    return (
+      dx * dx + dy * dy <
+      AVATAR_RADIUS * AVATAR_RADIUS
+    );
   });
 }
 
