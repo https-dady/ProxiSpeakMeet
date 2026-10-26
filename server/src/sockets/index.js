@@ -475,6 +475,15 @@ function onConnection({
         'roomId',
       );
 
+      // A connected socket may only request the presence snapshot for its
+      // authoritative room. Never trust a client-supplied roomId here: the
+      // payload must not be usable to enumerate participants in another room.
+      if (roomId !== identity.roomId) {
+        throw new ValidationError(
+          'cannot synchronize presence for another room',
+        );
+      }
+
       const members = store
         .byRoom(roomId)
         .map(wireUser);

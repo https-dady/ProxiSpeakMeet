@@ -861,3 +861,53 @@ test(
     }, tinyRoom);
   },
 );
+
+test(
+  'presence sync rejects a request for a different room',
+  async () => {
+    await withServer(async ({ url }) => {
+      const a = client(url);
+      const b = client(url);
+
+      await Promise.all([
+        once(a, 'connect'),
+        once(b, 'connect'),
+      ]);
+
+      await join(a, {
+        roomId: 'lobby',
+        name: 'Ada',
+        spawn: NEARBY_SPAWN_A,
+      });
+
+      await join(b, {
+        roomId: 'private-room',
+        name: 'Bob',
+        spawn: NEARBY_SPAWN_B,
+      });
+
+      let snapshotCount = 0;
+      a.on('presence:snapshot', () => {
+        snapshotCount += 1;
+      });
+
+      const ack = await emit(a, 'presence:request-sync', {
+        roomId: 'private-room',
+      });
+
+      assert.equal(ack?.ok, false);
+      assert.match(ack?.error ?? '', /another room/);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.equal(
+        snapshotCount,
+        0,
+        'a cross-room request must not emit a presence snapshot',
+      );
+
+      a.close();
+      b.close();
+    });
+  },
+);
+
