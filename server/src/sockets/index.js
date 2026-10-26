@@ -8,6 +8,7 @@
  * - PeerGraph-driven proximity and spatial-audio events.
  * - Cross-instance events through Redis Pub/Sub.
  */
+
 import { Server } from 'socket.io';
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
@@ -17,7 +18,14 @@ import { requireString } from '../utils/validate.js';
 import { resolveCollision } from '../services/obstacleService.js';
 import { makeEvent } from '../db/redis.js';
 import { corsOrigin } from '../utils/origin.js';
-import { requireActiveRoomMembership } from './membership.js';
+
+import {
+  requireActiveRoomMembership,
+} from './membership.js';
+
+import {
+  getAuthorizedPeerSignalEdge,
+} from './signalingAuthorization.js';
 
 import {
   validateRoomJoin,
@@ -108,7 +116,10 @@ function onConnection({
       const result = await handler(payload);
 
       if (typeof ack === 'function') {
-        ack({ ok: true, ...result });
+        ack({
+          ok: true,
+          ...result,
+        });
       }
     } catch (err) {
       const status = err.status ?? 500;
@@ -145,7 +156,9 @@ function onConnection({
     };
   }
 
-  // ------------------------------------------------------------- room join
+  // -------------------------------------------------------------
+  // Room join
+  // -------------------------------------------------------------
 
   socket.on(
     'room:join',
@@ -195,7 +208,8 @@ function onConnection({
       }
 
       /*
-       * Idempotent same-room join.
+       * An idempotent same-room join returns the existing session
+       * instead of creating a duplicate presence record.
        */
       if (identity?.roomId === roomId) {
         const existingUser = store.get(socket.id);
@@ -215,10 +229,6 @@ function onConnection({
         }
       }
 
-      /*
-       * Validate explicitly requested spawn coordinates against
-       * the actual selected room dimensions.
-       */
       let requestedSpawn = null;
 
       if (
@@ -267,9 +277,6 @@ function onConnection({
         occupants,
       });
 
-      /*
-       * Remove old membership before joining another room.
-       */
       if (identity && identity.roomId !== roomId) {
         await leaveRoom('room-switch');
       }
@@ -322,7 +329,9 @@ function onConnection({
     }),
   );
 
-  // ------------------------------------------------------ media readiness
+  // -------------------------------------------------------------
+  // Microphone readiness
+  // -------------------------------------------------------------
 
   socket.on(
     'peer:media-ready',
@@ -356,7 +365,9 @@ function onConnection({
     }),
   );
 
-  // ------------------------------------------------------------- movement
+  // -------------------------------------------------------------
+  // Authoritative avatar movement
+  // -------------------------------------------------------------
 
   socket.on(
     'position:update',
@@ -455,7 +466,9 @@ function onConnection({
     }),
   );
 
-  // ------------------------------------------------------------ heartbeat
+  // -------------------------------------------------------------
+  // Presence heartbeat
+  // -------------------------------------------------------------
 
   socket.on(
     'presence:heartbeat',
@@ -478,7 +491,9 @@ function onConnection({
     }),
   );
 
-  // ------------------------------------------------------- presence sync
+  // -------------------------------------------------------------
+  // Presence synchronization
+  // -------------------------------------------------------------
 
   socket.on(
     'presence:request-sync',
@@ -495,8 +510,8 @@ function onConnection({
       );
 
       /*
-       * Preserve Step 1.1: clients cannot request another room's
-       * presence snapshot.
+       * Step 1.1:
+       * A socket can only request the snapshot of its authoritative room.
        */
       if (roomId !== identity.roomId) {
         throw new ValidationError(
@@ -520,11 +535,18 @@ function onConnection({
     }),
   );
 
-  // ----------------------------------------------------------- WebRTC relay
+  // -------------------------------------------------------------
+  // WebRTC signaling relay
+  // -------------------------------------------------------------
 
   socket.on(
     'peer:signal',
     safe(async (payload) => {
+      /*
+       * Step 1.2:
+       * Verify the sender's active Socket.IO room membership and
+       * authoritative PresenceStore record.
+       */
       requireActiveRoomMembership({
         identity,
         socket,
@@ -544,11 +566,42 @@ function onConnection({
         return {};
       }
 
+      /*
+       * Step 1.3:
+       * Both participants must have active presence records in the
+       * sender's authoritative room, and a PeerGraph edge must exist
+       * for that same room.
+       */
+      const authorizedEdge = getAuthorizedPeerSignalEdge({
+        senderId: socket.id,
+        recipientId: to,
+        roomId: identity.roomId,
+        store,
+        peerGraph,
+      });
+
+      if (!authorizedEdge) {
+        socketsLog.debug(
+          `dropped ${data.type} for ${to} (not an authorized same-room peer)`,
+        );
+
+        // Preserve the existing acknowledgement contract.
+        return {};
+      }
+
+      /*
+       * Re-check the edge after updating its activity so that a stale
+       * or replaced peer connection cannot receive the signal.
+       */
       const edge = peerGraph.noteSignal(socket.id, to);
 
-      if (!edge) {
+      if (
+        !edge ||
+        edge.generation !== authorizedEdge.generation ||
+        edge.roomId !== identity.roomId
+      ) {
         socketsLog.debug(
-          `dropped ${data.type} for ${to} (no edge in earshot)`,
+          `dropped ${data.type} for ${to} (peer edge changed during authorization)`,
         );
 
         return {};
@@ -558,6 +611,9 @@ function onConnection({
         peerGraph.markLive(socket.id, to);
       }
 
+      /*
+       * Keep the existing WebRTC signaling payload unchanged.
+       */
       io.to(to).emit('peer:signal', {
         from: socket.id,
         data,
@@ -568,7 +624,9 @@ function onConnection({
     }),
   );
 
-  // ------------------------------------------------------------- room leave
+  // -------------------------------------------------------------
+  // Room leave and cleanup
+  // -------------------------------------------------------------
 
   async function leaveRoom(reason) {
     if (leaveInProgress) {
@@ -620,6 +678,7 @@ function onConnection({
 
         socket.data.roomId = null;
         socket.data.userId = null;
+
         leaveInProgress = null;
       }
     })();
@@ -636,7 +695,9 @@ function onConnection({
     }),
   );
 
-  // ------------------------------------------------------------- disconnect
+  // -------------------------------------------------------------
+  // Disconnect
+  // -------------------------------------------------------------
 
   socket.on('disconnect', async (reason) => {
     try {
@@ -661,8 +722,8 @@ function onConnection({
 }
 
 /**
- * Resolve a safe initial spawn using the selected room's dimensions
- * and obstacles.
+ * Resolve an initial spawn using the selected room's dimensions,
+ * solid obstacles and current occupants.
  */
 function resolveSafeSpawn({
   room,
@@ -734,8 +795,17 @@ function resolveSafeSpawn({
       room.obstacles ?? [],
     );
 
-    const x = clampNumber(resolved.x, minX, maxX);
-    const y = clampNumber(resolved.y, minY, maxY);
+    const x = clampNumber(
+      resolved.x,
+      minX,
+      maxX,
+    );
+
+    const y = clampNumber(
+      resolved.y,
+      minY,
+      maxY,
+    );
 
     if (!isSpawnClear(x, y, room.obstacles ?? [])) {
       continue;
@@ -759,7 +829,7 @@ function resolveSafeSpawn({
 }
 
 /**
- * Check whether the avatar overlaps any solid obstacle.
+ * Check whether an avatar overlaps any solid obstacle.
  */
 function isSpawnClear(x, y, obstacles) {
   return !obstacles.some((obstacle) => {
