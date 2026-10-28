@@ -107,9 +107,20 @@ function onConnection({
     capacity: cfg.limits.signalEventsPerSec,
     refillPerSec: cfg.limits.signalEventsPerSec,
   });
+let identity = null;
+let leaveInProgress = null;
 
-  let identity = null;
-  let leaveInProgress = null;
+// Serialize room lifecycle operations for this socket.
+let lifecycleQueue = Promise.resolve();
+
+function serializeLifecycle(operation) {
+  const result = lifecycleQueue.then(operation, operation);
+
+  // Keep the queue usable even if one operation rejects.
+  lifecycleQueue = result.catch(() => {});
+
+  return result;
+}
 
   const safe = (handler) => async (payload, ack) => {
     try {
@@ -160,9 +171,10 @@ function onConnection({
   // Room join
   // -------------------------------------------------------------
 
-  socket.on(
-    'room:join',
-    safe(async (payload) => {
+ socket.on(
+  'room:join',
+  safe((payload) =>
+    serializeLifecycle(async () => {
       /*
        * Step 3.3:
        * A rapid leave -> rejoin can arrive while leaveRoom() is still
@@ -336,14 +348,15 @@ function onConnection({
         `joined ${roomId} as "${name}" (${peers.length} others)`,
       );
 
-      return {
+            return {
         self: wireUser(user),
         room,
         peers,
         config: joinConfig(),
       };
     }),
-  );
+  ),
+);
 
   // -------------------------------------------------------------
   // Microphone readiness
@@ -702,28 +715,30 @@ function onConnection({
   }
 
   socket.on(
-    'room:leave',
-    safe(async () => {
+  'room:leave',
+  safe(() =>
+    serializeLifecycle(async () => {
       const left = await leaveRoom('client-leave');
 
       return { left };
     }),
-  );
+  ),
+);
 
   // -------------------------------------------------------------
   // Disconnect
   // -------------------------------------------------------------
 
   socket.on('disconnect', async (reason) => {
-    try {
-      await leaveRoom(reason);
-    } catch (err) {
-      socketsLog.error(
-        'disconnect cleanup failed:',
-        err.message,
-      );
-    }
-  });
+  try {
+    await serializeLifecycle(() => leaveRoom(reason));
+  } catch (err) {
+    socketsLog.error(
+      'disconnect cleanup failed:',
+      err.message,
+    );
+  }
+});
 
   socket.on('error', (err) => {
     socketsLog.error('socket error:', err.message);
