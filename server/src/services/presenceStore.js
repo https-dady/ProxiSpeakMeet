@@ -13,6 +13,7 @@ export class PresenceStore {
   #transform;
   #log;
   #flushInFlight = null;
+  #persistenceQueue = Promise.resolve();
 
   constructor({ transform, logger }) {
     this.#transform = transform;
@@ -184,21 +185,27 @@ export class PresenceStore {
    * than starting another concurrent bulkWrite.
    */
   async flush() {
-    if (this.#flushInFlight) {
-      return this.#flushInFlight;
-    }
+  if (this.#flushInFlight) {
+    return this.#flushInFlight;
+  }
 
-    const operation = this.#flushDirty();
-    this.#flushInFlight = operation;
+  const operation = this.#persistenceQueue.then(
+    () => this.#flushDirty(),
+  );
 
-    try {
-      return await operation;
-    } finally {
-      if (this.#flushInFlight === operation) {
-        this.#flushInFlight = null;
-      }
+  // Serialize every MongoDB persistence operation.
+  this.#persistenceQueue = operation.catch(() => {});
+
+  this.#flushInFlight = operation;
+
+  try {
+    return await operation;
+  } finally {
+    if (this.#flushInFlight === operation) {
+      this.#flushInFlight = null;
     }
   }
+}
 
   /**
    * Write the current dirty batch.
@@ -274,31 +281,29 @@ export class PresenceStore {
    * recreate a stale presence document.
    */
   async removeFromMongo(id) {
-    const activeFlush = this.#flushInFlight;
+  const operation = this.#persistenceQueue.then(
+    async () => {
+      // Clear the retry marker when the deletion reaches the queue.
+      this.#dirty.delete(id);
 
-    if (activeFlush) {
       try {
-        await activeFlush;
-      } catch {
-        // Continue cleanup even if a flush unexpectedly rejects.
+        await UserPresence.deleteOne({
+          sessionId: id,
+        });
+      } catch (err) {
+        this.#log.error(
+          `failed to delete presence ${id}:`,
+          err.message,
+        );
       }
-    }
+    },
+  );
 
-    // Remove any retry marker for this session. The in-memory user may
-    // already have been removed by the socket lifecycle handler.
-    this.#dirty.delete(id);
+  // Ensure later persistence operations wait for this deletion.
+  this.#persistenceQueue = operation.catch(() => {});
 
-    try {
-      await UserPresence.deleteOne({
-        sessionId: id,
-      });
-    } catch (err) {
-      this.#log.error(
-        `failed to delete presence ${id}:`,
-        err.message,
-      );
-    }
-  }
+  await operation;
+}
 
   /**
    * Remove documents whose sessions disappeared after a crash or
