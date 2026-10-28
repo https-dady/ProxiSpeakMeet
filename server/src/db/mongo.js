@@ -4,8 +4,12 @@
  * MongoDB is mandatory for the geospatial engine.
  * Connection listeners are registered once, and concurrent connection
  * requests share the same pending connection attempt.
+ *
+ * Explicit DNS configuration is supported for MongoDB Atlas SRV URIs
+ * to avoid failures caused by the system's default DNS resolver.
  */
 
+import dns from 'node:dns';
 import mongoose from 'mongoose';
 
 import config from '../config/index.js';
@@ -19,9 +23,43 @@ mongoose.set('strictQuery', true);
 
 const log = logger.child('mongo');
 
+const DEFAULT_DNS_SERVERS = ['8.8.8.8', '8.8.4.4'];
+
 let connectionListenersRegistered = false;
 let connectionPromise = null;
 
+/**
+ * Configure DNS servers for MongoDB Atlas SRV resolution.
+ *
+ * MONGODB_DNS_SERVERS can override the defaults:
+ *
+ * MONGODB_DNS_SERVERS=8.8.8.8,8.8.4.4
+ *
+ * Configure this before mongoose.connect() so the initial SRV lookup
+ * uses the selected DNS servers.
+ */
+function configureDnsServers() {
+  const configuredServers = process.env.MONGODB_DNS_SERVERS
+    ?.split(',')
+    .map((server) => server.trim())
+    .filter(Boolean);
+
+  const dnsServers = configuredServers?.length
+    ? configuredServers
+    : DEFAULT_DNS_SERVERS;
+
+  dns.setServers(dnsServers);
+
+  log.info(
+    `DNS servers configured for MongoDB SRV resolution: ${
+      dnsServers.join(', ')
+    }`,
+  );
+}
+
+/**
+ * Establish MongoDB connection listeners once.
+ */
 function registerConnectionListeners() {
   if (connectionListenersRegistered) {
     return;
@@ -49,6 +87,9 @@ function registerConnectionListeners() {
  *
  * Concurrent callers share one pending connection attempt.
  * Initial connection failures are propagated to the caller.
+ *
+ * DNS servers are configured before connecting when the URI uses
+ * mongodb+srv://.
  */
 export async function connectMongo({
   uri = config.mongo.uri,
@@ -63,28 +104,41 @@ export async function connectMongo({
 
   registerConnectionListeners();
 
-  connectionPromise = mongoose
-    .connect(uri, {
-      serverSelectionTimeoutMS:
-        config.mongo.serverSelectionTimeoutMS,
-      maxPoolSize: 50,
-      minPoolSize: 5,
-      retryWrites: true,
-    })
-    .then(() => mongoose.connection)
-    .catch((err) => {
+  connectionPromise = (async () => {
+    try {
+      if (typeof uri !== 'string' || !uri.trim()) {
+        throw new Error('MongoDB connection URI is missing.');
+      }
+
+      if (uri.startsWith('mongodb+srv://')) {
+        configureDnsServers();
+      }
+
+      await mongoose.connect(uri, {
+        serverSelectionTimeoutMS:
+          config.mongo.serverSelectionTimeoutMS,
+        maxPoolSize: 50,
+        minPoolSize: 5,
+        retryWrites: true,
+      });
+
+      return mongoose.connection;
+    } catch (err) {
+      // Do not log the complete URI because it may contain credentials.
       log.error(
-        `Cannot reach MongoDB at "${uri}".\n` +
-          '  Start it with: docker compose up -d mongo ' +
-          '(or: mongod --dbpath ./data)\n' +
-          '  MongoDB is required by the geospatial engine.',
+        `Cannot establish MongoDB connection: ${err.message}`,
+      );
+
+      log.error(
+        'MongoDB is required by the geospatial engine. ' +
+          'Verify DNS resolution, the MongoDB URI, and network access.',
       );
 
       throw err;
-    })
-    .finally(() => {
+    } finally {
       connectionPromise = null;
-    });
+    }
+  })();
 
   return connectionPromise;
 }
@@ -92,7 +146,7 @@ export async function connectMongo({
 /**
  * Disconnect MongoDB safely.
  *
- * If a connection attempt is still pending, wait for it to settle
+ * If a connection attempt is pending, wait for it to settle
  * before deciding whether a disconnect is necessary.
  */
 export async function disconnectMongo() {
