@@ -163,6 +163,18 @@ function onConnection({
   socket.on(
     'room:join',
     safe(async (payload) => {
+      /*
+       * Step 3.3:
+       * A rapid leave -> rejoin can arrive while leaveRoom() is still
+       * removing the old in-memory and MongoDB presence.
+       *
+       * Wait for that cleanup before checking identity or creating
+       * the next presence record.
+       */
+      if (leaveInProgress) {
+        await leaveInProgress;
+      }
+
       const {
         roomId,
         name,
@@ -277,6 +289,10 @@ function onConnection({
         occupants,
       });
 
+      /*
+       * Switching rooms must remove the old room membership and
+       * presence before adding the user to the destination room.
+       */
       if (identity && identity.roomId !== roomId) {
         await leaveRoom('room-switch');
       }
@@ -585,7 +601,6 @@ function onConnection({
           `dropped ${data.type} for ${to} (not an authorized same-room peer)`,
         );
 
-        // Preserve the existing acknowledgement contract.
         return {};
       }
 
