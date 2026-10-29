@@ -1,21 +1,32 @@
 /**
- * Express surface: health, room catalogue, live stats and the Spatial Audit
- * endpoint used by the mid-project review.
+ * Express surface: health, room catalogue, live stats, office blueprint
+ * import and the Spatial Audit endpoint used by the mid-project review.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import cors from 'cors';
+
 import config, { SERVER_ROOT } from './config/index.js';
 import logger from './utils/logger.js';
+
 import {
   requireString,
   requireFiniteNumber,
   clamp,
 } from './utils/validate.js';
-import { ValidationError, NotFoundError } from './utils/errors.js';
+
+import {
+  ValidationError,
+  NotFoundError,
+} from './utils/errors.js';
+
 import { requireRoom } from './services/roomService.js';
 import { corsOrigin } from './utils/origin.js';
+
+import {
+  importOfficeBlueprint,
+} from './services/officeBlueprintImportService.js';
 
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 
@@ -50,8 +61,7 @@ export function createApp({
 
   app.disable('x-powered-by');
 
-  // Render terminates TLS at its proxy and forwards X-Forwarded-Proto; trusting
-  // one hop keeps req.ip / protocol and rate-limit-style checks truthful.
+  // Render terminates TLS at its proxy and forwards X-Forwarded-Proto.
   app.set('trust proxy', 1);
 
   app.use(cors({ origin: corsOrigin(cfg) }));
@@ -60,9 +70,8 @@ export function createApp({
   const startedAt = Date.now();
 
   /**
-   * Liveness endpoint used by the Render health check. Deliberately free of
-   * MongoDB/Redis calls so a blip in a backing service never marks a healthy
-   * process as dead (and never causes the platform to restart it).
+   * Liveness endpoint.
+   * Deliberately independent of MongoDB and Redis.
    */
   app.get('/health', (req, res) => {
     res.status(200).json({
@@ -130,7 +139,10 @@ export function createApp({
     });
   });
 
-  // ----------------------------------------------------------- room catalogue
+  // -----------------------------------------------------------
+  // Room catalogue
+  // -----------------------------------------------------------
+
   app.get('/api/rooms', async (req, res, next) => {
     try {
       const rooms = await services.listRooms();
@@ -154,13 +166,47 @@ export function createApp({
     }
   });
 
+  // -----------------------------------------------------------
+  // Import custom office blueprint
+  // -----------------------------------------------------------
+
+  /**
+   * POST /api/rooms/import-blueprint
+   *
+   * Imports a validated JSON blueprint into the existing room system.
+   * The import service owns blueprint validation and room persistence.
+   */
+  app.post(
+    '/api/rooms/import-blueprint',
+    async (req, res, next) => {
+      try {
+        const result = await importOfficeBlueprint(req.body);
+
+        return res.status(201).json({
+          ok: true,
+          message: 'Office blueprint imported successfully',
+          data: result,
+        });
+      } catch (err) {
+        return next(err);
+      }
+    },
+  );
+
+  // -----------------------------------------------------------
+  // Individual room
+  // -----------------------------------------------------------
+
   app.get('/api/rooms/:roomId', async (req, res, next) => {
     try {
       const roomId = parseRoomId(req.params.roomId);
       const room = await requireRoom(roomId);
       const live = services.store.byRoom(roomId).length;
 
-      res.json({ room, liveUsers: live });
+      res.json({
+        room,
+        liveUsers: live,
+      });
     } catch (err) {
       next(err);
     }
@@ -182,13 +228,15 @@ export function createApp({
       const roomId = parseRoomId(params.roomId ?? 'lobby');
       const room = await requireRoom(roomId);
 
-      // Validate audit coordinates against the selected room's geometry,
-      // not the global world dimensions.
+      // Validate coordinates against the selected room's geometry.
       const x = clamp(
         requireFiniteNumber(
           Number(params.x ?? room.width / 2),
           'x',
-          { min: 0, max: room.width },
+          {
+            min: 0,
+            max: room.width,
+          },
         ),
         0,
         room.width,
@@ -198,7 +246,10 @@ export function createApp({
         requireFiniteNumber(
           Number(params.y ?? room.height / 2),
           'y',
-          { min: 0, max: room.height },
+          {
+            min: 0,
+            max: room.height,
+          },
         ),
         0,
         room.height,
@@ -240,8 +291,7 @@ export function createApp({
         instanceId: cfg.server.instanceId,
       });
 
-      // Surface every completed audit on every connected client (this is the
-      // part that visibly proves the Redis fan-out across instances).
+      // Broadcast completed audits to connected clients.
       io?.to(roomId).emit('audit:completed', {
         roomId,
         at: report.at,
@@ -253,7 +303,10 @@ export function createApp({
 
       redisBus?.publish({
         type: 'audit:completed',
-        payload: { roomId, report },
+        payload: {
+          roomId,
+          report,
+        },
         at: Date.now(),
       });
 
@@ -282,12 +335,14 @@ export function createApp({
     }
   });
 
-  // ---------------------------------------------------------------------
-  // Static client bundle (single Web Service: one process, one port).
-  // Registered AFTER the API routes so /api/* can never be swallowed, and the
-  // SPA fallback only answers GET/HEAD for client-side routes. Socket.io
-  // requests (/socket.io/*) never reach Express — Socket.io intercepts them.
-  // ---------------------------------------------------------------------
+  // -----------------------------------------------------------
+  // Static client bundle
+  // -----------------------------------------------------------
+
+  /**
+   * Registered after API routes so /api/* cannot be swallowed.
+   * Socket.IO requests are handled by Socket.IO.
+   */
   const clientDist = resolveClientDist(cfg);
   const hasClientBundle = fs.existsSync(
     path.join(clientDist, 'index.html'),
@@ -299,8 +354,6 @@ export function createApp({
         index: false,
         maxAge: cfg.isProduction ? '1h' : 0,
         setHeaders(res, filePath) {
-          // Never cache the entry document itself, or a deploy leaves clients
-          // pointing at hashed assets that no longer exist.
           if (filePath.endsWith('index.html')) {
             res.setHeader('Cache-Control', 'no-cache');
           }
@@ -308,9 +361,6 @@ export function createApp({
       }),
     );
 
-    // The entry document is read once at boot: it never changes while the
-    // process is alive (a deploy restarts us), and caching it removes a disk
-    // read from every client-side route.
     const indexHtml = fs.readFileSync(
       path.join(clientDist, 'index.html'),
       'utf8',
@@ -325,7 +375,6 @@ export function createApp({
         return next();
       }
 
-      // A deploy replaces the bundle; never let a browser pin an old one.
       res.set('Cache-Control', 'no-cache');
 
       return res.status(200).type('html').send(indexHtml);
@@ -338,6 +387,10 @@ export function createApp({
         'Run `npm run build` at the repo root (Render build command) to produce it.',
     );
   }
+
+  // -----------------------------------------------------------
+  // 404 and centralized error handling
+  // -----------------------------------------------------------
 
   app.use((req, res) => {
     res.status(404).json({
@@ -378,8 +431,8 @@ function redact(uri) {
 }
 
 /**
- * Where the built client lives. Defaults to <repo>/client/dist and can be
- * overridden with CLIENT_DIST if the bundle is built somewhere else.
+ * Where the built client lives.
+ * Defaults to <repo>/client/dist and can be overridden with CLIENT_DIST.
  */
 function resolveClientDist(cfg) {
   if (cfg.server.clientDist) {
