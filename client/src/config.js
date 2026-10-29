@@ -13,8 +13,8 @@ const env = import.meta.env;
  *   makes a single-Web-Service deploy (Render) work with no extra config and no
  *   Vite proxy.
  */
-const sameOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:4000';
-const defaultServerUrl = env.PROD ? sameOrigin : 'http://localhost:4000';
+const sameOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://proxispeakmeet-2.onrender.com/';
+const defaultServerUrl = env.PROD ? sameOrigin : 'https://proxispeakmeet-2.onrender.com/';
 
 export const config = Object.freeze({
   serverUrl: env.VITE_SERVER_URL || defaultServerUrl,
