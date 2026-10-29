@@ -9,6 +9,7 @@ import { PeerList } from './components/PeerList.jsx';
 import { AuditPanel } from './components/AuditPanel.jsx';
 import { OfficeSidebar } from './components/OfficeSidebar.jsx';
 import { Notices } from './components/Notices.jsx';
+import { OfficeBlueprintImporter } from './components/OfficeBlueprintImporter.jsx';
 
 import config from './config.js';
 import { useUiTick } from './hooks/useUiTick.js';
@@ -258,8 +259,7 @@ function RoomInfoPanel() {
 }
 
 /**
- * Loads real rooms from GET /api/rooms and switches rooms through the
- * existing ProxiContext join() flow.
+ * Loads rooms from the API and switches rooms through ProxiContext.
  */
 function RoomSwitcher() {
   const { state, join, dispatch } = useProxi();
@@ -362,7 +362,6 @@ function RoomSwitcher() {
       await join({
         ...intent,
         roomId: nextRoomId,
-        // Keep the current microphone stream and avoid requesting it again.
         withMic: false,
       });
 
@@ -374,7 +373,6 @@ function RoomSwitcher() {
         },
       });
 
-      // Refresh live-user counts after the room change.
       void loadRooms();
     } catch (err) {
       setError(err.message || 'Could not switch rooms.');
@@ -551,6 +549,10 @@ function SettingsPanel() {
       </section>
 
       <RoomSwitcher />
+
+      {/* Custom office blueprint import */}
+      <OfficeBlueprintImporter />
+
       <RoomInfoPanel />
     </>
   );
