@@ -1,53 +1,77 @@
 /**
- * Client configuration. Values come from Vite env vars with safe defaults so
- * the app also runs without a .env file.
+ * Client configuration.
+ * Values come from Vite environment variables with safe defaults.
  */
+
 const env = import.meta.env;
 
 /**
- * Where the Socket.io server lives.
+ * Socket.IO server configuration.
  *
- * - `vite dev` (PORT mode): the API runs on :4000, so default to it.
- * - production build: the same Express process serves this bundle AND the
- *   websocket on one port, so connect to the page's own origin. That is what
- *   makes a single-Web-Service deploy (Render) work with no extra config and no
- *   Vite proxy.
+ * Production:
+ *   Connect directly to the deployed Render backend.
+ *
+ * Development:
+ *   Connect to the local backend on port 4000.
+ *
+ * VITE_SERVER_URL overrides the default server URL.
  */
-const sameOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://proxispeakmeet-2.onrender.com/';
-const defaultServerUrl = env.PROD ? sameOrigin : 'https://proxispeakmeet-2.onrender.com/';
+
+const defaultServerUrl = env.PROD
+  ? 'https://proxispeakmeet-2.onrender.com'
+  : 'http://localhost:4000';
+
+const serverUrl = (
+  env.VITE_SERVER_URL || defaultServerUrl
+).replace(/\/+$/, '');
 
 export const config = Object.freeze({
-  serverUrl: env.VITE_SERVER_URL || defaultServerUrl,
+  serverUrl,
+
   defaultRoom: env.VITE_DEFAULT_ROOM || 'lobby',
 
-  /** Local movement (pixels/second) — delta-time based, never per-frame. */
+  /**
+   * Local movement (pixels/second).
+   * Delta-time based, never per-frame.
+   */
   movement: Object.freeze({
     speed: 420,
-    clickSpeed: 300, // auto-walk speed towards a click target
+    clickSpeed: 300,
     acceleration: 2200,
     friction: 1800,
     avatarRadius: 14,
   }),
 
-  /** Network budget: never flood the socket, even at 60 FPS. */
+  /**
+   * Network budget.
+   * Prevents flooding the socket with position updates.
+   */
   network: Object.freeze({
-    positionThrottleMs: 100, // 10 Hz
+    positionThrottleMs: 100,
     heartbeatMs: 10000,
   }),
 
-  /** Audio engine defaults (overridden by the server on join). */
+  /**
+   * Audio engine defaults.
+   * These values can be overridden by the server on join.
+   */
   audio: Object.freeze({
     earshotRadiusPx: 100,
     fullVolumeRadiusPx: 35,
-    updateIntervalMs: 50, // 20 Hz audio refresh, 60 Hz rendering
+    updateIntervalMs: 50,
     speakingThreshold: 0.045,
-    maxVoices: 12, // hard cap on simultaneous Web Audio voices
+    maxVoices: 12,
   }),
 
-  /** UI refresh rate for readouts (the canvas runs at 60 FPS independently). */
+  /**
+   * UI refresh rate.
+   * The canvas renders independently at 60 FPS.
+   */
   uiTickMs: 250,
 
-  /** Client-side copy of the mid-project-review budget (for HUD readouts). */
+  /**
+   * Client-side audit budget.
+   */
   audit: Object.freeze({
     budgetMs: 20,
   }),
