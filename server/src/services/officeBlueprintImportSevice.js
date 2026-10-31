@@ -6,20 +6,19 @@ import {
   persistRoom,
 } from './roomService.js';
 import { validateOfficeBlueprint } from './officeBlueprintService.js';
-import { ValidationError } from '../utils/errors.js';
+import { ValidationError, ServiceError } from '../utils/errors.js';
 
 /**
  * Import a validated office blueprint into the existing room system.
  *
- * Existing room IDs cannot be overwritten by this import operation.
- * Actual persistence continues through roomService so its existing
- * validation, cache, and retry behavior remain in place.
+ * Room IDs cannot be overwritten. Successful persistence uses roomService
+ * so existing geometry checks, cache management and retry behavior remain
+ * part of the room lifecycle.
  */
 export async function importOfficeBlueprint(input) {
   const blueprint = validateOfficeBlueprint(input);
 
-  // Avoid importing a room that is already present in the in-memory
-  // catalogue, including rooms waiting for persistence.
+  // Reject duplicates already visible in the existing room catalogue.
   const rooms = await listRooms();
 
   if (rooms.some((room) => room.roomId === blueprint.roomId)) {
@@ -29,22 +28,26 @@ export async function importOfficeBlueprint(input) {
     );
   }
 
-  // Check MongoDB directly as well. The catalogue has a result limit,
-  // so it must not be the only duplicate-protection mechanism.
-  if (mongoose.connection.readyState === 1) {
-    const existingRoom = await Room.exists({
-      roomId: blueprint.roomId,
-    });
-
-    if (existingRoom) {
-      throw new ValidationError(
-        `Room "${blueprint.roomId}" already exists`,
-        { field: 'roomId', value: blueprint.roomId },
-      );
-    }
+  // The database check is important because listRooms() is limited.
+  if (mongoose.connection.readyState !== 1) {
+    throw new ServiceError(
+      'Database is unavailable. Connect to MongoDB before importing a custom office.',
+      { status: 503 },
+    );
   }
 
-  // The existing persistence service owns MongoDB writes and retry logic.
+  const existingRoom = await Room.exists({
+    roomId: blueprint.roomId,
+  });
+
+  if (existingRoom) {
+    throw new ValidationError(
+      `Room "${blueprint.roomId}" already exists`,
+      { field: 'roomId', value: blueprint.roomId },
+    );
+  }
+
+  // Persist through the existing service instead of bypassing room lifecycle.
   const persistedRoom = await persistRoom(blueprint);
 
   return {
