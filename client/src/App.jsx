@@ -14,6 +14,9 @@ import { OfficeBlueprintImporter } from './components/OfficeBlueprintImporter.js
 import config from './config.js';
 import { useUiTick } from './hooks/useUiTick.js';
 
+import Auth from './components/Auth';
+import RoomManager from './components/RoomManager';
+
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 
 function getApiBaseUrl() {
@@ -258,9 +261,6 @@ function RoomInfoPanel() {
   );
 }
 
-/**
- * Loads rooms from the API and switches rooms through ProxiContext.
- */
 function RoomSwitcher() {
   const { state, join, dispatch } = useProxi();
 
@@ -691,10 +691,82 @@ function Office() {
 }
 
 export function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentRoom, setCurrentRoom] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('username');
+    if (token && savedUser) {
+      setCurrentUser(savedUser);
+    }
+  }, []);
+
+  const handleLogin = (username) => {
+    setCurrentUser(username);
+    localStorage.setItem('username', username);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    setCurrentUser(null);
+    setCurrentRoom(null);
+  };
+
+  if (!currentUser) {
+    return <Auth onLogin={handleLogin} />;
+  }
+
+  if (!currentRoom) {
+    return (
+      <RoomManager 
+        username={currentUser} 
+        onJoinRoom={(roomId) => {
+          // Setting the room in URL so ProxiProvider can pick it up automatically
+          const url = new URL(window.location.href);
+          url.searchParams.set('room', roomId);
+          window.history.pushState({}, '', url);
+          config.defaultRoom = roomId;
+          setCurrentRoom(roomId);
+        }} 
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
   return (
-    <ProxiProvider>
-      <Office />
-    </ProxiProvider>
+    <>
+      <div style={{ 
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000, 
+        backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(4px)',
+        borderBottom: '1px solid #334155', padding: '10px 20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+      }}>
+        <div style={{ color: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
+          <span style={{ color: '#94a3b8', fontSize: '14px' }}>Room ID:</span> 
+          <strong style={{ marginLeft: '8px', letterSpacing: '1px' }}>{currentRoom}</strong>
+        </div>
+        <button 
+          onClick={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('room');
+            window.history.pushState({}, '', url);
+            setCurrentRoom(null);
+          }}
+          style={{ 
+            backgroundColor: '#ef4444', color: 'white', border: 'none', 
+            padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' 
+          }}
+        >
+          Leave Room
+        </button>
+      </div>
+
+      <ProxiProvider>
+        <Office />
+      </ProxiProvider>
+    </>
   );
 }
 
