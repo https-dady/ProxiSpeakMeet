@@ -11,9 +11,15 @@ import { OfficeSidebar } from './components/OfficeSidebar.jsx';
 import { Notices } from './components/Notices.jsx';
 import { OfficeBlueprintImporter } from './components/OfficeBlueprintImport.jsx';
 
-import Auth from './components/Auth';
-import RoomManager from './components/RoomManager';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
+import Login from './components/Login.jsx';
+import Signup from './components/Signup.jsx';
+import ForgotPassword from './components/ForgotPassword.jsx';
+import ResetPassword from './components/ResetPassword.jsx';
+import VerifyEmail from './components/VerifyEmail.jsx';
+
+import RoomManager from './components/RoomManager.jsx';
 import config from './config.js';
 import { useUiTick } from './hooks/useUiTick.js';
 import { useAuthSession } from './hooks/useAuthSession.js';
@@ -161,11 +167,10 @@ function ConnectionAudioPanel() {
       <ul className="connection-panel__list">
         <li className="connection-panel__item">
           <span
-            className={`connection-panel__indicator ${
-              socketConnected
+            className={`connection-panel__indicator ${socketConnected
                 ? 'connection-panel__indicator--online'
                 : ''
-            }`}
+              }`}
             aria-hidden="true"
           />
           <span className="connection-panel__label">Socket.IO</span>
@@ -184,11 +189,10 @@ function ConnectionAudioPanel() {
 
         <li className="connection-panel__item">
           <span
-            className={`connection-panel__indicator ${
-              connectedPeers > 0
+            className={`connection-panel__indicator ${connectedPeers > 0
                 ? 'connection-panel__indicator--online'
                 : ''
-            }`}
+              }`}
             aria-hidden="true"
           />
           <span className="connection-panel__label">WebRTC</span>
@@ -201,11 +205,10 @@ function ConnectionAudioPanel() {
 
         <li className="connection-panel__item">
           <span
-            className={`connection-panel__indicator ${
-              audioReady
+            className={`connection-panel__indicator ${audioReady
                 ? 'connection-panel__indicator--online'
                 : ''
-            }`}
+              }`}
             aria-hidden="true"
           />
           <span className="connection-panel__label">Spatial Audio</span>
@@ -216,11 +219,10 @@ function ConnectionAudioPanel() {
 
         <li className="connection-panel__item">
           <span
-            className={`connection-panel__indicator ${
-              state.mic.state === 'ready' && !state.muted
+            className={`connection-panel__indicator ${state.mic.state === 'ready' && !state.muted
                 ? 'connection-panel__indicator--online'
                 : ''
-            }`}
+              }`}
             aria-hidden="true"
           />
           <span className="connection-panel__label">Microphone</span>
@@ -751,6 +753,54 @@ function Office() {
     </div>
   );
 }
+function AuthRoutes() {
+  const location = useLocation();
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={<Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/login"
+        element={<Login />}
+      />
+
+      <Route
+        path="/signup"
+        element={<Signup />}
+      />
+
+      <Route
+        path="/verify-email"
+        element={<VerifyEmail />}
+      />
+
+      <Route
+        path="/forgot-password"
+        element={<ForgotPassword />}
+      />
+
+      <Route
+        path="/reset-password"
+        element={<ResetPassword />}
+      />
+
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to="/login"
+            replace
+            state={{ from: location.pathname }}
+          />
+        }
+      />
+    </Routes>
+  );
+}
 
 export function App() {
   const {
@@ -821,7 +871,9 @@ export function App() {
   }
 
   if (!currentUser) {
-    return <Auth onLogin={handleLogin} />;
+    return (
+      <AuthRoutes />
+    );
   }
 
   if (!currentRoom) {
