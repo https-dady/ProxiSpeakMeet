@@ -1,13 +1,7 @@
 /**
- * Express surface:
- * - Health endpoints
- * - Registration and login
- * - Room catalogue and room details
- * - Office blueprint import
- * - Spatial audit
- * - Static frontend serving
+ * Express surface: authentication, health, room catalogue,
+ * room creation, office blueprint import and Spatial Audit.
  */
-
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
@@ -15,8 +9,6 @@ import cors from 'cors';
 
 import config, { SERVER_ROOT } from './config/index.js';
 import logger from './utils/logger.js';
-
-import authRouter from './routes/auth.js';
 
 import {
   requireString,
@@ -31,6 +23,9 @@ import {
 
 import { requireRoom } from './services/roomService.js';
 import { corsOrigin } from './utils/origin.js';
+
+import authRouter from './routes/auth.js';
+import roomCreationRouter from './routes/roomCreation.js';
 
 import {
   importOfficeBlueprint,
@@ -79,20 +74,17 @@ export function createApp({
   // Authentication
   // -----------------------------------------------------------
 
-  /**
-   * POST /api/auth/register
-   * Creates a user account.
-   *
-   * POST /api/auth/login
-   * Validates credentials and returns a JWT.
-   */
   app.use('/api/auth', authRouter);
 
-  const startedAt = Date.now();
+  // -----------------------------------------------------------
+  // Room creation
+  // -----------------------------------------------------------
 
-  // -----------------------------------------------------------
-  // Health
-  // -----------------------------------------------------------
+  // POST /api/rooms
+  // GET /api/rooms remains handled by the catalogue endpoint below.
+  app.use('/api/rooms', roomCreationRouter);
+
+  const startedAt = Date.now();
 
   /**
    * Liveness endpoint.
@@ -137,10 +129,6 @@ export function createApp({
     });
   });
 
-  // -----------------------------------------------------------
-  // Live statistics
-  // -----------------------------------------------------------
-
   app.get('/api/stats', (req, res) => {
     const users = [...services.store.all()];
     const byRoom = new Map();
@@ -172,6 +160,11 @@ export function createApp({
   // Room catalogue
   // -----------------------------------------------------------
 
+  /**
+   * GET /api/rooms
+   *
+   * Returns available rooms with their current live participant counts.
+   */
   app.get('/api/rooms', async (req, res, next) => {
     try {
       const rooms = await services.listRooms();
@@ -184,14 +177,14 @@ export function createApp({
         );
       }
 
-      res.json({
+      return res.json({
         rooms: rooms.map((room) => ({
           ...room,
           liveUsers: live.get(room.roomId) ?? 0,
         })),
       });
     } catch (err) {
-      next(err);
+      return next(err);
     }
   });
 
@@ -226,24 +219,25 @@ export function createApp({
   // Individual room
   // -----------------------------------------------------------
 
+  /**
+   * GET /api/rooms/:roomId
+   *
+   * Returns room configuration and the current live participant count.
+   */
   app.get('/api/rooms/:roomId', async (req, res, next) => {
     try {
       const roomId = parseRoomId(req.params.roomId);
       const room = await requireRoom(roomId);
       const live = services.store.byRoom(roomId).length;
 
-      res.json({
+      return res.json({
         room,
         liveUsers: live,
       });
     } catch (err) {
-      next(err);
+      return next(err);
     }
   });
-
-  // -----------------------------------------------------------
-  // Spatial audit
-  // -----------------------------------------------------------
 
   /**
    * GET /api/spatial-audit?roomId=lobby&x=960&y=540&radius=100&samples=25
@@ -261,7 +255,6 @@ export function createApp({
       const roomId = parseRoomId(params.roomId ?? 'lobby');
       const room = await requireRoom(roomId);
 
-      // Validate coordinates against the selected room's geometry.
       const x = clamp(
         requireFiniteNumber(
           Number(params.x ?? room.width / 2),
@@ -324,7 +317,7 @@ export function createApp({
         instanceId: cfg.server.instanceId,
       });
 
-      // Broadcast completed audits to connected clients.
+      // Broadcast completed audits to connected clients when io is provided.
       io?.to(roomId).emit('audit:completed', {
         roomId,
         at: report.at,
@@ -343,9 +336,9 @@ export function createApp({
         at: Date.now(),
       });
 
-      res.status(report.ok ? 200 : 503).json(report);
+      return res.status(report.ok ? 200 : 503).json(report);
     } catch (err) {
-      next(err);
+      return next(err);
     }
   };
 
@@ -362,9 +355,9 @@ export function createApp({
         100,
       );
 
-      res.json(await services.audit.history(roomId, limit));
+      return res.json(await services.audit.history(roomId, limit));
     } catch (err) {
-      next(err);
+      return next(err);
     }
   });
 
