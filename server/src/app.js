@@ -1,7 +1,13 @@
 /**
- * Express surface: health, room catalogue, live stats, office blueprint
- * import and the Spatial Audit endpoint used by the mid-project review.
+ * Express surface:
+ * - Health endpoints
+ * - Registration and login
+ * - Room catalogue and room details
+ * - Office blueprint import
+ * - Spatial audit
+ * - Static frontend serving
  */
+
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
@@ -9,6 +15,8 @@ import cors from 'cors';
 
 import config, { SERVER_ROOT } from './config/index.js';
 import logger from './utils/logger.js';
+
+import authRouter from './routes/auth.js';
 
 import {
   requireString,
@@ -67,7 +75,24 @@ export function createApp({
   app.use(cors({ origin: corsOrigin(cfg) }));
   app.use(express.json({ limit: '64kb' }));
 
+  // -----------------------------------------------------------
+  // Authentication
+  // -----------------------------------------------------------
+
+  /**
+   * POST /api/auth/register
+   * Creates a user account.
+   *
+   * POST /api/auth/login
+   * Validates credentials and returns a JWT.
+   */
+  app.use('/api/auth', authRouter);
+
   const startedAt = Date.now();
+
+  // -----------------------------------------------------------
+  // Health
+  // -----------------------------------------------------------
 
   /**
    * Liveness endpoint.
@@ -111,6 +136,10 @@ export function createApp({
       mesh: services.peerGraph.stats(),
     });
   });
+
+  // -----------------------------------------------------------
+  // Live statistics
+  // -----------------------------------------------------------
 
   app.get('/api/stats', (req, res) => {
     const users = [...services.store.all()];
@@ -211,6 +240,10 @@ export function createApp({
       next(err);
     }
   });
+
+  // -----------------------------------------------------------
+  // Spatial audit
+  // -----------------------------------------------------------
 
   /**
    * GET /api/spatial-audit?roomId=lobby&x=960&y=540&radius=100&samples=25

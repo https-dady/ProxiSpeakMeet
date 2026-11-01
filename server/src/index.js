@@ -8,6 +8,8 @@
 
 import http from 'node:http';
 import process from 'node:process';
+import express from 'express';
+import cors from 'cors';
 
 import config from './config/index.js';
 import logger from './utils/logger.js';
@@ -27,6 +29,10 @@ import { createServices } from './services/index.js';
 import { createApp } from './app.js';
 import { createSocketServer } from './sockets/index.js';
 import { startRuntime } from './runtime.js';
+
+// Import newly created authentication and room routes
+import authRoutes from './routes/auth.js';
+import roomRoutes from './routes/room.js';
 
 const log = logger;
 
@@ -59,6 +65,17 @@ async function main() {
     config,
     logger: log,
   });
+
+  // --- BEGIN: Inject custom API routes for Auth and Rooms ---
+  // Apply CORS to allow frontend communication
+  app.use(cors());
+  // Ensure JSON body parsing is active for incoming API POST requests
+  app.use(express.json());
+  
+  // Mount the customized routes
+  app.use('/api/auth', authRoutes);
+  app.use('/api/room', roomRoutes);
+  // --- END: Inject custom API routes ---
 
   httpServer.on('request', app);
 

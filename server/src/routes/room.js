@@ -1,11 +1,10 @@
-const express = require('express');
-const { v4: uuidv4 } = require('uuid');
+import express from 'express';
+import { randomUUID } from 'node:crypto';
+
 const router = express.Router();
 
-router.post('/create', (req, res) => {
-  // Unique room ID generate kar rahe hain
-  const roomId = uuidv4();
-  res.json({ roomId });
+router.post('/create', (_req, res) => {
+  return res.status(201).json({ roomId: randomUUID() });
 });
 
-module.exports = router;
+export default router;

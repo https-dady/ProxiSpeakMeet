@@ -1,21 +1,55 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
-const UserSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
-  password: { type: String, required: true }
+const userSchema = new mongoose.Schema(
+  {
+    username: {
+      type: String,
+      required: [true, 'Username is required'],
+      unique: true,
+      trim: true,
+      minlength: [3, 'Username must be at least 3 characters long'],
+      maxlength: [50, 'Username cannot exceed 50 characters'],
+    },
+
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: [8, 'Password must be at least 8 characters long'],
+      select: false,
+    },
+  },
+  {
+    timestamps: true,
+    versionKey: false,
+  },
+);
+
+// Hash the password before saving a new password.
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) {
+    return;
+  }
+
+  this.password = await bcrypt.hash(this.password, 12);
 });
 
-// Password save hone se pehle encrypt karne ke liye
-UserSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 10);
-  next();
-});
+// Compare the entered password with the stored password hash.
+userSchema.methods.comparePassword = async function (
+  candidatePassword,
+) {
+  if (
+    typeof candidatePassword !== 'string' ||
+    typeof this.password !== 'string'
+  ) {
+    return false;
+  }
 
-// Password check karne ke liye method
-UserSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
-module.exports = mongoose.model('User', UserSchema);
+// Reuse the existing model if it has already been registered.
+const User =
+  mongoose.models.User || mongoose.model('User', userSchema);
+
+export default User;
