@@ -9,18 +9,113 @@ import { PeerList } from './components/PeerList.jsx';
 import { AuditPanel } from './components/AuditPanel.jsx';
 import { OfficeSidebar } from './components/OfficeSidebar.jsx';
 import { Notices } from './components/Notices.jsx';
-import { OfficeBlueprintImporter } from './components/OfficeBlueprintImport.jsx';
-
-import config from './config.js';
-import { useUiTick } from './hooks/useUiTick.js';
+import { OfficeBlueprintImporter } from './components/OfficeBlueprintImporter.jsx';
 
 import Auth from './components/Auth';
 import RoomManager from './components/RoomManager';
+
+import config from './config.js';
+import { useUiTick } from './hooks/useUiTick.js';
+import { useAuthSession } from './hooks/useAuthSession.js';
 
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 
 function getApiBaseUrl() {
   return String(config.serverUrl).replace(/\/+$/, '');
+}
+
+function LoadingScreen({ message = 'Loading your workspace…' }) {
+  return (
+    <main
+      role="status"
+      aria-live="polite"
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        padding: '24px',
+        backgroundColor: '#0f172a',
+        color: '#f8fafc',
+        fontFamily: 'system-ui, sans-serif',
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <h1 style={{ fontSize: '24px' }}>ProxiSpeak Meet</h1>
+        <p style={{ color: '#94a3b8' }}>{message}</p>
+      </div>
+    </main>
+  );
+}
+
+function SessionErrorScreen({ message, onRetry, onSignOut }) {
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        padding: '24px',
+        backgroundColor: '#0f172a',
+        color: '#f8fafc',
+        fontFamily: 'system-ui, sans-serif',
+      }}
+    >
+      <section
+        style={{
+          width: '100%',
+          maxWidth: '440px',
+          padding: '28px',
+          border: '1px solid #334155',
+          borderRadius: '12px',
+          backgroundColor: '#1e293b',
+        }}
+      >
+        <h1>Unable to verify your session</h1>
+
+        <p style={{ color: '#cbd5e1', lineHeight: 1.6 }}>
+          {message}
+        </p>
+
+        <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+          Check your connection to the server and try again.
+        </p>
+
+        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+          <button
+            type="button"
+            onClick={onRetry}
+            style={{
+              flex: 1,
+              padding: '11px',
+              border: 0,
+              borderRadius: '7px',
+              backgroundColor: '#3b82f6',
+              color: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+
+          <button
+            type="button"
+            onClick={onSignOut}
+            style={{
+              flex: 1,
+              padding: '11px',
+              border: '1px solid #475569',
+              borderRadius: '7px',
+              backgroundColor: 'transparent',
+              color: '#f8fafc',
+              cursor: 'pointer',
+            }}
+          >
+            Sign in again
+          </button>
+        </div>
+      </section>
+    </main>
+  );
 }
 
 function ConnectionAudioPanel() {
@@ -73,9 +168,7 @@ function ConnectionAudioPanel() {
             }`}
             aria-hidden="true"
           />
-          <span className="connection-panel__label">
-            Socket.IO
-          </span>
+          <span className="connection-panel__label">Socket.IO</span>
           <span className="connection-panel__value">
             {socketConnected
               ? 'Connected'
@@ -98,9 +191,7 @@ function ConnectionAudioPanel() {
             }`}
             aria-hidden="true"
           />
-          <span className="connection-panel__label">
-            WebRTC
-          </span>
+          <span className="connection-panel__label">WebRTC</span>
           <span className="connection-panel__value">
             {connections.length === 0
               ? 'No peer connections'
@@ -117,9 +208,7 @@ function ConnectionAudioPanel() {
             }`}
             aria-hidden="true"
           />
-          <span className="connection-panel__label">
-            Spatial Audio
-          </span>
+          <span className="connection-panel__label">Spatial Audio</span>
           <span className="connection-panel__value">
             {audioReady ? 'Initialized' : 'Waiting'}
           </span>
@@ -134,9 +223,7 @@ function ConnectionAudioPanel() {
             }`}
             aria-hidden="true"
           />
-          <span className="connection-panel__label">
-            Microphone
-          </span>
+          <span className="connection-panel__label">Microphone</span>
           <span className="connection-panel__value">
             {microphoneLabel}
           </span>
@@ -148,7 +235,6 @@ function ConnectionAudioPanel() {
 
 function RoomInfoPanel() {
   const { state, dispatch } = useProxi();
-
   const [copyState, setCopyState] = useState('idle');
 
   const roomId = state.room?.roomId ?? config.defaultRoom;
@@ -198,9 +284,7 @@ function RoomInfoPanel() {
     >
       <header className="panel__header room-info__header">
         <div>
-          <span className="room-info__eyebrow">
-            YOUR WORKSPACE
-          </span>
+          <span className="room-info__eyebrow">YOUR WORKSPACE</span>
           <h2 id="room-info-title">Room Info</h2>
         </div>
       </header>
@@ -212,9 +296,7 @@ function RoomInfoPanel() {
           </span>
           <div className="room-info__copy">
             <span className="room-info__label">Room</span>
-            <strong className="room-info__value">
-              {roomName}
-            </strong>
+            <strong className="room-info__value">{roomName}</strong>
           </div>
         </div>
 
@@ -223,9 +305,7 @@ function RoomInfoPanel() {
             ♙
           </span>
           <div className="room-info__copy">
-            <span className="room-info__label">
-              Participants
-            </span>
+            <span className="room-info__label">Participants</span>
             <strong className="room-info__value">
               {participantCount}
             </strong>
@@ -238,9 +318,7 @@ function RoomInfoPanel() {
           </span>
           <div className="room-info__copy">
             <span className="room-info__label">Room ID</span>
-            <strong className="room-info__value">
-              {roomId}
-            </strong>
+            <strong className="room-info__value">{roomId}</strong>
           </div>
         </div>
       </div>
@@ -279,13 +357,10 @@ function RoomSwitcher() {
     setError('');
 
     try {
-      const response = await fetch(
-        `${getApiBaseUrl()}/api/rooms`,
-        {
-          headers: { Accept: 'application/json' },
-          signal,
-        },
-      );
+      const response = await fetch(`${getApiBaseUrl()}/api/rooms`, {
+        headers: { Accept: 'application/json' },
+        signal,
+      });
 
       if (!response.ok) {
         throw new Error(
@@ -299,20 +374,18 @@ function RoomSwitcher() {
         throw new Error('The server returned an invalid room catalogue.');
       }
 
-      const validRooms = payload.rooms.filter(
-        (room) =>
-          room &&
-          typeof room.roomId === 'string' &&
-          ROOM_ID_PATTERN.test(room.roomId),
+      setRooms(
+        payload.rooms.filter(
+          (room) =>
+            room &&
+            typeof room.roomId === 'string' &&
+            ROOM_ID_PATTERN.test(room.roomId),
+        ),
       );
-
-      setRooms(validRooms);
     } catch (err) {
       if (err.name === 'AbortError') return;
 
-      setError(
-        err.message || 'Unable to load available rooms.',
-      );
+      setError(err.message || 'Unable to load available rooms.');
     } finally {
       if (!signal?.aborted) {
         setLoading(false);
@@ -388,9 +461,7 @@ function RoomSwitcher() {
     >
       <header className="panel__header">
         <div>
-          <span className="room-info__eyebrow">
-            WORKSPACE
-          </span>
+          <span className="room-info__eyebrow">WORKSPACE</span>
           <h2 id="room-switcher-title">Switch room</h2>
         </div>
 
@@ -409,9 +480,7 @@ function RoomSwitcher() {
           className="room-info__copy"
           htmlFor="workspace-room-select"
         >
-          <span className="room-info__label">
-            Available rooms
-          </span>
+          <span className="room-info__label">Available rooms</span>
 
           <select
             id="workspace-room-select"
@@ -424,9 +493,7 @@ function RoomSwitcher() {
               state.status !== 'online'
             }
           >
-            {!rooms.some(
-              (room) => room.roomId === currentRoomId,
-            ) && (
+            {!rooms.some((room) => room.roomId === currentRoomId) && (
               <option value={currentRoomId}>
                 {currentRoomId} (current)
               </option>
@@ -496,9 +563,7 @@ function SettingsPanel() {
             </span>
 
             <div className="room-info__copy">
-              <span className="room-info__label">
-                Microphone
-              </span>
+              <span className="room-info__label">Microphone</span>
               <strong className="room-info__value">
                 {state.muted ? 'Muted' : 'Unmuted'}
               </strong>
@@ -549,10 +614,7 @@ function SettingsPanel() {
       </section>
 
       <RoomSwitcher />
-
-      {/* Custom office blueprint import */}
       <OfficeBlueprintImporter />
-
       <RoomInfoPanel />
     </>
   );
@@ -691,28 +753,72 @@ function Office() {
 }
 
 export function App() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [currentRoom, setCurrentRoom] = useState(null);
+  const {
+    user,
+    loading,
+    error,
+    login,
+    logout,
+    verifySession,
+  } = useAuthSession();
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('username');
-    if (token && savedUser) {
-      setCurrentUser(savedUser);
+  const [currentRoom, setCurrentRoom] = useState(
+    () => new URLSearchParams(window.location.search).get('room'),
+  );
+
+  const currentUser = user?.username ?? null;
+
+  const handleLogin = useCallback(
+    (username) => {
+      const token = localStorage.getItem('token');
+
+      if (!token || typeof username !== 'string' || !username) {
+        throw new Error('Login did not return a valid session.');
+      }
+
+      login({ token, username });
+    },
+    [login],
+  );
+
+  const handleLogout = useCallback(() => {
+    logout();
+    setCurrentRoom(null);
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete('room');
+
+    window.history.replaceState({}, '', url);
+  }, [logout]);
+
+  const handleJoinRoom = useCallback((roomId) => {
+    const normalizedRoomId =
+      typeof roomId === 'string' ? roomId.trim() : '';
+
+    if (!ROOM_ID_PATTERN.test(normalizedRoomId)) {
+      return;
     }
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', normalizedRoomId);
+
+    window.history.pushState({}, '', url);
+    setCurrentRoom(normalizedRoomId);
   }, []);
 
-  const handleLogin = (username) => {
-    setCurrentUser(username);
-    localStorage.setItem('username', username);
-  };
+  if (loading) {
+    return <LoadingScreen message="Verifying your login session…" />;
+  }
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    setCurrentUser(null);
-    setCurrentRoom(null);
-  };
+  if (error && !currentUser && localStorage.getItem('token')) {
+    return (
+      <SessionErrorScreen
+        message={error}
+        onRetry={() => void verifySession()}
+        onSignOut={logout}
+      />
+    );
+  }
 
   if (!currentUser) {
     return <Auth onLogin={handleLogin} />;
@@ -720,43 +826,69 @@ export function App() {
 
   if (!currentRoom) {
     return (
-      <RoomManager 
-        username={currentUser} 
-        onJoinRoom={(roomId) => {
-          // Setting the room in URL so ProxiProvider can pick it up automatically
-          const url = new URL(window.location.href);
-          url.searchParams.set('room', roomId);
-          window.history.pushState({}, '', url);
-          config.defaultRoom = roomId;
-          setCurrentRoom(roomId);
-        }} 
-        onLogout={handleLogout} 
+      <RoomManager
+        username={currentUser}
+        onJoinRoom={handleJoinRoom}
+        onLogout={handleLogout}
       />
     );
   }
 
   return (
     <>
-      <div style={{ 
-        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000, 
-        backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(4px)',
-        borderBottom: '1px solid #334155', padding: '10px 20px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-      }}>
-        <div style={{ color: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
-          <span style={{ color: '#94a3b8', fontSize: '14px' }}>Room ID:</span> 
-          <strong style={{ marginLeft: '8px', letterSpacing: '1px' }}>{currentRoom}</strong>
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          backgroundColor: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(4px)',
+          borderBottom: '1px solid #334155',
+          padding: '10px 20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <div
+          style={{
+            color: '#f8fafc',
+            fontFamily: 'system-ui, sans-serif',
+          }}
+        >
+          <span style={{ color: '#94a3b8', fontSize: '14px' }}>
+            Room ID:
+          </span>
+
+          <strong
+            style={{
+              marginLeft: '8px',
+              letterSpacing: '1px',
+            }}
+          >
+            {currentRoom}
+          </strong>
         </div>
-        <button 
+
+        <button
+          type="button"
           onClick={() => {
             const url = new URL(window.location.href);
             url.searchParams.delete('room');
+
             window.history.pushState({}, '', url);
             setCurrentRoom(null);
           }}
-          style={{ 
-            backgroundColor: '#ef4444', color: 'white', border: 'none', 
-            padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' 
+          style={{
+            backgroundColor: '#ef4444',
+            color: 'white',
+            border: 'none',
+            padding: '6px 12px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
           }}
         >
           Leave Room
