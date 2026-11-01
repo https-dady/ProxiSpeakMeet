@@ -9,7 +9,7 @@ import { PeerList } from './components/PeerList.jsx';
 import { AuditPanel } from './components/AuditPanel.jsx';
 import { OfficeSidebar } from './components/OfficeSidebar.jsx';
 import { Notices } from './components/Notices.jsx';
-import { OfficeBlueprintImporter } from './components/OfficeBlueprintImporter.jsx';
+import { OfficeBlueprintImporter } from './components/OfficeBlueprintImport.jsx';
 
 import Auth from './components/Auth';
 import RoomManager from './components/RoomManager';

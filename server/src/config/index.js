@@ -1,6 +1,7 @@
 /**
- * Central configuration. Every tunable lives here and is sourced from .env
- * (server/.env wins over the repo-root .env).
+ * Central configuration for ProxiSpeak Meet.
+ * Environment variables are loaded from server/.env first,
+ * then the repository root .env.
  */
 
 import fs from 'node:fs';
@@ -22,7 +23,7 @@ for (const candidate of [
   }
 }
 
-const str = (key, fallback) => {
+const str = (key, fallback = '') => {
   const value = process.env[key];
 
   return value === undefined || value.trim() === ''
@@ -55,7 +56,7 @@ const num = (
   return value;
 };
 
-const list = (key, fallback) =>
+const list = (key, fallback = '') =>
   str(key, fallback)
     .split(',')
     .map((item) => item.trim())
@@ -102,10 +103,73 @@ if (nodeEnv === 'production' && !process.env.MONGO_URI?.trim()) {
   );
 }
 
+/*
+ * Authentication configuration.
+ * Never provide a fallback JWT secret.
+ */
+const jwtSecret = str('JWT_SECRET');
+
+if (nodeEnv === 'production' && !jwtSecret) {
+  throw new Error(
+    'JWT_SECRET must be explicitly configured in production.',
+  );
+}
+
+if (jwtSecret && jwtSecret.length < 32) {
+  throw new Error(
+    'JWT_SECRET must contain at least 32 characters.',
+  );
+}
+
+/*
+ * Brevo email configuration.
+ * Keep the API key in server/.env; never expose it to the client.
+ */
+const brevoApiKey = str('BREVO_API_KEY');
+const brevoSenderEmail = str('BREVO_SENDER_EMAIL');
+const brevoSenderName = str(
+  'BREVO_SENDER_NAME',
+  'ProxiSpeak Meet',
+);
+
+const emailVerificationOtpTtlMinutes = num(
+  'EMAIL_VERIFICATION_OTP_TTL_MINUTES',
+  10,
+  { min: 1, max: 30 },
+);
+
+const passwordResetOtpTtlMinutes = num(
+  'PASSWORD_RESET_OTP_TTL_MINUTES',
+  10,
+  { min: 1, max: 30 },
+);
+
+const otpResendCooldownSeconds = num(
+  'OTP_RESEND_COOLDOWN_SECONDS',
+  60,
+  { min: 15, max: 600 },
+);
+
 export const config = Object.freeze({
   nodeEnv,
   isProduction: nodeEnv === 'production',
   logLevel,
+
+  auth: Object.freeze({
+    jwtSecret,
+    jwtExpiresIn: str('JWT_EXPIRES_IN', '24h'),
+  }),
+
+  email: Object.freeze({
+    provider: 'brevo',
+    brevoApiKey,
+    senderEmail: brevoSenderEmail,
+    senderName: brevoSenderName,
+
+    verificationOtpTtlMinutes: emailVerificationOtpTtlMinutes,
+    passwordResetOtpTtlMinutes,
+    otpResendCooldownSeconds,
+  }),
 
   server: Object.freeze({
     port: num('PORT', 4000, {
@@ -115,12 +179,12 @@ export const config = Object.freeze({
 
     host: str('HOST', '0.0.0.0'),
 
-    clientOrigins: list('CLIENT_URL', ''),
+    clientOrigins: list('CLIENT_URL'),
 
-    clientDist: str('CLIENT_DIST', ''),
+    clientDist: str('CLIENT_DIST'),
 
     instanceId:
-      str('INSTANCE_ID', '') ||
+      str('INSTANCE_ID') ||
       `node-${process.pid}-${Math.random().toString(36).slice(2, 8)}`,
   }),
 
@@ -133,7 +197,7 @@ export const config = Object.freeze({
   }),
 
   redis: Object.freeze({
-    url: str('REDIS_URL', ''),
+    url: str('REDIS_URL'),
 
     keyPrefix: str('REDIS_PREFIX', 'proxispeak:'),
   }),
@@ -150,13 +214,9 @@ export const config = Object.freeze({
   }),
 
   world: Object.freeze({
-    width: num('WORLD_WIDTH', 1920, {
-      min: 200,
-    }),
+    width: num('WORLD_WIDTH', 1920, { min: 200 }),
 
-    height: num('WORLD_HEIGHT', 1080, {
-      min: 200,
-    }),
+    height: num('WORLD_HEIGHT', 1080, { min: 200 }),
 
     centerLat: num('WORLD_CENTER_LAT', 37.7749, {
       min: -90,
