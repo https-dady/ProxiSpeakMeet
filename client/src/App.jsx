@@ -753,7 +753,7 @@ function Office() {
     </div>
   );
 }
-function AuthRoutes() {
+function AuthRoutes({ onLogin }) {
   const location = useLocation();
 
   return (
@@ -765,7 +765,7 @@ function AuthRoutes() {
 
       <Route
         path="/login"
-        element={<Login />}
+        element={<Login onLogin={onLogin} />}
       />
 
       <Route
@@ -871,9 +871,7 @@ export function App() {
   }
 
   if (!currentUser) {
-    return (
-      <AuthRoutes />
-    );
+    return <AuthRoutes onLogin={handleLogin} />;
   }
 
   if (!currentRoom) {

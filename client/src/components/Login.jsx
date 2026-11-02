@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import config from '../config.js';
 
 const API_BASE_URL = `${String(config.serverUrl).replace(/\/+$/, '')}/api/auth`;
 
-export default function Login() {
-  const navigate = useNavigate();
+export default function Login({ onLogin }) {
   const location = useLocation();
 
   const [form, setForm] = useState({
@@ -84,18 +83,27 @@ export default function Login() {
         );
       }
 
-      if (!payload.token) {
-        throw new Error('The server did not return an authentication token.');
+      if (typeof payload.token !== 'string' || !payload.token.trim()) {
+        throw new Error('The server did not return a valid authentication token.');
       }
 
+      if (typeof onLogin !== 'function') {
+        throw new Error('The login page is not connected to the application session. Please refresh and try again.');
+      }
+
+      const username = payload.username || identifier;
+
       localStorage.setItem('token', payload.token);
-      localStorage.setItem('username', payload.username || identifier);
+      localStorage.setItem('username', username);
 
       if (payload.email) {
         localStorage.setItem('email', payload.email);
+      } else {
+        localStorage.removeItem('email');
       }
 
-      navigate('/rooms', { replace: true });
+      // App.jsx owns the authenticated view; do not navigate to an unregistered /rooms route.
+      onLogin(username);
     } catch (err) {
       setError(
         err.message ||

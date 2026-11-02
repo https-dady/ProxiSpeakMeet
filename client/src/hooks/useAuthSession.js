@@ -14,6 +14,7 @@ function readStoredSession() {
 function clearStoredSession() {
   localStorage.removeItem('token');
   localStorage.removeItem('username');
+  localStorage.removeItem('email');
 }
 
 export function useAuthSession() {
@@ -29,17 +30,18 @@ export function useAuthSession() {
   }, []);
 
   const verifySession = useCallback(async (signal) => {
-    setLoading(true);
-    setError('');
-
     const session = readStoredSession();
 
     if (!session.token || !session.username) {
       clearStoredSession();
       setUser(null);
+      setError('');
       setLoading(false);
       return;
     }
+
+    setLoading(true);
+    setError('');
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
@@ -51,13 +53,12 @@ export function useAuthSession() {
         signal,
       });
 
-      if (signal?.aborted) {
-        return;
-      }
+      if (signal?.aborted) return;
 
       if (response.status === 401) {
         clearStoredSession();
         setUser(null);
+        setError('');
         return;
       }
 
@@ -73,6 +74,7 @@ export function useAuthSession() {
       if (
         !verifiedUser ||
         typeof verifiedUser.userId !== 'string' ||
+        !verifiedUser.userId ||
         typeof verifiedUser.username !== 'string' ||
         !verifiedUser.username
       ) {
@@ -92,8 +94,6 @@ export function useAuthSession() {
         return;
       }
 
-      // A temporary network/server error does not prove that the
-      // saved token is invalid. Keep the session for a later retry.
       setError(
         err.message || 'Unable to verify your login session.',
       );
@@ -114,14 +114,20 @@ export function useAuthSession() {
     return () => controller.abort();
   }, [verifySession]);
 
+  /*
+   * Called by App.jsx after successful login.
+   * The token has already been stored by Login.jsx.
+   */
   const login = useCallback(({ token, username }) => {
     if (
       typeof token !== 'string' ||
-      !token ||
+      !token.trim() ||
       typeof username !== 'string' ||
-      !username
+      !username.trim()
     ) {
-      throw new Error('A valid login token and username are required.');
+      throw new Error(
+        'A valid login token and username are required.',
+      );
     }
 
     localStorage.setItem('token', token);
