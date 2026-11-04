@@ -5,8 +5,42 @@ import { createHash, randomInt } from 'node:crypto';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { sendOtpEmail } from '../services/emailService.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
+
+/**
+ * GET /api/auth/me
+ *
+ * Verifies the current JWT and returns the authenticated user's public
+ * account information. Used by the client to restore a session on refresh.
+ */
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select(
+      '_id username isEmailVerified',
+    );
+
+    if (!user || !user.isEmailVerified) {
+      return res.status(401).json({
+        error: 'This account is unavailable or its email is not verified.',
+      });
+    }
+
+    return res.status(200).json({
+      user: {
+        userId: user._id.toString(),
+        username: user.username,
+      },
+    });
+  } catch (error) {
+    console.error('Session verification failed:', error.message);
+
+    return res.status(500).json({
+      error: 'Unable to verify your session right now.',
+    });
+  }
+});
 
 const OTP_LENGTH = 6;
 const PASSWORD_MIN_LENGTH = 8;
@@ -186,8 +220,6 @@ router.post('/register', async (req, res) => {
         purpose: 'email-verification',
       });
     } catch (emailError) {
-      // Keep the account unverified; it cannot log in.
-      // Remove the unusable OTP so the user can request another one.
       await User.updateOne(
         { _id: user._id, isEmailVerified: false },
         {
@@ -446,7 +478,6 @@ router.post('/forgot-password', async (req, res) => {
     );
 
     if (resendIsBlocked(userWithResetFields.passwordResetOtpLastSentAt)) {
-      // Keep the public response generic.
       return res.status(200).json(genericResetMessage);
     }
 
