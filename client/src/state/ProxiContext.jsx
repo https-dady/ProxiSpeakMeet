@@ -1,13 +1,8 @@
 /**
  * Application state container.
  *
- * Two tiers on purpose:
- *
- *   worldRef  — hot data (positions, speaking levels, audio geometry). Written
- *               by socket events and by the render loop, never triggers React.
- *   state     — structural data (connection, roster, room, notices). Changes
- *               are rare, so React re-renders are cheap and the canvas keeps a
- *               steady 60 FPS.
+ * worldRef stores frequently changing spatial data without forcing React
+ * renders. React state stores the room, connection, roster and UI status.
  */
 import {
   createContext,
@@ -58,16 +53,14 @@ const initialState = {
 };
 
 function upsertNotice(notices, notice) {
-  const next = [
+  return [
     {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       at: Date.now(),
       ...notice,
     },
     ...notices,
-  ];
-
-  return next.slice(0, 6);
+  ].slice(0, 6);
 }
 
 function reducer(state, action) {
@@ -80,7 +73,12 @@ function reducer(state, action) {
       };
 
     case 'joined': {
-      const { self, room, peers, config: serverConfig } = action.payload;
+      const {
+        self,
+        room,
+        peers,
+        config: serverConfig,
+      } = action.payload;
 
       return {
         ...state,
@@ -193,10 +191,6 @@ export function ProxiProvider({
 }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // -------------------------------------------------------------------------
-  // Hot data references. Updating these does not trigger React renders.
-  // -------------------------------------------------------------------------
-
   const worldRef = useRef({
     self: {
       id: null,
@@ -232,9 +226,161 @@ export function ProxiProvider({
   const localStreamRef = useRef(null);
   const heartbeatRef = useRef(null);
 
-  // -------------------------------------------------------------------------
-  // Boot Socket.IO, spatial audio and WebRTC.
-  // -------------------------------------------------------------------------
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const mutedRef = useRef(state.muted);
+  mutedRef.current = state.muted;
+
+  const syncRoster = useCallback((world) => {
+    return [...world.peers.values()].map((peer) => ({
+      id: peer.id,
+      name: peer.name,
+      color: peer.color,
+      micEnabled: peer.micEnabled !== false,
+      soundFactor: peer.soundFactor ?? 1,
+      connection: peer.connection ?? 'pending',
+      distancePx: Math.hypot(
+        (peer.x ?? 0) - world.self.x,
+        (peer.y ?? 0) - world.self.y,
+      ),
+      earshotRadiusPx: world.earshotRadiusPx,
+      speaking: peer.speaking === true,
+    }));
+  }, []);
+
+  const startHeartbeat = useCallback((intervalMs) => {
+    clearInterval(heartbeatRef.current);
+
+    heartbeatRef.current = setInterval(() => {
+      clientRef.current?.emit('presence:heartbeat', {});
+    }, Math.max(2000, intervalMs));
+  }, []);
+
+  const applyJoinAck = useCallback(
+    (ack, intent) => {
+      const world = worldRef.current;
+
+      world.self = {
+        ...world.self,
+        id: ack.self.id,
+        name: ack.self.name,
+        color: ack.self.color,
+        x: ack.self.x,
+        y: ack.self.y,
+        angle: ack.self.angle ?? 0,
+        authority: {
+          x: ack.self.x,
+          y: ack.self.y,
+        },
+      };
+
+      world.obstacles = ack.room?.obstacles ?? [];
+      world.room = ack.room;
+
+      world.earshotRadiusPx =
+        ack.config?.earshotRadiusPx ??
+        config.audio.earshotRadiusPx;
+
+      for (const peerId of world.peers.keys()) {
+        audioRef.current?.detachRemoteStream(peerId);
+      }
+
+      peersRef.current?.reset({
+        iceServers:
+          ack.config?.iceServers ??
+          stateRef.current.server?.iceServers ??
+          [],
+      });
+
+      world.peers.clear();
+      world.edges.clear();
+
+      for (const peer of ack.peers ?? []) {
+        world.peers.set(peer.id, {
+          ...peer,
+          level: 0,
+          speaking: false,
+          soundFactor: 1,
+          connection: 'pending',
+        });
+      }
+
+      if (ack.config?.heartbeatIntervalMs) {
+        startHeartbeat(ack.config.heartbeatIntervalMs);
+      }
+
+      for (const peer of world.peers.values()) {
+        peer.soundFactor = soundFactorBetween(
+          world.self,
+          peer,
+          world.obstacles,
+        ).soundFactor;
+      }
+
+      dispatch({
+        type: 'joined',
+        payload: ack,
+        intent,
+      });
+
+      dispatch({
+        type: 'roster',
+        roster: syncRoster(world),
+      });
+    },
+    [syncRoster, startHeartbeat],
+  );
+
+  const rejoinAfterReconnect = useCallback(async () => {
+    const client = clientRef.current;
+    const intent = stateRef.current.sessionIntent;
+
+    if (!client || !intent) {
+      return;
+    }
+
+    try {
+      const ack = await client.request('room:join', {
+        roomId: intent.roomId,
+        name: intent.name,
+        color: intent.color,
+        avatar: intent.avatar,
+      });
+
+      applyJoinAck(ack, intent);
+
+      /*
+       * If a microphone stream still exists after reconnecting, ensure
+       * the newly negotiated peer connections receive its audio track.
+       */
+      if (localStreamRef.current) {
+        await peersRef.current?.replaceOutgoingTrack(
+          localStreamRef.current,
+        );
+
+        client.emit('peer:media-ready', {
+          micEnabled: !mutedRef.current,
+        });
+      }
+
+      dispatch({
+        type: 'notice',
+        notice: {
+          level: 'ok',
+          message: 'Reconnected to the office.',
+        },
+      });
+    } catch (err) {
+      dispatch({
+        type: 'notice',
+        notice: {
+          level: 'error',
+          message: `Rejoin failed: ${err.message}`,
+        },
+      });
+    }
+  }, [applyJoinAck]);
 
   useEffect(() => {
     const client = createSocketClient({
@@ -263,10 +409,7 @@ export function ProxiProvider({
 
     const peerManager = new PeerManager({
       socket: client.socket,
-
-      // ICE servers are supplied by the server after joining.
       iceServers: [],
-
       getLocalStream: () => localStreamRef.current,
 
       onTrack: (peerId, stream) => {
@@ -292,13 +435,23 @@ export function ProxiProvider({
           peer.connection = stateName;
         }
 
+        /*
+         * A WebRTC connection closing is not equivalent to a user leaving
+         * the room. Preserve room presence until the server confirms departure.
+         */
         if (
           stateName === 'closed:hangup' ||
           stateName === 'closed:replaced'
         ) {
           audio.detachRemoteStream(peerId);
-          world.peers.delete(peerId);
           world.edges.delete(peerId);
+
+          const presentPeer = world.peers.get(peerId);
+
+          if (presentPeer) {
+            presentPeer.connection = 'out-of-range';
+            presentPeer.speaking = false;
+          }
         }
 
         dispatch({
@@ -352,10 +505,6 @@ export function ProxiProvider({
       });
     });
 
-    // -----------------------------------------------------------------------
-    // Peer joined.
-    // -----------------------------------------------------------------------
-
     client.on('peer:joined', ({ peer }) => {
       const world = worldRef.current;
 
@@ -382,17 +531,12 @@ export function ProxiProvider({
       });
     });
 
-    // -----------------------------------------------------------------------
-    // Peer left.
-    // -----------------------------------------------------------------------
-
     client.on('peer:left', ({ id, reason }) => {
       const world = worldRef.current;
       const peer = world.peers.get(id);
 
       world.peers.delete(id);
       world.edges.delete(id);
-
       audio.detachRemoteStream(id);
 
       if (peerManager.connections.has(id)) {
@@ -417,10 +561,6 @@ export function ProxiProvider({
       }
     });
 
-    // -----------------------------------------------------------------------
-    // Peer movement. Keep this handler free of React state updates.
-    // -----------------------------------------------------------------------
-
     client.socket.on('presence:moved', (payload) => {
       const world = worldRef.current;
       const peer = world.peers.get(payload.id);
@@ -439,13 +579,6 @@ export function ProxiProvider({
       );
     });
 
-    // -----------------------------------------------------------------------
-    // Authoritative presence snapshot.
-    //
-    // Remove stale peers and connections, but preserve the live peers'
-    // existing connection, speaking, audio and occlusion state.
-    // -----------------------------------------------------------------------
-
     client.socket.on('presence:snapshot', (payload = {}) => {
       const world = worldRef.current;
 
@@ -457,13 +590,12 @@ export function ProxiProvider({
         snapshotPeers
           .map((peer) => peer?.id)
           .filter(
-            (peerId) =>
-              typeof peerId === 'string' &&
-              peerId !== world.self.id,
+            (id) =>
+              typeof id === 'string' &&
+              id !== world.self.id,
           ),
       );
 
-      // A snapshot is authoritative. A peer absent from it is stale.
       const knownPeerIds = new Set([
         ...world.peers.keys(),
         ...(peerManager.connections?.keys?.() ?? []),
@@ -486,8 +618,6 @@ export function ProxiProvider({
         }
       }
 
-      // Rebuild the roster from the snapshot without resetting live
-      // peers' WebRTC state or audio-related values.
       const previousPeers = world.peers;
       const nextPeers = new Map();
 
@@ -502,24 +632,20 @@ export function ProxiProvider({
 
         const previous = previousPeers.get(snapshotPeer.id);
 
-        const nextPeer = {
+        nextPeers.set(snapshotPeer.id, {
           ...previous,
           ...snapshotPeer,
-
           level: previous?.level ?? 0,
           speaking: previous?.speaking ?? false,
-          soundFactor:
-            previous?.soundFactor ??
-            world.edges.get(snapshotPeer.id)?.soundFactor ??
-            1,
+          soundFactor: previous?.soundFactor ?? 1,
           connection: previous?.connection ?? 'pending',
           distancePx: Math.hypot(
-            (snapshotPeer.x ?? previous?.x ?? 0) - world.self.x,
-            (snapshotPeer.y ?? previous?.y ?? 0) - world.self.y,
+            (snapshotPeer.x ?? previous?.x ?? 0) -
+              world.self.x,
+            (snapshotPeer.y ?? previous?.y ?? 0) -
+              world.self.y,
           ),
-        };
-
-        nextPeers.set(snapshotPeer.id, nextPeer);
+        });
       }
 
       world.peers = nextPeers;
@@ -529,10 +655,6 @@ export function ProxiProvider({
         roster: syncRoster(world),
       });
     });
-
-    // -----------------------------------------------------------------------
-    // Microphone state of a remote peer.
-    // -----------------------------------------------------------------------
 
     client.on('peer:media-state', ({ id, micEnabled }) => {
       const peer = worldRef.current.peers.get(id);
@@ -546,10 +668,6 @@ export function ProxiProvider({
         roster: syncRoster(worldRef.current),
       });
     });
-
-    // -----------------------------------------------------------------------
-    // WebRTC negotiation.
-    // -----------------------------------------------------------------------
 
     client.on('peer:negotiate', (payload) => {
       const world = worldRef.current;
@@ -597,11 +715,15 @@ export function ProxiProvider({
 
     client.on('peer:hangup', ({ peerId }) => {
       const world = worldRef.current;
+      const peer = world.peers.get(peerId);
 
       world.edges.delete(peerId);
-      world.peers.delete(peerId);
-
       audio.detachRemoteStream(peerId);
+
+      if (peer) {
+        peer.connection = 'out-of-range';
+        peer.speaking = false;
+      }
 
       peerManager.handleHangup({
         peerId,
@@ -612,10 +734,6 @@ export function ProxiProvider({
         roster: syncRoster(world),
       });
     });
-
-    // -----------------------------------------------------------------------
-    // Spatial audio obstruction updates.
-    // -----------------------------------------------------------------------
 
     client.on(
       'peer:audio-obstruction',
@@ -637,10 +755,6 @@ export function ProxiProvider({
       },
     );
 
-    // -----------------------------------------------------------------------
-    // Spatial clusters.
-    // -----------------------------------------------------------------------
-
     client.on('presence:clusters', ({ clusters }) => {
       worldRef.current.clusters = clusters;
 
@@ -649,10 +763,6 @@ export function ProxiProvider({
         clusters,
       });
     });
-
-    // -----------------------------------------------------------------------
-    // Local spatial audit results.
-    // -----------------------------------------------------------------------
 
     client.on('audit:completed', (payload) => {
       dispatch({
@@ -676,10 +786,6 @@ export function ProxiProvider({
       });
     });
 
-    // -----------------------------------------------------------------------
-    // Remote spatial audit results.
-    // -----------------------------------------------------------------------
-
     client.on('audit:remote', (payload) => {
       dispatch({
         type: 'notice',
@@ -697,274 +803,143 @@ export function ProxiProvider({
       status: 'connecting',
     });
 
-    // -----------------------------------------------------------------------
-    // Cleanup on provider unmount.
-    // -----------------------------------------------------------------------
-
     return () => {
       clearInterval(heartbeatRef.current);
 
-      peersRef.current?.closeAll();
-      audioRef.current?.dispose();
-
-      clientRef.current?.disconnect();
+      peerManager.closeAll();
+      audio.dispose();
+      client.disconnect();
 
       clientRef.current = null;
       peersRef.current = null;
       audioRef.current = null;
     };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // Socket and audio infrastructure are initialized once per serverUrl.
-  }, [serverUrl]);
-
-  // -------------------------------------------------------------------------
-  // Helpers.
-  // -------------------------------------------------------------------------
-
-  const syncRoster = useCallback((world, overrides = {}) => {
-    return [...world.peers.values()].map((peer) => ({
-      id: peer.id,
-      name: peer.name,
-      color: peer.color,
-      micEnabled: peer.micEnabled !== false,
-      soundFactor: peer.soundFactor ?? 1,
-      connection:
-        overrides.connection ??
-        peer.connection ??
-        'pending',
-      distancePx: Math.hypot(
-        peer.x - world.self.x,
-        peer.y - world.self.y,
-      ),
-      earshotRadiusPx: world.earshotRadiusPx,
-      speaking: peer.speaking === true,
-    }));
-  }, []);
-
-  const rejoinAfterReconnect = useCallback(async () => {
-    if (!clientRef.current) {
-      return;
-    }
-
-    const intent = stateRef.current.sessionIntent;
-
-    if (!intent) {
-      return;
-    }
-
-    try {
-      const ack = await clientRef.current.request(
-        'room:join',
-        {
-          roomId: intent.roomId,
-          name: intent.name,
-          color: intent.color,
-          avatar: intent.avatar,
-        },
-      );
-
-      applyJoinAck(ack, intent);
-
-      if (localStreamRef.current) {
-        clientRef.current.emit('peer:media-ready', {
-          micEnabled: !mutedRef.current,
-        });
-      }
-
-      dispatch({
-        type: 'notice',
-        notice: {
-          level: 'ok',
-          message: 'Reconnected — audio mesh re-established',
-        },
-      });
-    } catch (err) {
-      dispatch({
-        type: 'notice',
-        notice: {
-          level: 'error',
-          message: `Rejoin failed: ${err.message}`,
-        },
-      });
-    }
-  }, []);
-
-  const startHeartbeat = useCallback((intervalMs) => {
-    clearInterval(heartbeatRef.current);
-
-    heartbeatRef.current = setInterval(() => {
-      clientRef.current?.emit('presence:heartbeat', {});
-    }, Math.max(2000, intervalMs));
-  }, []);
-
-  const applyJoinAck = useCallback(
-    (ack, intent) => {
-      const world = worldRef.current;
-
-      world.self = {
-        ...world.self,
-        id: ack.self.id,
-        name: ack.self.name,
-        color: ack.self.color,
-        x: ack.self.x,
-        y: ack.self.y,
-        angle: ack.self.angle ?? 0,
-        authority: {
-          x: ack.self.x,
-          y: ack.self.y,
-        },
-      };
-
-      world.obstacles = ack.room?.obstacles ?? [];
-      world.room = ack.room;
-
-      world.earshotRadiusPx =
-        ack.config?.earshotRadiusPx ??
-        config.audio.earshotRadiusPx;
-
-      // A room join/rejoin starts a fresh WebRTC mesh. Detach spatial audio
-      // first, then reset the manager so stale peer connections cannot survive.
-      for (const peerId of world.peers.keys()) {
-        audioRef.current?.detachRemoteStream(peerId);
-      }
-
-      peersRef.current?.reset({
-        iceServers:
-          ack.config?.iceServers ??
-          peersRef.current?.iceServers ??
-          [],
-      });
-
-      world.peers.clear();
-      world.edges.clear();
-
-      for (const peer of ack.peers ?? []) {
-        world.peers.set(peer.id, {
-          ...peer,
-          level: 0,
-          speaking: false,
-          soundFactor: 1,
-          connection: 'pending',
-        });
-      }
-
-      if (ack.config?.heartbeatIntervalMs) {
-        startHeartbeat(ack.config.heartbeatIntervalMs);
-      }
-
-      // Mirror server-side spatial occlusion locally.
-      for (const peer of world.peers.values()) {
-        peer.soundFactor = soundFactorBetween(
-          world.self,
-          peer,
-          world.obstacles,
-        ).soundFactor;
-      }
-
-      dispatch({
-        type: 'joined',
-        payload: ack,
-        intent,
-      });
-
-      dispatch({
-        type: 'roster',
-        roster: syncRoster(world),
-      });
-    },
-    [syncRoster, startHeartbeat],
-  );
-
-  // Mirrors of React state for long-lived callbacks.
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
-  const mutedRef = useRef(false);
-  mutedRef.current = state.muted;
-
-  // -------------------------------------------------------------------------
-  // Microphone access.
-  // -------------------------------------------------------------------------
+  }, [serverUrl, rejoinAfterReconnect, syncRoster]);
 
   const requestMicrophone = useCallback(async () => {
+  dispatch({
+    type: 'mic',
+    mic: {
+      state: 'requesting',
+      error: null,
+    },
+  });
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    const error = new Error(
+      'Microphone access requires a supported browser and secure context (HTTPS or localhost).',
+    );
+
     dispatch({
       type: 'mic',
       mic: {
-        state: 'requesting',
-        error: null,
+        state: 'denied',
+        error: error.message,
       },
     });
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      const error = new Error(
-        'This browser does not expose navigator.mediaDevices.getUserMedia (a secure context is required).',
+    throw error;
+  }
+
+  let stream = null;
+
+  try {
+    // Request microphone access.
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      },
+      video: false,
+    });
+
+    const audioTracks = stream.getAudioTracks();
+
+    if (audioTracks.length === 0) {
+      throw new Error(
+        'The selected microphone did not provide an audio track.',
       );
-
-      dispatch({
-        type: 'mic',
-        mic: {
-          state: 'denied',
-          error: error.message,
-        },
-      });
-
-      throw error;
     }
 
-    try {
-      const stream =
-        await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            channelCount: 1,
-          },
-          video: false,
-        });
+    const track = audioTracks[0];
 
-      localStreamRef.current = stream;
+    // Respect the current mute state.
+    track.enabled = !mutedRef.current;
 
-      await audioRef.current.setLocalStream(stream);
+    // Store the stream before updating peer connections.
+    localStreamRef.current = stream;
 
-      const track = stream.getAudioTracks()[0];
+    // Initialize/resume Web Audio and attach the local analyser.
+    const audio = audioRef.current;
 
-      dispatch({
-        type: 'mic',
-        mic: {
-          state: 'ready',
-          error: null,
-          device: track?.label ?? 'default microphone',
-        },
-      });
+    if (!audio) {
+      throw new Error(
+        'The audio engine is not initialized. Please try again.',
+      );
+    }
 
-      return stream;
-    } catch (err) {
-      const message =
-        err?.name === 'NotAllowedError'
-          ? 'Microphone permission was denied. Allow it in the browser address bar, then press "Try again" — or continue in listen-only mode.'
-          : err?.name === 'NotFoundError'
-            ? 'No microphone was found on this device.'
-            : `Microphone unavailable: ${err?.message ?? err}`;
+    await audio.init();
+    await audio.setLocalStream(stream);
 
-      dispatch({
-        type: 'mic',
-        mic: {
-          state: 'denied',
-          error: message,
-        },
-      });
+    /*
+     * Critical fix:
+     * Attach the microphone to existing WebRTC peer connections.
+     * PeerManager now reserves an audio sender when creating each
+     * connection, even if the microphone was unavailable at that time.
+     */
+    await peersRef.current?.replaceOutgoingTrack(stream);
 
-      throw Object.assign(new Error(message), {
-        cause: err,
+    // Publish the actual microphone state to the room server.
+    if (clientRef.current?.connected && stateRef.current.sessionIntent) {
+      clientRef.current.emit('peer:media-ready', {
+        micEnabled: !mutedRef.current,
       });
     }
-  }, []);
 
-  // -------------------------------------------------------------------------
-  // Join room.
-  // -------------------------------------------------------------------------
+    dispatch({
+      type: 'mic',
+      mic: {
+        state: 'ready',
+        error: null,
+        device: track.label || 'default microphone',
+      },
+    });
+
+    return stream;
+  } catch (err) {
+    // Stop a partially acquired stream to avoid leaving the microphone active.
+    if (stream) {
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
+    }
+
+    if (localStreamRef.current === stream) {
+      localStreamRef.current = null;
+    }
+
+    const message =
+      err?.name === 'NotAllowedError'
+        ? 'Microphone permission was denied. Allow microphone access in your browser settings, then try again.'
+        : err?.name === 'NotFoundError'
+          ? 'No microphone was found on this device.'
+          : `Microphone unavailable: ${err?.message ?? String(err)}`;
+
+    dispatch({
+      type: 'mic',
+      mic: {
+        state: 'denied',
+        error: message,
+      },
+    });
+
+    throw Object.assign(new Error(message), {
+      cause: err,
+    });
+  }
+}, []);
 
   const join = useCallback(
     async ({
@@ -980,6 +955,10 @@ export function ProxiProvider({
 
       const client = clientRef.current;
 
+      if (!client) {
+        throw new Error('The server connection is not initialized.');
+      }
+
       const intent = {
         roomId,
         name: displayName,
@@ -987,24 +966,30 @@ export function ProxiProvider({
         avatar,
       };
 
-      // Unlock the AudioContext from the click gesture.
       await audioRef.current?.init().catch(() => {});
 
       if (withMic && !localStreamRef.current) {
         try {
           await requestMicrophone();
         } catch {
-          // Listen-only mode remains available if microphone access fails.
+          // Joining in listen-only mode is allowed.
         }
       }
 
       try {
-        const ack = await client.request(
-          'room:join',
-          intent,
-        );
+        const ack = await client.request('room:join', intent);
 
         applyJoinAck(ack, intent);
+
+        /*
+         * Room joining can create or recreate peer connections.
+         * Reattach the stream after the join acknowledgement as well.
+         */
+        if (localStreamRef.current) {
+          await peersRef.current?.replaceOutgoingTrack(
+            localStreamRef.current,
+          );
+        }
 
         client.emit('peer:media-ready', {
           micEnabled:
@@ -1039,14 +1024,9 @@ export function ProxiProvider({
     [applyJoinAck, requestMicrophone],
   );
 
-  // -------------------------------------------------------------------------
-  // Leave room.
-  // -------------------------------------------------------------------------
-
   const leave = useCallback(async () => {
     const client = clientRef.current;
 
-    // Request server-side removal first, but always clean up locally.
     try {
       if (
         client?.connected &&
@@ -1059,8 +1039,7 @@ export function ProxiProvider({
         type: 'notice',
         notice: {
           level: 'warn',
-          message:
-            `Server leave confirmation failed: ${err.message}`,
+          message: `Server leave confirmation failed: ${err.message}`,
         },
       });
     } finally {
@@ -1075,9 +1054,7 @@ export function ProxiProvider({
 
       peersRef.current?.reset({
         iceServers:
-          stateRef.current.server?.iceServers ??
-          peersRef.current?.iceServers ??
-          [],
+          stateRef.current.server?.iceServers ?? [],
       });
 
       world.peers.clear();
@@ -1107,10 +1084,6 @@ export function ProxiProvider({
     }
   }, []);
 
-  // -------------------------------------------------------------------------
-  // Mute and unmute.
-  // -------------------------------------------------------------------------
-
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
 
@@ -1135,10 +1108,6 @@ export function ProxiProvider({
     });
   }, []);
 
-  // -------------------------------------------------------------------------
-  // Master volume.
-  // -------------------------------------------------------------------------
-
   const setVolume = useCallback((volume) => {
     audioRef.current?.setMasterVolume(volume);
 
@@ -1147,10 +1116,6 @@ export function ProxiProvider({
       volume,
     });
   }, []);
-
-  // -------------------------------------------------------------------------
-  // Position updates.
-  // -------------------------------------------------------------------------
 
   const sendPosition = useCallback((x, y, angle) => {
     const now = performance.now();
@@ -1166,11 +1131,7 @@ export function ProxiProvider({
 
     clientRef.current?.socket.emit(
       'position:update',
-      {
-        x,
-        y,
-        angle,
-      },
+      { x, y, angle },
       (ack) => {
         if (!ack?.ok) {
           return;
@@ -1187,10 +1148,6 @@ export function ProxiProvider({
       },
     );
   }, []);
-
-  // -------------------------------------------------------------------------
-  // Spatial audit.
-  // -------------------------------------------------------------------------
 
   const requestAudit = useCallback(async () => {
     const self = worldRef.current.self;
@@ -1224,7 +1181,7 @@ export function ProxiProvider({
         notice: {
           level: report.ok ? 'ok' : 'error',
           message: report.ok
-            ? `Spatial audit PASSED — $near p95 ${report.queries.near.p95Ms}ms, ${report.accuracy.matchedPeers} peers in earshot`
+            ? `Spatial audit PASSED — p95 ${report.queries.near.p95Ms}ms, ${report.accuracy.matchedPeers} peers in earshot`
             : `Spatial audit FAILED — p95 ${report.queries.near.p95Ms}ms`,
         },
       });
@@ -1243,18 +1200,10 @@ export function ProxiProvider({
     }
   }, []);
 
-  // -------------------------------------------------------------------------
-  // Keep audio settings synchronized with React state.
-  // -------------------------------------------------------------------------
-
   useEffect(() => {
     audioRef.current?.setMasterVolume(state.masterVolume);
     audioRef.current?.setLocalMuted(state.muted);
   }, [state.masterVolume, state.muted]);
-
-  // -------------------------------------------------------------------------
-  // Context API.
-  // -------------------------------------------------------------------------
 
   const value = useMemo(
     () => ({

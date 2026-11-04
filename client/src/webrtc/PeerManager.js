@@ -1,18 +1,16 @@
 /**
- * WebRTC mesh client (Week 2 + 3).
+ * WebRTC mesh client.
  *
- * The server decides who may talk to whom and who creates the offer.
+ * The server decides which peers may communicate and which peer
+ * initiates negotiation.
  *
- * Safety:
- * 1. STALE SIGNALS — older connection generations are ignored.
- * 2. ICE RACE — candidates are queued until the remote description exists.
- * 3. DEAD LINKS — failed connections attempt an ICE restart.
- *
- * Lifecycle:
- * - handleNegotiate() creates connections for eligible peers.
- * - handleHangup() closes an individual peer connection.
- * - closeAll() closes all connections and disables this manager.
- * - reset() prepares the manager for a subsequent room session.
+ * Audio lifecycle:
+ * - Reserve an audio transceiver for every peer connection.
+ * - Attach the microphone whenever it becomes available.
+ * - Replace the outgoing track without creating duplicate senders.
+ * - Keep ICE candidates queued until a remote description exists.
+ * - Ignore stale connection generations.
+ * - Attempt an ICE restart after connection failure.
  */
 
 export class PeerManager {
@@ -43,7 +41,9 @@ export class PeerManager {
   }
 
   #send(peerId, data) {
-    if (this.closed || !this.socket?.connected) return;
+    if (this.closed || !this.socket?.connected) {
+      return;
+    }
 
     this.socket.emit('peer:signal', {
       to: peerId,
@@ -52,7 +52,9 @@ export class PeerManager {
   }
 
   #createConnection(peer, generation) {
-    if (this.closed) return null;
+    if (this.closed) {
+      return null;
+    }
 
     const previous = this.connections.get(peer.id);
 
@@ -77,57 +79,107 @@ export class PeerManager {
       polite: false,
       restartingIce: false,
       stats: null,
+      audioSender: null,
+      state: pc.connectionState,
     };
 
     this.connections.set(peer.id, connection);
 
-    const stream = this.getLocalStream();
+    /*
+     * IMPORTANT:
+     *
+     * Reserve the audio sender even when the microphone is not
+     * available yet. Otherwise, replaceOutgoingTrack() cannot find
+     * a sender when the microphone is acquired later.
+     *
+     * The transceiver is created before the initial offer, so the
+     * offer includes the audio media section.
+     */
+    try {
+      const transceiver = pc.addTransceiver('audio', {
+        direction: 'sendrecv',
+      });
 
-    if (stream) {
-      for (const track of stream.getAudioTracks()) {
-        pc.addTrack(track, stream);
+      connection.audioSender = transceiver.sender;
+
+      const localStream = this.getLocalStream?.();
+      const localTrack =
+        localStream?.getAudioTracks?.()[0] ?? null;
+
+      if (localTrack) {
+        void connection.audioSender
+          .replaceTrack(localTrack)
+          .catch((error) => {
+            if (this.#isCurrent(connection)) {
+              this.onError?.(
+                `initial audio track for ${peer.id} failed: ${error.message}`,
+              );
+            }
+          });
       }
+    } catch (error) {
+      this.onError?.(
+        `audio sender setup for ${peer.id} failed: ${error.message}`,
+      );
     }
 
     pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        this.#send(peer.id, {
-          type: 'candidate',
-          candidate: event.candidate.toJSON(),
-        });
+      if (!event.candidate || !this.#isCurrent(connection)) {
+        return;
       }
+
+      this.#send(peer.id, {
+        type: 'candidate',
+        candidate: event.candidate.toJSON(),
+      });
     };
 
     pc.ontrack = (event) => {
-      const [remote] = event.streams;
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
+
+      const remoteStream =
+        event.streams?.[0] ??
+        new MediaStream([event.track]);
 
       this.onTrack?.(
         peer.id,
-        remote ?? new MediaStream([event.track]),
+        remoteStream,
         connection,
       );
     };
 
     pc.onconnectionstatechange = () => {
-      if (this.connections.get(peer.id) !== connection) return;
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
 
       const state = pc.connectionState;
 
       connection.state = state;
       this.onConnectionChange?.(peer.id, state);
 
-      if (state === 'failed' && !connection.restartingIce) {
+      if (
+        state === 'failed' &&
+        !connection.restartingIce
+      ) {
         connection.restartingIce = true;
         void this.#restartIce(connection);
       }
 
       if (state === 'closed') {
-        this.#closeConnection(connection, 'connection-closed');
+        this.#closeConnection(
+          connection,
+          'connection-closed',
+        );
       }
     };
 
     pc.oniceconnectionstatechange = () => {
-      if (this.connections.get(peer.id) !== connection) return;
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
 
       if (
         pc.iceConnectionState === 'failed' &&
@@ -143,13 +195,17 @@ export class PeerManager {
 
   async #makeOffer(connection) {
     try {
-      if (!this.#isCurrent(connection)) return;
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
 
       connection.makingOffer = true;
 
       const offer = await connection.pc.createOffer();
 
-      if (!this.#isCurrent(connection)) return;
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
 
       await connection.pc.setLocalDescription(offer);
 
@@ -162,10 +218,10 @@ export class PeerManager {
           sdp: connection.pc.localDescription.sdp,
         });
       }
-    } catch (err) {
+    } catch (error) {
       if (this.#isCurrent(connection)) {
         this.onError?.(
-          `offer to ${connection.id} failed: ${err.message}`,
+          `offer to ${connection.id} failed: ${error.message}`,
         );
       }
     } finally {
@@ -175,13 +231,17 @@ export class PeerManager {
 
   async #restartIce(connection) {
     try {
-      if (!this.#isCurrent(connection)) return;
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
 
       const offer = await connection.pc.createOffer({
         iceRestart: true,
       });
 
-      if (!this.#isCurrent(connection)) return;
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
 
       await connection.pc.setLocalDescription(offer);
 
@@ -194,14 +254,23 @@ export class PeerManager {
           sdp: connection.pc.localDescription.sdp,
         });
       }
-    } catch (err) {
-      if (!this.#isCurrent(connection)) return;
+    } catch (error) {
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
 
       this.onError?.(
-        `ICE restart with ${connection.id} failed: ${err.message}`,
+        `ICE restart with ${connection.id} failed: ${error.message}`,
       );
 
-      this.#closeConnection(connection, 'ice-restart-failed');
+      this.#closeConnection(
+        connection,
+        'ice-restart-failed',
+      );
+    } finally {
+      if (this.#isCurrent(connection)) {
+        connection.restartingIce = false;
+      }
     }
   }
 
@@ -210,14 +279,16 @@ export class PeerManager {
     connection.pendingCandidates = [];
 
     for (const candidate of queued) {
-      if (!this.#isCurrent(connection)) return;
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
 
       try {
         await connection.pc.addIceCandidate(candidate);
-      } catch (err) {
+      } catch (error) {
         if (this.#isCurrent(connection)) {
           this.onError?.(
-            `late ICE candidate for ${connection.id} rejected: ${err.message}`,
+            `late ICE candidate for ${connection.id} rejected: ${error.message}`,
           );
         }
       }
@@ -231,30 +302,50 @@ export class PeerManager {
     );
   }
 
-  /** `peer:negotiate` — the server opened or reopened an edge. */
+  /**
+   * Handle a server peer:negotiate event.
+   */
   async handleNegotiate({
     peer,
     generation,
     initiator,
     soundFactor,
   }) {
-    if (this.closed || !peer?.id) return;
+    if (this.closed || !peer?.id) {
+      return;
+    }
 
+    const nextGeneration = Number(generation) || 0;
     const existing = this.connections.get(peer.id);
-
-    if (existing && existing.generation > generation) return;
 
     if (
       existing &&
-      existing.generation === generation &&
-      existing.pc.connectionState !== 'failed'
+      existing.generation > nextGeneration
     ) {
       return;
     }
 
-    const connection = this.#createConnection(peer, generation);
+    if (
+      existing &&
+      existing.generation === nextGeneration &&
+      existing.pc.connectionState !== 'failed' &&
+      existing.pc.connectionState !== 'closed'
+    ) {
+      /*
+       * A repeated negotiation event must not create another
+       * connection or duplicate audio sender.
+       */
+      return;
+    }
 
-    if (!connection) return;
+    const connection = this.#createConnection(
+      peer,
+      nextGeneration,
+    );
+
+    if (!connection) {
+      return;
+    }
 
     connection.soundFactor = soundFactor;
 
@@ -263,12 +354,24 @@ export class PeerManager {
     }
   }
 
-  /** `peer:signal` — relayed offer, answer or ICE candidate. */
+  /**
+   * Handle a server-relayed peer:signal event.
+   */
   async handleSignal({ from, data, generation }) {
-    if (this.closed || !from || !data?.type) return;
+    if (
+      this.closed ||
+      !from ||
+      !data?.type
+    ) {
+      return;
+    }
 
     let connection = this.connections.get(from);
 
+    /*
+     * Normally peer:negotiate creates the connection first.
+     * Keep this fallback for an offer arriving before that event.
+     */
     if (!connection && data.type === 'offer') {
       connection = this.#createConnection(
         {
@@ -276,16 +379,17 @@ export class PeerManager {
           name: 'peer',
           color: '#8899aa',
         },
-        generation ?? 0,
+        Number(generation) || 0,
       );
 
-      if (!connection) return;
-
-      await this.#makeOfferAnswer(connection, data);
-      return;
+      if (!connection) {
+        return;
+      }
     }
 
-    if (!connection) return;
+    if (!connection) {
+      return;
+    }
 
     if (
       typeof generation === 'number' &&
@@ -297,9 +401,13 @@ export class PeerManager {
     try {
       if (data.type === 'offer') {
         await this.#makeOfferAnswer(connection, data);
-      } else if (data.type === 'answer') {
+        return;
+      }
+
+      if (data.type === 'answer') {
         if (
-          connection.pc.signalingState !== 'have-local-offer'
+          connection.pc.signalingState !==
+          'have-local-offer'
         ) {
           return;
         }
@@ -309,86 +417,140 @@ export class PeerManager {
           sdp: data.sdp,
         });
 
-        if (!this.#isCurrent(connection)) return;
+        if (!this.#isCurrent(connection)) {
+          return;
+        }
 
         connection.hasRemoteDescription = true;
 
         await this.#flushCandidates(connection);
         this.#scheduleStats(connection);
-      } else if (data.type === 'candidate') {
-        if (!data.candidate) return;
 
-        if (!connection.hasRemoteDescription) {
-          connection.pendingCandidates.push(data.candidate);
+        return;
+      }
+
+      if (data.type === 'candidate') {
+        if (!data.candidate) {
           return;
         }
 
-        await connection.pc.addIceCandidate(data.candidate);
+        if (!connection.hasRemoteDescription) {
+          connection.pendingCandidates.push(
+            data.candidate,
+          );
+
+          return;
+        }
+
+        await connection.pc.addIceCandidate(
+          data.candidate,
+        );
       }
-    } catch (err) {
+    } catch (error) {
       if (this.#isCurrent(connection)) {
         this.onError?.(
-          `signal from ${from} (${data.type}) failed: ${err.message}`,
+          `signal from ${from} (${data.type}) failed: ${error.message}`,
         );
       }
     }
   }
 
   async #makeOfferAnswer(connection, data) {
-    if (!this.#isCurrent(connection)) return;
+    if (!this.#isCurrent(connection)) {
+      return;
+    }
+
+    const pc = connection.pc;
 
     const offerCollision =
       connection.makingOffer ||
-      connection.pc.signalingState !== 'stable';
+      pc.signalingState !== 'stable';
 
     connection.ignoreOffer =
       !connection.polite && offerCollision;
 
-    if (connection.ignoreOffer) return;
+    if (connection.ignoreOffer) {
+      return;
+    }
 
-    await connection.pc.setRemoteDescription({
+    /*
+     * If a colliding offer is received, rollback the local offer
+     * before accepting the remote offer. This is safe only when
+     * the current signaling state supports rollback.
+     */
+    if (
+      offerCollision &&
+      pc.signalingState === 'have-local-offer'
+    ) {
+      await pc.setLocalDescription({
+        type: 'rollback',
+      });
+
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
+    }
+
+    await pc.setRemoteDescription({
       type: 'offer',
       sdp: data.sdp,
     });
 
-    if (!this.#isCurrent(connection)) return;
+    if (!this.#isCurrent(connection)) {
+      return;
+    }
 
     connection.hasRemoteDescription = true;
 
     await this.#flushCandidates(connection);
 
-    if (!this.#isCurrent(connection)) return;
+    if (!this.#isCurrent(connection)) {
+      return;
+    }
 
-    const answer = await connection.pc.createAnswer();
+    const answer = await pc.createAnswer();
 
-    if (!this.#isCurrent(connection)) return;
+    if (!this.#isCurrent(connection)) {
+      return;
+    }
 
-    await connection.pc.setLocalDescription(answer);
+    await pc.setLocalDescription(answer);
 
     if (
       this.#isCurrent(connection) &&
-      connection.pc.localDescription
+      pc.localDescription
     ) {
       this.#send(connection.id, {
         type: 'answer',
-        sdp: connection.pc.localDescription.sdp,
+        sdp: pc.localDescription.sdp,
       });
     }
+
+    this.#scheduleStats(connection);
   }
 
-  /** `peer:hangup` — close an individual connection. */
+  /**
+   * Handle a server peer:hangup event.
+   */
   handleHangup({ peerId }) {
     const connection = this.connections.get(peerId);
 
-    if (!connection) return;
+    if (!connection) {
+      return;
+    }
 
     this.#closeConnection(connection, 'hangup');
   }
 
   #closeConnection(connection, reason) {
-    if (!connection) return;
+    if (!connection) {
+      return;
+    }
 
-    if (this.connections.get(connection.id) === connection) {
+    const isCurrent =
+      this.connections.get(connection.id) === connection;
+
+    if (isCurrent) {
       this.connections.delete(connection.id);
     }
 
@@ -397,15 +559,18 @@ export class PeerManager {
       connection.pc.ontrack = null;
       connection.pc.onconnectionstatechange = null;
       connection.pc.oniceconnectionstatechange = null;
+
       connection.pc.close();
     } catch {
-      // The connection may already be closed.
+      // The peer connection may already be closed.
     }
 
-    this.onConnectionChange?.(
-      connection.id,
-      `closed:${reason}`,
-    );
+    if (isCurrent) {
+      this.onConnectionChange?.(
+        connection.id,
+        `closed:${reason}`,
+      );
+    }
 
     if (this.connections.size === 0) {
       this.#clearStatsTimer();
@@ -420,19 +585,29 @@ export class PeerManager {
   }
 
   #scheduleStats(connection) {
-    if (!this.onStats || !this.#isCurrent(connection)) return;
+    if (
+      !this.onStats ||
+      !this.#isCurrent(connection)
+    ) {
+      return;
+    }
 
     this.#clearStatsTimer();
 
     const collect = async () => {
       this.statsTimer = null;
 
-      if (!this.#isCurrent(connection)) return;
+      if (!this.#isCurrent(connection)) {
+        return;
+      }
 
       try {
-        const report = await connection.pc.getStats();
+        const report =
+          await connection.pc.getStats();
 
-        if (!this.#isCurrent(connection)) return;
+        if (!this.#isCurrent(connection)) {
+          return;
+        }
 
         let inbound = null;
         let outbound = null;
@@ -441,14 +616,20 @@ export class PeerManager {
         report.forEach((entry) => {
           if (
             entry.type === 'inbound-rtp' &&
-            (entry.kind === 'audio' || entry.mediaType === 'audio')
+            (
+              entry.kind === 'audio' ||
+              entry.mediaType === 'audio'
+            )
           ) {
             inbound = entry;
           }
 
           if (
             entry.type === 'outbound-rtp' &&
-            (entry.kind === 'audio' || entry.mediaType === 'audio')
+            (
+              entry.kind === 'audio' ||
+              entry.mediaType === 'audio'
+            )
           ) {
             outbound = entry;
           }
@@ -467,6 +648,7 @@ export class PeerManager {
           jitter: inbound?.jitter ?? 0,
           packetsLost: inbound?.packetsLost ?? 0,
           bytesReceived: inbound?.bytesReceived ?? 0,
+          bytesSent: outbound?.bytesSent ?? 0,
           kbpsSent: outbound
             ? Math.round(
                 ((outbound.bytesSent ?? 0) * 8) / 1000,
@@ -474,85 +656,155 @@ export class PeerManager {
             : 0,
         };
 
-        this.onStats(connection.id, connection.stats);
+        this.onStats(
+          connection.id,
+          connection.stats,
+        );
       } catch {
         // Statistics are best-effort.
       }
 
       if (this.#isCurrent(connection)) {
-        this.statsTimer = setTimeout(collect, 2000);
+        this.statsTimer = setTimeout(
+          collect,
+          2000,
+        );
       }
     };
 
-    this.statsTimer = setTimeout(collect, 2000);
-  }
-
-  /** Swap the outgoing audio track after a device change. */
-  async replaceOutgoingTrack(nextStream) {
-    const senderTrack =
-      nextStream?.getAudioTracks?.()[0] ?? null;
-
-    for (const connection of this.connections.values()) {
-      if (!this.#isCurrent(connection)) continue;
-
-      const sender = connection.pc
-        .getSenders()
-        .find((item) => item.track?.kind === 'audio');
-
-      if (sender) {
-        await sender.replaceTrack(senderTrack).catch(() => {});
-      }
-    }
-  }
-
-  /** Enable or disable local microphone tracks. */
-  setMicEnabled(enabled) {
-    const stream = this.getLocalStream();
-
-    for (const track of stream?.getAudioTracks?.() ?? []) {
-      track.enabled = enabled;
-    }
-  }
-
-  /** Return a diagnostic snapshot of active peer connections. */
-  snapshot() {
-    return [...this.connections.values()].map((connection) => ({
-      id: connection.id,
-      generation: connection.generation,
-      state: connection.pc.connectionState,
-      iceState: connection.pc.iceConnectionState,
-      signaling: connection.pc.signalingState,
-      soundFactor: connection.soundFactor ?? 1,
-      stats: connection.stats,
-    }));
+    this.statsTimer = setTimeout(
+      collect,
+      2000,
+    );
   }
 
   /**
-   * Close all peer connections and disable this manager.
-   * Call reset() to reuse it for another room session.
+   * Attach or replace the outgoing microphone track.
+   *
+   * The sender exists because #createConnection() reserves an
+   * audio transceiver even when no microphone is available.
+   */
+  async replaceOutgoingTrack(nextStream) {
+    const nextTrack =
+      nextStream?.getAudioTracks?.()[0] ?? null;
+
+    const operations = [];
+
+    for (const connection of this.connections.values()) {
+      if (!this.#isCurrent(connection)) {
+        continue;
+      }
+
+      /*
+       * Prefer the reserved sender. Fall back to finding an audio
+       * sender for compatibility with existing connections.
+       */
+      const sender =
+        connection.audioSender ??
+        connection.pc
+          .getSenders()
+          .find((item) => item.track?.kind === 'audio');
+
+      if (!sender) {
+        this.onError?.(
+          `audio sender missing for peer ${connection.id}`,
+        );
+
+        continue;
+      }
+
+      connection.audioSender = sender;
+
+      operations.push(
+        sender
+          .replaceTrack(nextTrack)
+          .then(() => {
+            if (!this.#isCurrent(connection)) {
+              return;
+            }
+
+            connection.outgoingTrackId =
+              nextTrack?.id ?? null;
+          })
+          .catch((error) => {
+            if (this.#isCurrent(connection)) {
+              this.onError?.(
+                `replacing audio track for ${connection.id} failed: ${error.message}`,
+              );
+            }
+          }),
+      );
+    }
+
+    await Promise.all(operations);
+  }
+
+  /**
+   * Enable/disable the local microphone tracks.
+   */
+  setMicEnabled(enabled) {
+    const stream = this.getLocalStream?.();
+
+    for (const track of stream?.getAudioTracks?.() ?? []) {
+      track.enabled = Boolean(enabled);
+    }
+  }
+
+  /**
+   * Diagnostic snapshot of active connections.
+   */
+  snapshot() {
+    return [...this.connections.values()].map(
+      (connection) => ({
+        id: connection.id,
+        generation: connection.generation,
+        state: connection.pc.connectionState,
+        iceState: connection.pc.iceConnectionState,
+        signaling: connection.pc.signalingState,
+        soundFactor: connection.soundFactor ?? 1,
+        hasAudioSender: Boolean(connection.audioSender),
+        outgoingTrackId:
+          connection.audioSender?.track?.id ?? null,
+        outgoingTrackEnabled:
+          connection.audioSender?.track?.enabled ?? false,
+        stats: connection.stats,
+      }),
+    );
+  }
+
+  /**
+   * Close all connections and disable the manager.
+   * reset() re-enables it for a subsequent room session.
    */
   closeAll() {
     this.closed = true;
     this.#clearStatsTimer();
 
-    for (const connection of [...this.connections.values()]) {
-      this.#closeConnection(connection, 'shutdown');
+    for (const connection of [
+      ...this.connections.values(),
+    ]) {
+      this.#closeConnection(
+        connection,
+        'shutdown',
+      );
     }
 
     this.connections.clear();
   }
 
   /**
-   * Prepare the manager for another room session.
-   *
-   * Socket listeners and callbacks are preserved; old peer connections
-   * are discarded, and new negotiations can create fresh connections.
+   * Prepare for another room session.
    */
   reset({ iceServers = this.iceServers } = {}) {
     this.#clearStatsTimer();
 
-    for (const connection of [...this.connections.values()]) {
-      this.#closeConnection(connection, 'replaced');
+    for (const connection of [
+      ...this.connections.values(),
+    ]) {
+      this.#closeConnection(
+        connection,
+        'replaced',
+      );
     }
 
     this.connections.clear();

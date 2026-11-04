@@ -50,24 +50,34 @@ const isExpired = (date) =>
 const resendIsBlocked = (lastSentAt) => {
   if (!lastSentAt) return false;
 
-  const cooldownMs = config.email.otpResendCooldownSeconds * 1000;
+  const cooldownMs =
+    config.email.otpResendCooldownSeconds * 1000;
 
-  return Date.now() - new Date(lastSentAt).getTime() < cooldownMs;
+  return (
+    Date.now() - new Date(lastSentAt).getTime() <
+    cooldownMs
+  );
 };
 
 const resendSecondsRemaining = (lastSentAt) => {
   if (!lastSentAt) return 0;
 
-  const cooldownMs = config.email.otpResendCooldownSeconds * 1000;
-  const elapsed = Date.now() - new Date(lastSentAt).getTime();
+  const cooldownMs =
+    config.email.otpResendCooldownSeconds * 1000;
 
-  return Math.max(0, Math.ceil((cooldownMs - elapsed) / 1000));
+  const elapsed =
+    Date.now() - new Date(lastSentAt).getTime();
+
+  return Math.max(
+    0,
+    Math.ceil((cooldownMs - elapsed) / 1000),
+  );
 };
 
 const issueToken = (user) => {
   const secret = config.auth.jwtSecret;
 
-  if (!secret || secret.length < 32) {
+  if (typeof secret !== 'string' || secret.length < 32) {
     throw new Error('JWT_SECRET is missing or invalid.');
   }
 
@@ -79,6 +89,7 @@ const issueToken = (user) => {
     secret,
     {
       expiresIn: config.auth.jwtExpiresIn || '24h',
+      algorithm: 'HS256',
     },
   );
 };
@@ -90,12 +101,14 @@ const genericResetMessage = {
 
 function handleDatabaseError(error, res) {
   if (error?.code === 11000) {
-    const duplicateField = Object.keys(error.keyPattern || {})[0];
+    const duplicateField =
+      Object.keys(error.keyPattern || {})[0];
 
     if (duplicateField === 'email') {
       res.status(409).json({
         error: 'An account with this email already exists.',
       });
+
       return true;
     }
 
@@ -103,12 +116,54 @@ function handleDatabaseError(error, res) {
       res.status(409).json({
         error: 'This username is already taken.',
       });
+
       return true;
     }
   }
 
   return false;
 }
+
+/**
+ * GET /api/auth/me
+ *
+ * Verifies the bearer token and confirms that the account
+ * still exists and its email remains verified.
+ *
+ * Response:
+ * {
+ *   user: {
+ *     userId: string,
+ *     username: string
+ *   }
+ * }
+ */
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId)
+      .select('_id username isEmailVerified')
+      .lean();
+
+    if (!user || !user.isEmailVerified) {
+      return res.status(401).json({
+        error: 'Your session is no longer valid. Please sign in again.',
+      });
+    }
+
+    return res.status(200).json({
+      user: {
+        userId: user._id.toString(),
+        username: user.username,
+      },
+    });
+  } catch (error) {
+    console.error('Session verification failed:', error.message);
+
+    return res.status(500).json({
+      error: 'Unable to verify your session right now.',
+    });
+  }
+});
 
 /**
  * POST /api/auth/register
@@ -187,10 +242,11 @@ router.post('/register', async (req, res) => {
         purpose: 'email-verification',
       });
     } catch (emailError) {
-      // Keep the account unverified; it cannot log in.
-      // Remove the unusable OTP so the user can request another one.
       await User.updateOne(
-        { _id: user._id, isEmailVerified: false },
+        {
+          _id: user._id,
+          isEmailVerified: false,
+        },
         {
           $unset: {
             emailVerificationOtpHash: 1,
@@ -200,7 +256,10 @@ router.post('/register', async (req, res) => {
         },
       );
 
-      console.error('Signup verification email failed:', emailError.message);
+      console.error(
+        'Signup verification email failed:',
+        emailError.message,
+      );
 
       return res.status(502).json({
         error:
@@ -343,10 +402,14 @@ router.post('/resend-verification', async (req, res) => {
         purpose: 'email-verification',
       });
     } catch (emailError) {
-      console.error('Resending verification email failed:', emailError.message);
+      console.error(
+        'Resending verification email failed:',
+        emailError.message,
+      );
 
       return res.status(502).json({
-        error: 'Unable to send the verification email. Please try again later.',
+        error:
+          'Unable to send the verification email. Please try again later.',
       });
     }
 
@@ -422,42 +485,6 @@ router.post('/login', async (req, res) => {
 });
 
 /**
- * GET /api/auth/me
- *
- * Validates the bearer token and confirms that the account still exists
- * and remains email-verified before restoring the client session.
- */
-router.get('/me', authenticateToken, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId).select(
-      'username email isEmailVerified',
-    );
-
-    if (!user || !user.isEmailVerified) {
-      return res.status(401).json({
-        ok: false,
-        error: 'This account is no longer available for this session. Please log in again.',
-      });
-    }
-
-    return res.status(200).json({
-      user: {
-        userId: user._id.toString(),
-        username: user.username,
-        email: user.email,
-      },
-    });
-  } catch (error) {
-    console.error('Session verification failed:', error.message);
-
-    return res.status(500).json({
-      ok: false,
-      error: 'Unable to verify the current session.',
-    });
-  }
-});
-
-/**
  * POST /api/auth/forgot-password
  *
  * Always returns a generic message to avoid exposing account existence.
@@ -478,12 +505,15 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(200).json(genericResetMessage);
     }
 
-    const userWithResetFields = await User.findById(user._id).select(
-      '+passwordResetOtpLastSentAt',
-    );
+    const userWithResetFields = await User.findById(
+      user._id,
+    ).select('+passwordResetOtpLastSentAt');
 
-    if (resendIsBlocked(userWithResetFields.passwordResetOtpLastSentAt)) {
-      // Keep the public response generic.
+    if (
+      resendIsBlocked(
+        userWithResetFields.passwordResetOtpLastSentAt,
+      )
+    ) {
       return res.status(200).json(genericResetMessage);
     }
 
@@ -504,10 +534,14 @@ router.post('/forgot-password', async (req, res) => {
         purpose: 'password-reset',
       });
     } catch (emailError) {
-      console.error('Password reset email failed:', emailError.message);
+      console.error(
+        'Password reset email failed:',
+        emailError.message,
+      );
 
       return res.status(502).json({
-        error: 'Unable to send the password reset email. Please try again later.',
+        error:
+          'Unable to send the password reset email. Please try again later.',
       });
     }
 
@@ -575,7 +609,11 @@ router.post('/reset-password', async (req, res) => {
     const otp = req.body?.otp;
     const password = req.body?.password;
 
-    if (!email || typeof otp !== 'string' || typeof password !== 'string') {
+    if (
+      !email ||
+      typeof otp !== 'string' ||
+      typeof password !== 'string'
+    ) {
       return res.status(400).json({
         error: 'Email, reset code and new password are required.',
       });

@@ -1,19 +1,25 @@
 /**
- * Spatial Audio Mixer (Week 3 + 4).
+ * Spatial Audio Mixer.
  *
- * Per remote peer the engine builds one branch of the Web Audio graph:
+ * Remote audio graph:
  *
- *   MediaStreamAudioSourceNode
- *        -> BiquadFilterNode (lowpass: air absorption + wall occlusion)
- *        -> GainNode         (distance roll-off x occlusion factor)
- *        -> StereoPannerNode (left/right ear, relative to facing direction)
- *        -> master GainNode -> AudioContext.destination
- *             \-> AnalyserNode (local speaking ring, never leaves the browser)
+ * MediaStreamSource
+ *   -> Lowpass Filter
+ *   -> Distance / Occlusion Gain
+ *   -> Stereo Panner
+ *   -> Master Gain
+ *   -> AudioContext Destination
  *
- * Geometry is pushed in from the render loop, but the DSP graph is only touched
- * at UPDATE_INTERVAL_HZ — 60 FPS visuals, 20 Hz audio parameters, no zipper noise.
+ * Geometry is supplied by the world render loop.
+ * Audio parameters are updated at a controlled interval.
  */
-import { gainAtDistance, panAtDistance, lowpassFor, rms } from './spatialMath.js';
+
+import {
+  gainAtDistance,
+  panAtDistance,
+  lowpassFor,
+  rms,
+} from './spatialMath.js';
 
 const DEFAULT = {
   earshotPx: 100,
@@ -23,203 +29,614 @@ const DEFAULT = {
   maxVoices: 12,
 };
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 export class SpatialAudioEngine {
   constructor(options = {}) {
-    this.options = { ...DEFAULT, ...options };
+    /*
+     * ProxiContext historically passes earshotRadiusPx.
+     * The audio math uses earshotPx, so support both names.
+     */
+    const earshotPx =
+      options.earshotPx ??
+      options.earshotRadiusPx ??
+      DEFAULT.earshotPx;
+
+    const fullVolumePx =
+      options.fullVolumePx ??
+      options.fullVolumeRadiusPx ??
+      DEFAULT.fullVolumePx;
+
+    this.options = {
+      ...DEFAULT,
+      ...options,
+      earshotPx: Math.max(1, Number(earshotPx) || DEFAULT.earshotPx),
+      fullVolumePx: Math.max(
+        0,
+        Number(fullVolumePx) || 0,
+      ),
+      updateIntervalMs: Math.max(
+        16,
+        Number(options.updateIntervalMs) || DEFAULT.updateIntervalMs,
+      ),
+      maxVoices: Math.max(
+        1,
+        Number(options.maxVoices) || DEFAULT.maxVoices,
+      ),
+    };
+
     this.ctx = null;
     this.master = null;
+
     this.localStream = null;
-    this.listener = { x: 0, y: 0, angle: 0 };
+    this.localSource = null;
+    this.localAnalyser = null;
+    this.localBuffer = null;
+
+    this.listener = {
+      x: 0,
+      y: 0,
+      angle: 0,
+    };
+
     this.peers = new Map();
     this.mediaElements = new Map();
+
+    /*
+     * Keep streams that arrive before AudioContext initialization.
+     * They will be attached once init() succeeds.
+     */
+    this.pendingStreams = new Map();
+
     this.muted = false;
     this.masterVolume = 1;
     this.lastUpdate = 0;
     this.onSpeakingChange = null;
+    this.disposed = false;
   }
 
   get ready() {
-    return Boolean(this.ctx && this.ctx.state !== 'closed');
+    return Boolean(
+      this.ctx &&
+      this.ctx.state !== 'closed' &&
+      this.master,
+    );
   }
 
-  /** Must be called from a user gesture (browser autoplay policy). */
+  /**
+   * Initialize or resume Web Audio.
+   *
+   * Call from a user gesture when possible because browsers may
+   * block autoplay until the user interacts with the page.
+   */
   async init() {
-    if (this.ctx) {
-      if (this.ctx.state === 'suspended') await this.ctx.resume();
+    this.disposed = false;
+
+    if (this.ctx && this.ctx.state !== 'closed') {
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume();
+      }
+
+      this.#flushPendingStreams();
       return this.ctx;
     }
-    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextCtor) throw new Error('Web Audio API is not available in this browser');
-    this.ctx = new AudioContextCtor({ latencyHint: 'interactive' });
-    if (this.ctx.state === 'suspended') await this.ctx.resume();
+
+    const AudioContextCtor =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (!AudioContextCtor) {
+      throw new Error(
+        'Web Audio API is not available in this browser.',
+      );
+    }
+
+    this.ctx = new AudioContextCtor({
+      latencyHint: 'interactive',
+    });
 
     this.master = this.ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : this.masterVolume;
+
+    this.master.gain.value = this.muted
+      ? 0
+      : this.masterVolume;
+
     this.master.connect(this.ctx.destination);
+
+    if (this.ctx.state === 'suspended') {
+      await this.ctx.resume();
+    }
+
+    this.#flushPendingStreams();
+
     return this.ctx;
   }
 
-  /** Local microphone: monitored only through an AnalyserNode, never played back. */
+  /**
+   * Resume playback after browser autoplay suspension.
+   */
+  async resume() {
+    if (!this.ctx || this.ctx.state === 'closed') {
+      await this.init();
+      return;
+    }
+
+    if (this.ctx.state === 'suspended') {
+      await this.ctx.resume();
+    }
+
+    this.#flushPendingStreams();
+  }
+
+  /**
+   * Attach the local microphone for level detection.
+   * Local microphone audio is never played through the speakers.
+   */
   async setLocalStream(stream) {
+    if (!stream) {
+      throw new Error('A microphone MediaStream is required.');
+    }
+
     await this.init();
+
+    if (
+      this.localStream === stream &&
+      this.localAnalyser
+    ) {
+      return stream;
+    }
+
+    this.#disconnectLocalNodes();
+
     this.localStream = stream;
-    this.localSource = this.ctx.createMediaStreamSource(stream);
-    this.localAnalyser = this.ctx.createAnalyser();
+
+    this.localSource =
+      this.ctx.createMediaStreamSource(stream);
+
+    this.localAnalyser =
+      this.ctx.createAnalyser();
+
     this.localAnalyser.fftSize = 512;
     this.localAnalyser.smoothingTimeConstant = 0.6;
-    this.localSource.connect(this.localAnalyser); // analyser output is discarded on purpose
-    this.localBuffer = new Float32Array(this.localAnalyser.fftSize);
+
+    this.localSource.connect(this.localAnalyser);
+
+    this.localBuffer = new Float32Array(
+      this.localAnalyser.fftSize,
+    );
+
     return stream;
   }
 
+  #disconnectLocalNodes() {
+    try {
+      this.localSource?.disconnect();
+    } catch {
+      // The source may already be disconnected.
+    }
+
+    try {
+      this.localAnalyser?.disconnect();
+    } catch {
+      // The analyser may already be disconnected.
+    }
+
+    this.localSource = null;
+    this.localAnalyser = null;
+    this.localBuffer = null;
+  }
+
   getLocalLevel() {
-    if (!this.localAnalyser) return 0;
-    this.localAnalyser.getFloatTimeDomainData(this.localBuffer);
+    if (
+      !this.localAnalyser ||
+      !this.localBuffer
+    ) {
+      return 0;
+    }
+
+    this.localAnalyser.getFloatTimeDomainData(
+      this.localBuffer,
+    );
+
     return rms(this.localBuffer);
   }
 
   get isSpeaking() {
-    return this.getLocalLevel() > this.options.speakingThreshold;
+    return (
+      this.getLocalLevel() >
+      this.options.speakingThreshold
+    );
   }
 
+  /**
+   * This controls remote playback volume.
+   * Microphone transmission is controlled separately by its audio track.
+   */
   setLocalMuted(muted) {
-    this.muted = muted;
-    if (this.master) this.master.gain.setTargetAtTime(muted ? 0 : this.masterVolume, this.now(), 0.05);
+    this.muted = Boolean(muted);
+
+    if (this.master && this.ctx) {
+      this.master.gain.setTargetAtTime(
+        this.muted ? 0 : this.masterVolume,
+        this.ctx.currentTime,
+        0.05,
+      );
+    }
   }
 
   setMasterVolume(value) {
-    this.masterVolume = Math.max(0, Math.min(1, value));
-    if (this.master && !this.muted) this.master.gain.setTargetAtTime(this.masterVolume, this.now(), 0.05);
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return;
+    }
+
+    this.masterVolume = clamp(numericValue, 0, 1);
+
+    if (this.master && this.ctx && !this.muted) {
+      this.master.gain.setTargetAtTime(
+        this.masterVolume,
+        this.ctx.currentTime,
+        0.05,
+      );
+    }
   }
 
-  setListener({ x, y, angle }) {
-    this.listener.x = x;
-    this.listener.y = y;
-    this.listener.angle = angle;
+  setListener(position = {}) {
+    const x = Number(position.x);
+    const y = Number(position.y);
+    const angle = Number(position.angle);
+
+    if (Number.isFinite(x)) {
+      this.listener.x = x;
+    }
+
+    if (Number.isFinite(y)) {
+      this.listener.y = y;
+    }
+
+    if (Number.isFinite(angle)) {
+      this.listener.angle = angle;
+    }
   }
 
   /**
-   * Attach (or replace) a remote WebRTC stream.
-   * @returns {boolean} false when the voice budget is exhausted
+   * Attach or replace a remote WebRTC stream.
+   *
+   * If Web Audio is not initialized yet, preserve the stream and
+   * attach it as soon as init() runs.
    */
   attachRemoteStream(peerId, stream) {
-    if (!stream || !this.ctx) return false;
-    const existing = this.peers.get(peerId);
-    if (existing && existing.stream === stream) return true;
-    if (existing) this.detachRemoteStream(peerId);
-
-    if (this.peers.size >= this.options.maxVoices) {
-      const oldest = this.peers.keys().next().value;
-      this.detachRemoteStream(oldest);
+    if (!peerId || !stream) {
+      return false;
     }
 
-    const source = this.ctx.createMediaStreamSource(stream);
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 19000;
-    filter.Q.value = 0.0001;
+    const audioTracks = stream.getAudioTracks?.() ?? [];
 
-    const gain = this.ctx.createGain();
-    gain.gain.value = 0;
+    if (audioTracks.length === 0) {
+      this.pendingStreams.delete(peerId);
+      return false;
+    }
 
-    const panner = this.ctx.createStereoPanner();
-    panner.pan.value = 0;
+    const existing = this.peers.get(peerId);
 
-    const analyser = this.ctx.createAnalyser();
-    analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.5;
+    if (existing && existing.stream === stream) {
+      this.#keepStreamAlive(peerId, stream);
+      return true;
+    }
 
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(panner);
-    panner.connect(analyser);
-    panner.connect(this.master);
+    if (!this.ready) {
+      this.pendingStreams.set(peerId, stream);
+      this.#keepStreamAlive(peerId, stream);
+      return true;
+    }
 
-    const peer = {
-      id: peerId,
-      stream,
-      source,
-      filter,
-      gain,
-      panner,
-      analyser,
-      buffer: new Float32Array(analyser.fftSize),
-      x: 0,
-      y: 0,
-      soundFactor: 1,
-      gainValue: 0,
-      panValue: 0,
-      level: 0,
-      speaking: false,
-    };
-    this.peers.set(peerId, peer);
-    this.#keepStreamAlive(peerId, stream);
-    return true;
+    return this.#attachReadyStream(peerId, stream);
+  }
+
+  #attachReadyStream(peerId, stream) {
+    if (!this.ready || !stream) {
+      this.pendingStreams.set(peerId, stream);
+      return false;
+    }
+
+    const tracks = stream.getAudioTracks?.() ?? [];
+
+    if (tracks.length === 0) {
+      return false;
+    }
+
+    const existing = this.peers.get(peerId);
+
+    if (existing) {
+      if (existing.stream === stream) {
+        return true;
+      }
+
+      this.detachRemoteStream(peerId);
+    }
+
+    /*
+     * Do not evict another participant silently when the configured
+     * voice budget is reached. Keep the stream pending instead.
+     */
+    if (this.peers.size >= this.options.maxVoices) {
+      this.pendingStreams.set(peerId, stream);
+      this.#keepStreamAlive(peerId, stream);
+      return false;
+    }
+
+    try {
+      const source =
+        this.ctx.createMediaStreamSource(stream);
+
+      const filter =
+        this.ctx.createBiquadFilter();
+
+      filter.type = 'lowpass';
+      filter.frequency.value = 19000;
+      filter.Q.value = 0.0001;
+
+      const gain = this.ctx.createGain();
+
+      /*
+       * Start silent and let update() calculate the spatial gain.
+       */
+      gain.gain.value = 0;
+
+      const panner =
+        this.ctx.createStereoPanner();
+
+      panner.pan.value = 0;
+
+      const analyser =
+        this.ctx.createAnalyser();
+
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.5;
+
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(panner);
+      panner.connect(analyser);
+      panner.connect(this.master);
+
+      const peer = {
+        id: peerId,
+        stream,
+        source,
+        filter,
+        gain,
+        panner,
+        analyser,
+        buffer: new Float32Array(analyser.fftSize),
+
+        /*
+         * Position will be populated by setPeerGeometry().
+         */
+        x: 0,
+        y: 0,
+
+        soundFactor: 1,
+        gainValue: 0,
+        panValue: 0,
+        level: 0,
+        speaking: false,
+        distancePx: Infinity,
+      };
+
+      this.peers.set(peerId, peer);
+      this.pendingStreams.delete(peerId);
+
+      this.#keepStreamAlive(peerId, stream);
+
+      return true;
+    } catch (error) {
+      console.error(
+        `[SpatialAudioEngine] Could not attach audio for peer ${peerId}:`,
+        error,
+      );
+
+      this.pendingStreams.set(peerId, stream);
+
+      return false;
+    }
+  }
+
+  #flushPendingStreams() {
+    if (!this.ready || this.pendingStreams.size === 0) {
+      return;
+    }
+
+    for (const [peerId, stream] of [
+      ...this.pendingStreams.entries(),
+    ]) {
+      if (!stream || stream.active === false) {
+        this.pendingStreams.delete(peerId);
+        continue;
+      }
+
+      if (this.peers.has(peerId)) {
+        this.pendingStreams.delete(peerId);
+        continue;
+      }
+
+      if (this.peers.size >= this.options.maxVoices) {
+        break;
+      }
+
+      this.#attachReadyStream(peerId, stream);
+    }
   }
 
   /**
-   * Firefox and Safari only pump a remote MediaStream into Web Audio while it
-   * is also attached to a (silent) media element.
+   * Keep the remote MediaStream attached to a media element as a
+   * compatibility fallback for browsers that need media-element playback.
+   *
+   * The element is muted to prevent duplicate playback; audible output
+   * is routed through the spatial Web Audio graph.
    */
   #keepStreamAlive(peerId, stream) {
-    if (this.mediaElements.has(peerId)) return;
-    const element = document.createElement('audio');
-    element.srcObject = stream;
-    element.muted = true;
-    element.autoplay = true;
-    element.playsInline = true;
-    element.play().catch(() => {});
-    this.mediaElements.set(peerId, element);
-  }
+    let element = this.mediaElements.get(peerId);
 
-  detachRemoteStream(peerId) {
-    const peer = this.peers.get(peerId);
-    if (peer) {
-      try {
-        peer.source.disconnect();
-        peer.filter.disconnect();
-        peer.gain.disconnect();
-        peer.panner.disconnect();
-        peer.analyser.disconnect();
-        peer.source.stop?.();
-      } catch {
-        /* already torn down */
-      }
-      this.peers.delete(peerId);
+    if (element && element.srcObject === stream) {
+      return;
     }
-    const element = this.mediaElements.get(peerId);
+
     if (element) {
       element.pause?.();
       element.srcObject = null;
       element.remove?.();
-      this.mediaElements.delete(peerId);
     }
+
+    element = document.createElement('audio');
+    element.dataset.peerId = String(peerId);
+    element.srcObject = stream;
+    element.muted = true;
+    element.autoplay = true;
+    element.playsInline = true;
+
+    /*
+     * Playback failure is not fatal: the actual audible signal is
+     * routed through the Web Audio graph above.
+     */
+    const playPromise = element.play();
+
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {
+        // Autoplay may be blocked; init()/resume() handles Web Audio.
+      });
+    }
+
+    this.mediaElements.set(peerId, element);
   }
 
-  setPeerGeometry(peerId, { x, y }) {
+  detachRemoteStream(peerId) {
+    this.pendingStreams.delete(peerId);
+
     const peer = this.peers.get(peerId);
+
     if (peer) {
+      try {
+        peer.source.disconnect();
+      } catch {
+        // Already disconnected.
+      }
+
+      try {
+        peer.filter.disconnect();
+      } catch {
+        // Already disconnected.
+      }
+
+      try {
+        peer.gain.disconnect();
+      } catch {
+        // Already disconnected.
+      }
+
+      try {
+        peer.panner.disconnect();
+      } catch {
+        // Already disconnected.
+      }
+
+      try {
+        peer.analyser.disconnect();
+      } catch {
+        // Already disconnected.
+      }
+
+      this.peers.delete(peerId);
+    }
+
+    const element = this.mediaElements.get(peerId);
+
+    if (element) {
+      try {
+        element.pause();
+      } catch {
+        // Ignore media-element cleanup errors.
+      }
+
+      element.srcObject = null;
+      element.remove();
+
+      this.mediaElements.delete(peerId);
+    }
+
+    this.#flushPendingStreams();
+  }
+
+  setPeerGeometry(peerId, position = {}) {
+    const peer = this.peers.get(peerId);
+
+    if (!peer) {
+      return;
+    }
+
+    const x = Number(position.x);
+    const y = Number(position.y);
+
+    if (Number.isFinite(x)) {
       peer.x = x;
+    }
+
+    if (Number.isFinite(y)) {
       peer.y = y;
     }
   }
 
   setPeerOcclusion(peerId, soundFactor) {
     const peer = this.peers.get(peerId);
-    if (peer) peer.soundFactor = soundFactor;
+
+    if (!peer) {
+      return;
+    }
+
+    const factor = Number(soundFactor);
+
+    if (Number.isFinite(factor)) {
+      peer.soundFactor = clamp(factor, 0, 1);
+    }
   }
 
-  /** Called once per animation frame; throttles the actual DSP work. */
+  /**
+   * Called by the world render loop.
+   */
   update(timestampMs = this.now()) {
-    if (!this.ctx) return;
+    if (!this.ready) {
+      return;
+    }
+
+    if (this.ctx.state === 'suspended') {
+      /*
+       * Do not repeatedly call resume() from the animation loop.
+       * Resume is triggered by init() or an explicit user gesture.
+       */
+      return;
+    }
+
     const interval = this.options.updateIntervalMs;
-    if (timestampMs - this.lastUpdate < interval) return;
+
+    if (timestampMs - this.lastUpdate < interval) {
+      return;
+    }
+
     this.lastUpdate = timestampMs;
-    const now = timestampMs / 1000;
+
+    /*
+     * AudioParam timestamps must use AudioContext.currentTime,
+     * which is measured in seconds, not RAF milliseconds.
+     */
+    const audioTime = this.ctx.currentTime;
 
     for (const peer of this.peers.values()) {
       const dx = peer.x - this.listener.x;
       const dy = peer.y - this.listener.y;
+
       const distancePx = Math.hypot(dx, dy);
 
       const gainValue = gainAtDistance(distancePx, {
@@ -227,6 +644,7 @@ export class SpatialAudioEngine {
         fullVolumePx: this.options.fullVolumePx,
         soundFactor: peer.soundFactor,
       });
+
       const panValue = panAtDistance({
         dx,
         dy,
@@ -234,20 +652,45 @@ export class SpatialAudioEngine {
         listenerAngle: this.listener.angle,
         earshotPx: this.options.earshotPx,
       });
-      const cutoff = lowpassFor({ distancePx, earshotPx: this.options.earshotPx, soundFactor: peer.soundFactor });
 
-      // setTargetAtTime gives a click-free glide instead of stepped jumps.
-      peer.gain.gain.setTargetAtTime(gainValue, now, 0.04);
-      peer.panner.pan.setTargetAtTime(panValue, now, 0.04);
-      peer.filter.frequency.setTargetAtTime(cutoff, now, 0.08);
+      const cutoff = lowpassFor({
+        distancePx,
+        earshotPx: this.options.earshotPx,
+        soundFactor: peer.soundFactor,
+      });
+
+      peer.gain.gain.setTargetAtTime(
+        gainValue,
+        audioTime,
+        0.04,
+      );
+
+      peer.panner.pan.setTargetAtTime(
+        panValue,
+        audioTime,
+        0.04,
+      );
+
+      peer.filter.frequency.setTargetAtTime(
+        cutoff,
+        audioTime,
+        0.08,
+      );
 
       peer.gainValue = gainValue;
       peer.panValue = panValue;
       peer.distancePx = distancePx;
 
-      peer.analyser.getFloatTimeDomainData(peer.buffer);
+      peer.analyser.getFloatTimeDomainData(
+        peer.buffer,
+      );
+
       peer.level = rms(peer.buffer);
-      const speaking = peer.level > this.options.speakingThreshold && gainValue > 0.01;
+
+      const speaking =
+        peer.level > this.options.speakingThreshold &&
+        gainValue > 0.01;
+
       if (speaking !== peer.speaking) {
         peer.speaking = speaking;
         this.onSpeakingChange?.(peer.id, speaking);
@@ -261,24 +704,52 @@ export class SpatialAudioEngine {
 
   isAudible(peerId) {
     const peer = this.peers.get(peerId);
-    return Boolean(peer && peer.gainValue > 0.01);
+
+    return Boolean(
+      peer &&
+      peer.gainValue > 0.01 &&
+      !this.muted &&
+      this.masterVolume > 0,
+    );
   }
 
   now() {
-    return this.ctx ? this.ctx.currentTime * 1000 : performance.now();
+    return this.ctx
+      ? this.ctx.currentTime * 1000
+      : performance.now();
   }
 
   dispose() {
-    for (const peerId of [...this.peers.keys()]) this.detachRemoteStream(peerId);
-    try {
-      this.localSource?.disconnect();
-      this.master?.disconnect();
-      this.ctx?.close();
-    } catch {
-      /* noop */
+    this.disposed = true;
+
+    for (const peerId of [
+      ...new Set([
+        ...this.peers.keys(),
+        ...this.pendingStreams.keys(),
+        ...this.mediaElements.keys(),
+      ]),
+    ]) {
+      this.detachRemoteStream(peerId);
     }
+
+    this.#disconnectLocalNodes();
+
+    try {
+      this.master?.disconnect();
+    } catch {
+      // Already disconnected.
+    }
+
+    const context = this.ctx;
+
     this.ctx = null;
     this.master = null;
+    this.localStream = null;
+    this.lastUpdate = 0;
+
+    if (context && context.state !== 'closed') {
+      context.close().catch(() => {});
+    }
   }
 }
 
