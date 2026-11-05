@@ -22,16 +22,12 @@ import { soundFactorBetween } from '../audio/occlusion.js';
 
 const ProxiContext = createContext(null);
 
-const ROOM_INTENT_STORAGE_KEY = 'proxispeak:room-intent:v1';
+const ROOM_SESSION_STORAGE_KEY = 'proxispeak:room-session';
 
-function readStoredRoomIntent() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
+function readStoredSessionIntent() {
   try {
-    const raw = window.sessionStorage.getItem(
-      ROOM_INTENT_STORAGE_KEY,
+    const raw = window.localStorage.getItem(
+      ROOM_SESSION_STORAGE_KEY,
     );
 
     if (!raw) {
@@ -45,47 +41,28 @@ function readStoredRoomIntent() {
       typeof intent.roomId !== 'string' ||
       !intent.roomId.trim() ||
       typeof intent.name !== 'string' ||
-      !intent.name.trim()
+      !intent.name.trim() ||
+      typeof intent.color !== 'string' ||
+      typeof intent.avatar !== 'string'
     ) {
-      window.sessionStorage.removeItem(
-        ROOM_INTENT_STORAGE_KEY,
-      );
-
       return null;
     }
 
     return {
-      roomId: intent.roomId,
-      name: intent.name,
-      color:
-        typeof intent.color === 'string' &&
-        intent.color.trim()
-          ? intent.color
-          : '#4f8cff',
-      avatar:
-        typeof intent.avatar === 'string' &&
-        intent.avatar.trim()
-          ? intent.avatar
-          : 'circle',
+      roomId: intent.roomId.trim(),
+      name: intent.name.trim(),
+      color: intent.color,
+      avatar: intent.avatar,
     };
-  } catch (error) {
-    console.warn(
-      '[proxi] Could not restore saved room intent:',
-      error,
-    );
-
+  } catch {
     return null;
   }
 }
 
-function persistRoomIntent(intent) {
-  if (typeof window === 'undefined' || !intent) {
-    return;
-  }
-
+function persistSessionIntent(intent) {
   try {
-    window.sessionStorage.setItem(
-      ROOM_INTENT_STORAGE_KEY,
+    window.localStorage.setItem(
+      ROOM_SESSION_STORAGE_KEY,
       JSON.stringify({
         roomId: intent.roomId,
         name: intent.name,
@@ -93,27 +70,23 @@ function persistRoomIntent(intent) {
         avatar: intent.avatar,
       }),
     );
-  } catch (error) {
+  } catch (err) {
     console.warn(
-      '[proxi] Could not persist room intent:',
-      error,
+      '[proxi] could not persist room session intent:',
+      err,
     );
   }
 }
 
-function clearStoredRoomIntent() {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
+function clearStoredSessionIntent() {
   try {
-    window.sessionStorage.removeItem(
-      ROOM_INTENT_STORAGE_KEY,
+    window.localStorage.removeItem(
+      ROOM_SESSION_STORAGE_KEY,
     );
-  } catch (error) {
+  } catch (err) {
     console.warn(
-      '[proxi] Could not clear saved room intent:',
-      error,
+      '[proxi] could not clear room session intent:',
+      err,
     );
   }
 }
@@ -284,17 +257,21 @@ function reducer(state, action) {
   }
 }
 
+function createInitialState() {
+  return {
+    ...initialState,
+    sessionIntent: readStoredSessionIntent(),
+  };
+}
+
 export function ProxiProvider({
   children,
   serverUrl = config.serverUrl,
 }) {
   const [state, dispatch] = useReducer(
     reducer,
-    initialState,
-    (baseState) => ({
-      ...baseState,
-      sessionIntent: readStoredRoomIntent(),
-    }),
+    undefined,
+    createInitialState,
   );
 
   const worldRef = useRef({
@@ -332,12 +309,19 @@ export function ProxiProvider({
   const localStreamRef = useRef(null);
   const heartbeatRef = useRef(null);
 
-  const intentRef = useRef(state.sessionIntent);
+  // Reconnection and session lifecycle protection.
+  const rejoinInFlightRef = useRef(null);
+  const sessionIntentRef = useRef(state.sessionIntent);
+  const sessionGenerationRef = useRef(0);
   const lastJoinedSocketIdRef = useRef(null);
-  const rejoinPromiseRef = useRef(null);
 
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // Keep the imperative session reference synchronized with React state.
+  if (state.sessionIntent !== sessionIntentRef.current) {
+    sessionIntentRef.current = state.sessionIntent;
+  }
 
   const mutedRef = useRef(state.muted);
   mutedRef.current = state.muted;
@@ -373,9 +357,6 @@ export function ProxiProvider({
   const applyJoinAck = useCallback(
     (ack, intent) => {
       const world = worldRef.current;
-
-      intentRef.current = intent;
-      persistRoomIntent(intent);
 
       world.self = {
         ...world.self,
@@ -450,24 +431,31 @@ export function ProxiProvider({
     [syncRoster, startHeartbeat],
   );
 
+  // -------------------------------------------------------------
+  // Room recovery after Socket.IO reconnect or browser refresh
+  // -------------------------------------------------------------
+
   const rejoinAfterReconnect = useCallback(async () => {
     const client = clientRef.current;
-    const intent = intentRef.current;
+    const intent = sessionIntentRef.current;
     const socketId = client?.socket?.id;
 
-    if (!client?.connected || !intent || !socketId) {
+    if (
+      !client?.connected ||
+      !intent ||
+      !socketId ||
+      lastJoinedSocketIdRef.current === socketId
+    ) {
       return;
     }
 
-    if (lastJoinedSocketIdRef.current === socketId) {
-      return;
+    if (rejoinInFlightRef.current) {
+      return rejoinInFlightRef.current;
     }
 
-    if (rejoinPromiseRef.current) {
-      return rejoinPromiseRef.current;
-    }
+    const generation = sessionGenerationRef.current;
 
-    const rejoinTask = (async () => {
+    const task = (async () => {
       try {
         const ack = await client.request(
           'room:join',
@@ -479,13 +467,25 @@ export function ProxiProvider({
           },
         );
 
+        // A leave or a newer join may have happened while
+        // this request was waiting for the server.
+        if (
+          generation !== sessionGenerationRef.current ||
+          sessionIntentRef.current !== intent ||
+          clientRef.current !== client ||
+          !client.connected ||
+          client.socket.id !== socketId
+        ) {
+          return;
+        }
+
         applyJoinAck(ack, intent);
 
         lastJoinedSocketIdRef.current = socketId;
 
         /*
-         * If a microphone stream still exists after reconnecting,
-         * ensure newly negotiated peer connections receive its audio.
+         * A full browser refresh destroys the previous MediaStream.
+         * A transient socket reconnect may retain it.
          */
         if (localStreamRef.current) {
           await peersRef.current?.replaceOutgoingTrack(
@@ -505,22 +505,32 @@ export function ProxiProvider({
           },
         });
       } catch (err) {
-        dispatch({
-          type: 'notice',
-          notice: {
-            level: 'error',
-            message: `Rejoin failed: ${err.message}`,
-          },
-        });
+        if (
+          generation === sessionGenerationRef.current
+        ) {
+          dispatch({
+            type: 'notice',
+            notice: {
+              level: 'error',
+              message: `Rejoin failed: ${err.message}`,
+            },
+          });
+        }
       } finally {
-        rejoinPromiseRef.current = null;
+        if (rejoinInFlightRef.current === task) {
+          rejoinInFlightRef.current = null;
+        }
       }
     })();
 
-    rejoinPromiseRef.current = rejoinTask;
+    rejoinInFlightRef.current = task;
 
-    return rejoinTask;
+    return task;
   }, [applyJoinAck]);
+
+  // -------------------------------------------------------------
+  // Socket, audio and WebRTC initialization
+  // -------------------------------------------------------------
 
   useEffect(() => {
     const client = createSocketClient({
@@ -575,11 +585,6 @@ export function ProxiProvider({
           peer.connection = stateName;
         }
 
-        /*
-         * A WebRTC connection closing is not equivalent to a user
-         * leaving the room. Preserve room presence until the server
-         * confirms departure.
-         */
         if (
           stateName === 'closed:hangup' ||
           stateName === 'closed:replaced'
@@ -720,103 +725,97 @@ export function ProxiProvider({
       );
     });
 
-    client.socket.on(
-      'presence:snapshot',
-      (payload = {}) => {
-        const world = worldRef.current;
+    client.socket.on('presence:snapshot', (payload = {}) => {
+      const world = worldRef.current;
 
-        const snapshotPeers = Array.isArray(payload.peers)
-          ? payload.peers
-          : [];
+      const snapshotPeers = Array.isArray(payload.peers)
+        ? payload.peers
+        : [];
 
-        const livePeerIds = new Set(
-          snapshotPeers
-            .map((peer) => peer?.id)
-            .filter(
-              (id) =>
-                typeof id === 'string' &&
-                id !== world.self.id,
-            ),
-        );
+      const livePeerIds = new Set(
+        snapshotPeers
+          .map((peer) => peer?.id)
+          .filter(
+            (id) =>
+              typeof id === 'string' &&
+              id !== world.self.id,
+          ),
+      );
 
-        const knownPeerIds = new Set([
-          ...world.peers.keys(),
-          ...(peerManager.connections?.keys?.() ?? []),
-          ...world.edges.keys(),
-        ]);
+      const knownPeerIds = new Set([
+        ...world.peers.keys(),
+        ...(peerManager.connections?.keys?.() ?? []),
+        ...world.edges.keys(),
+      ]);
 
-        for (const peerId of knownPeerIds) {
-          if (livePeerIds.has(peerId)) {
-            continue;
-          }
-
-          world.peers.delete(peerId);
-          world.edges.delete(peerId);
-          audio.detachRemoteStream(peerId);
-
-          if (peerManager.connections.has(peerId)) {
-            peerManager.handleHangup({
-              peerId,
-            });
-          }
+      for (const peerId of knownPeerIds) {
+        if (livePeerIds.has(peerId)) {
+          continue;
         }
 
-        const previousPeers = world.peers;
-        const nextPeers = new Map();
+        world.peers.delete(peerId);
+        world.edges.delete(peerId);
+        audio.detachRemoteStream(peerId);
 
-        for (const snapshotPeer of snapshotPeers) {
-          if (
-            !snapshotPeer ||
-            typeof snapshotPeer.id !== 'string' ||
-            snapshotPeer.id === world.self.id
-          ) {
-            continue;
-          }
-
-          const previous = previousPeers.get(
-            snapshotPeer.id,
-          );
-
-          nextPeers.set(snapshotPeer.id, {
-            ...previous,
-            ...snapshotPeer,
-            level: previous?.level ?? 0,
-            speaking: previous?.speaking ?? false,
-            soundFactor: previous?.soundFactor ?? 1,
-            connection: previous?.connection ?? 'pending',
-            distancePx: Math.hypot(
-              (snapshotPeer.x ?? previous?.x ?? 0) -
-                world.self.x,
-              (snapshotPeer.y ?? previous?.y ?? 0) -
-                world.self.y,
-            ),
+        if (peerManager.connections.has(peerId)) {
+          peerManager.handleHangup({
+            peerId,
           });
         }
+      }
 
-        world.peers = nextPeers;
+      const previousPeers = world.peers;
+      const nextPeers = new Map();
 
-        dispatch({
-          type: 'roster',
-          roster: syncRoster(world),
-        });
-      },
-    );
-
-    client.on(
-      'peer:media-state',
-      ({ id, micEnabled }) => {
-        const peer = worldRef.current.peers.get(id);
-
-        if (peer) {
-          peer.micEnabled = micEnabled;
+      for (const snapshotPeer of snapshotPeers) {
+        if (
+          !snapshotPeer ||
+          typeof snapshotPeer.id !== 'string' ||
+          snapshotPeer.id === world.self.id
+        ) {
+          continue;
         }
 
-        dispatch({
-          type: 'roster',
-          roster: syncRoster(worldRef.current),
+        const previous = previousPeers.get(
+          snapshotPeer.id,
+        );
+
+        nextPeers.set(snapshotPeer.id, {
+          ...previous,
+          ...snapshotPeer,
+          level: previous?.level ?? 0,
+          speaking: previous?.speaking ?? false,
+          soundFactor: previous?.soundFactor ?? 1,
+          connection: previous?.connection ?? 'pending',
+          distancePx: Math.hypot(
+            (snapshotPeer.x ?? previous?.x ?? 0) -
+              world.self.x,
+            (snapshotPeer.y ?? previous?.y ?? 0) -
+              world.self.y,
+          ),
         });
-      },
-    );
+      }
+
+      world.peers = nextPeers;
+
+      dispatch({
+        type: 'roster',
+        roster: syncRoster(world),
+      });
+    });
+
+    client.on('peer:media-state', ({ id, micEnabled }) => {
+      const peer = worldRef.current.peers.get(id);
+
+      if (peer) {
+        peer.micEnabled = micEnabled;
+      }
+
+      dispatch({
+        type: 'roster',
+        roster: syncRoster(worldRef.current),
+      });
+    });
 
     client.on('peer:negotiate', (payload) => {
       const world = worldRef.current;
@@ -939,7 +938,7 @@ export function ProxiProvider({
       dispatch({
         type: 'notice',
         notice: {
-          level: 'ok',
+          level: payload.ok ? 'ok' : 'warn',
           message:
             `Audit completed on instance ${String(payload.from).slice(0, 12)} · ` +
             `p95 ${payload.p95Ms ?? 'n/a'}ms`,
@@ -963,11 +962,11 @@ export function ProxiProvider({
       peersRef.current = null;
       audioRef.current = null;
     };
-  }, [
-    serverUrl,
-    rejoinAfterReconnect,
-    syncRoster,
-  ]);
+  }, [serverUrl, rejoinAfterReconnect, syncRoster]);
+
+  // -------------------------------------------------------------
+  // Microphone
+  // -------------------------------------------------------------
 
   const requestMicrophone = useCallback(async () => {
     dispatch({
@@ -1033,7 +1032,7 @@ export function ProxiProvider({
       await audio.setLocalStream(stream);
 
       /*
-       * Attach microphone to existing WebRTC peer connections.
+       * Attach the microphone to existing WebRTC peer connections.
        */
       await peersRef.current?.replaceOutgoingTrack(stream);
 
@@ -1088,6 +1087,10 @@ export function ProxiProvider({
     }
   }, []);
 
+  // -------------------------------------------------------------
+  // Join room
+  // -------------------------------------------------------------
+
   const join = useCallback(
     async ({
       roomId = config.defaultRoom,
@@ -1131,14 +1134,16 @@ export function ProxiProvider({
           intent,
         );
 
-        applyJoinAck(ack, intent);
-
+        // Persist only room intent, never socket IDs or media streams.
+        sessionGenerationRef.current += 1;
+        sessionIntentRef.current = intent;
         lastJoinedSocketIdRef.current =
           client.socket.id ?? null;
 
-        /*
-         * Reattach the microphone after room joining.
-         */
+        persistSessionIntent(intent);
+
+        applyJoinAck(ack, intent);
+
         if (localStreamRef.current) {
           await peersRef.current?.replaceOutgoingTrack(
             localStreamRef.current,
@@ -1178,22 +1183,27 @@ export function ProxiProvider({
     [applyJoinAck, requestMicrophone],
   );
 
+  // -------------------------------------------------------------
+  // Leave room
+  // -------------------------------------------------------------
+
   const leave = useCallback(async () => {
     const client = clientRef.current;
-    const activeIntent = intentRef.current;
 
     /*
-     * Clear recovery state immediately so a reconnect cannot
-     * silently rejoin a room after the user explicitly leaves.
+     * Invalidate pending reconnect work before sending leave.
+     * This prevents an old join acknowledgement from restoring the room.
      */
-    intentRef.current = null;
+    sessionGenerationRef.current += 1;
+    sessionIntentRef.current = null;
     lastJoinedSocketIdRef.current = null;
-    clearStoredRoomIntent();
+
+    clearStoredSessionIntent();
 
     try {
       if (
         client?.connected &&
-        activeIntent
+        stateRef.current.sessionIntent
       ) {
         await client.request('room:leave', {});
       }
@@ -1247,6 +1257,10 @@ export function ProxiProvider({
     }
   }, []);
 
+  // -------------------------------------------------------------
+  // Audio controls
+  // -------------------------------------------------------------
+
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
 
@@ -1280,6 +1294,10 @@ export function ProxiProvider({
     });
   }, []);
 
+  // -------------------------------------------------------------
+  // Position synchronization
+  // -------------------------------------------------------------
+
   const sendPosition = useCallback((x, y, angle) => {
     const now = performance.now();
 
@@ -1311,6 +1329,10 @@ export function ProxiProvider({
       },
     );
   }, []);
+
+  // -------------------------------------------------------------
+  // Spatial audit
+  // -------------------------------------------------------------
 
   const requestAudit = useCallback(async () => {
     const self = worldRef.current.self;
@@ -1363,13 +1385,23 @@ export function ProxiProvider({
     }
   }, []);
 
+  // -------------------------------------------------------------
+  // Audio state synchronization
+  // -------------------------------------------------------------
+
   useEffect(() => {
     audioRef.current?.setMasterVolume(
       state.masterVolume,
     );
 
-    audioRef.current?.setLocalMuted(state.muted);
+    audioRef.current?.setLocalMuted(
+      state.muted,
+    );
   }, [state.masterVolume, state.muted]);
+
+  // -------------------------------------------------------------
+  // Context value
+  // -------------------------------------------------------------
 
   const value = useMemo(
     () => ({
