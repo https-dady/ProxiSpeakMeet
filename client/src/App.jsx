@@ -1,4 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
+
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 
 import { ProxiProvider, useProxi } from './state/ProxiContext.jsx';
 import { WorldCanvas } from './canvas/WorldCanvas.jsx';
@@ -11,94 +23,67 @@ import { OfficeSidebar } from './components/OfficeSidebar.jsx';
 import { Notices } from './components/Notices.jsx';
 import { OfficeBlueprintImporter } from './components/OfficeBlueprintImport.jsx';
 
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-
 import Login from './components/Login.jsx';
 import Signup from './components/Signup.jsx';
 import ForgotPassword from './components/ForgotPassword.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
 import VerifyEmail from './components/VerifyEmail.jsx';
 
-import RoomManager from './components/RoomManager.jsx';
+import Dashboard from './components/Dashboard.jsx';
+
 import config from './config.js';
 import { useUiTick } from './hooks/useUiTick.js';
 import { useAuthSession } from './hooks/useAuthSession.js';
 
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 
-function getApiBaseUrl() {
-  return String(config.serverUrl).replace(/\/+$/, '');
-}
-
-function LoadingScreen({ message = 'Loading your workspace…' }) {
+function LoadingScreen({
+  message = 'Loading your workspace…',
+}) {
   return (
-    <main
-      role="status"
-      aria-live="polite"
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: '24px',
-        backgroundColor: '#0f172a',
-        color: '#f8fafc',
-        fontFamily: 'system-ui, sans-serif',
-      }}
-    >
-      <div style={{ textAlign: 'center' }}>
-        <h1 style={{ fontSize: '24px' }}>ProxiSpeak Meet</h1>
-        <p style={{ color: '#94a3b8' }}>{message}</p>
+    <main className="grid min-h-screen place-items-center bg-[#080b14] px-6 text-[#edf2ff]">
+      <div className="text-center">
+        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#8175ff] text-xl font-bold">
+          P
+        </div>
+
+        <h1 className="text-xl font-bold">
+          ProxiSpeak Meet
+        </h1>
+
+        <p className="mt-3 text-sm text-[#9ba9c2]">
+          {message}
+        </p>
       </div>
     </main>
   );
 }
 
-function SessionErrorScreen({ message, onRetry, onSignOut }) {
+function SessionErrorScreen({
+  message,
+  onRetry,
+  onSignOut,
+}) {
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: '24px',
-        backgroundColor: '#0f172a',
-        color: '#f8fafc',
-        fontFamily: 'system-ui, sans-serif',
-      }}
-    >
-      <section
-        style={{
-          width: '100%',
-          maxWidth: '440px',
-          padding: '28px',
-          border: '1px solid #334155',
-          borderRadius: '12px',
-          backgroundColor: '#1e293b',
-        }}
-      >
-        <h1>Unable to verify your session</h1>
+    <main className="grid min-h-screen place-items-center bg-[#080b14] px-5 py-10 text-[#edf2ff]">
+      <section className="w-full max-w-md rounded-2xl border border-[#263149] bg-[#101625] p-7">
+        <h1 className="text-xl font-bold">
+          Unable to verify your session
+        </h1>
 
-        <p style={{ color: '#cbd5e1', lineHeight: 1.6 }}>
+        <p className="mt-4 text-sm leading-7 text-[#9ba9c2]">
           {message}
         </p>
 
-        <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+        <p className="mt-3 text-xs leading-6 text-[#71809a]">
           Check your connection to the server and try again.
         </p>
 
-        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+        <div className="mt-7 flex gap-3">
           <button
             type="button"
             onClick={onRetry}
-            style={{
-              flex: 1,
-              padding: '11px',
-              border: 0,
-              borderRadius: '7px',
-              backgroundColor: '#3b82f6',
-              color: '#fff',
-              cursor: 'pointer',
-            }}
+            className="flex-1 rounded-xl bg-[#8175ff] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7164f0]"
           >
             Retry
           </button>
@@ -106,15 +91,7 @@ function SessionErrorScreen({ message, onRetry, onSignOut }) {
           <button
             type="button"
             onClick={onSignOut}
-            style={{
-              flex: 1,
-              padding: '11px',
-              border: '1px solid #475569',
-              borderRadius: '7px',
-              backgroundColor: 'transparent',
-              color: '#f8fafc',
-              cursor: 'pointer',
-            }}
+            className="flex-1 rounded-xl border border-[#263149] px-4 py-3 text-sm font-semibold text-[#edf2ff] transition hover:bg-[#151e30]"
           >
             Sign in again
           </button>
@@ -124,19 +101,33 @@ function SessionErrorScreen({ message, onRetry, onSignOut }) {
   );
 }
 
+/* -------------------------------------------------------
+   OFFICE CONNECTION AND AUDIO STATUS
+------------------------------------------------------- */
+
 function ConnectionAudioPanel() {
-  const { state, audioRef, peersRef } = useProxi();
+  const {
+    state,
+    audioRef,
+    peersRef,
+  } = useProxi();
 
   useUiTick(500);
 
-  const connections = peersRef.current?.snapshot?.() ?? [];
+  const connections =
+    peersRef.current?.snapshot?.() ?? [];
 
   const connectedPeers = connections.filter(
-    (connection) => connection.state === 'connected',
+    (connection) =>
+      connection.state === 'connected',
   ).length;
 
-  const socketConnected = state.status === 'online';
-  const audioReady = Boolean(state.selfId && audioRef.current);
+  const socketConnected =
+    state.status === 'online';
+
+  const audioReady = Boolean(
+    state.selfId && audioRef.current,
+  );
 
   const microphoneLabel = state.muted
     ? 'Muted'
@@ -148,6 +139,44 @@ function ConnectionAudioPanel() {
           ? 'Microphone unavailable'
           : 'Microphone pending';
 
+  const items = [
+    {
+      label: 'Socket.IO',
+      value: socketConnected
+        ? 'Connected'
+        : state.status === 'connecting'
+          ? 'Connecting'
+          : state.status === 'reconnecting'
+            ? 'Reconnecting'
+            : state.status === 'error'
+              ? 'Connection error'
+              : 'Offline',
+      active: socketConnected,
+    },
+    {
+      label: 'WebRTC',
+      value:
+        connections.length === 0
+          ? 'No peer connections'
+          : `${connectedPeers}/${connections.length} connected`,
+      active: connectedPeers > 0,
+    },
+    {
+      label: 'Spatial Audio',
+      value: audioReady
+        ? 'Initialized'
+        : 'Waiting',
+      active: audioReady,
+    },
+    {
+      label: 'Microphone',
+      value: microphoneLabel,
+      active:
+        state.mic.state === 'ready' &&
+        !state.muted,
+    },
+  ];
+
   return (
     <section
       className="panel connection-panel"
@@ -158,6 +187,7 @@ function ConnectionAudioPanel() {
           <span className="connection-panel__eyebrow">
             LIVE STATUS
           </span>
+
           <h2 id="connection-panel-title">
             Connection &amp; Audio
           </h2>
@@ -165,95 +195,71 @@ function ConnectionAudioPanel() {
       </header>
 
       <ul className="connection-panel__list">
-        <li className="connection-panel__item">
-          <span
-            className={`connection-panel__indicator ${socketConnected
-                ? 'connection-panel__indicator--online'
-                : ''
+        {items.map((item) => (
+          <li
+            key={item.label}
+            className="connection-panel__item"
+          >
+            <span
+              className={`connection-panel__indicator ${
+                item.active
+                  ? 'connection-panel__indicator--online'
+                  : ''
               }`}
-            aria-hidden="true"
-          />
-          <span className="connection-panel__label">Socket.IO</span>
-          <span className="connection-panel__value">
-            {socketConnected
-              ? 'Connected'
-              : state.status === 'connecting'
-                ? 'Connecting'
-                : state.status === 'reconnecting'
-                  ? 'Reconnecting'
-                  : state.status === 'error'
-                    ? 'Connection error'
-                    : 'Offline'}
-          </span>
-        </li>
+              aria-hidden="true"
+            />
 
-        <li className="connection-panel__item">
-          <span
-            className={`connection-panel__indicator ${connectedPeers > 0
-                ? 'connection-panel__indicator--online'
-                : ''
-              }`}
-            aria-hidden="true"
-          />
-          <span className="connection-panel__label">WebRTC</span>
-          <span className="connection-panel__value">
-            {connections.length === 0
-              ? 'No peer connections'
-              : `${connectedPeers}/${connections.length} connected`}
-          </span>
-        </li>
+            <span className="connection-panel__label">
+              {item.label}
+            </span>
 
-        <li className="connection-panel__item">
-          <span
-            className={`connection-panel__indicator ${audioReady
-                ? 'connection-panel__indicator--online'
-                : ''
-              }`}
-            aria-hidden="true"
-          />
-          <span className="connection-panel__label">Spatial Audio</span>
-          <span className="connection-panel__value">
-            {audioReady ? 'Initialized' : 'Waiting'}
-          </span>
-        </li>
-
-        <li className="connection-panel__item">
-          <span
-            className={`connection-panel__indicator ${state.mic.state === 'ready' && !state.muted
-                ? 'connection-panel__indicator--online'
-                : ''
-              }`}
-            aria-hidden="true"
-          />
-          <span className="connection-panel__label">Microphone</span>
-          <span className="connection-panel__value">
-            {microphoneLabel}
-          </span>
-        </li>
+            <span className="connection-panel__value">
+              {item.value}
+            </span>
+          </li>
+        ))}
       </ul>
     </section>
   );
 }
 
+/* -------------------------------------------------------
+   ROOM INFORMATION
+------------------------------------------------------- */
+
 function RoomInfoPanel() {
-  const { state, dispatch } = useProxi();
+  const {
+    state,
+    dispatch,
+  } = useProxi();
+
   const [copyState, setCopyState] = useState('idle');
 
-  const roomId = state.room?.roomId ?? config.defaultRoom;
-  const roomName = state.room?.name || roomId;
+  const roomId =
+    state.room?.roomId ?? config.defaultRoom;
+
+  const roomName =
+    state.room?.name || roomId;
+
   const participantCount =
     state.roster.length + (state.selfId ? 1 : 0);
 
   const copyInvite = async () => {
     const inviteUrl = new URL(window.location.href);
+
     inviteUrl.searchParams.set('room', roomId);
 
     try {
       if (!navigator.clipboard?.writeText) {
-        throw new Error('Clipboard access is unavailable.');
+        throw new Error(
+          'Clipboard access is unavailable.',
+        );
       }
 
-      await navigator.clipboard.writeText(inviteUrl.toString());
+      await navigator.clipboard.writeText(
+        inviteUrl.toString(),
+      );
+
       setCopyState('copied');
 
       dispatch({
@@ -264,7 +270,10 @@ function RoomInfoPanel() {
         },
       });
 
-      window.setTimeout(() => setCopyState('idle'), 2000);
+      window.setTimeout(
+        () => setCopyState('idle'),
+        2000,
+      );
     } catch {
       setCopyState('error');
 
@@ -286,8 +295,13 @@ function RoomInfoPanel() {
     >
       <header className="panel__header room-info__header">
         <div>
-          <span className="room-info__eyebrow">YOUR WORKSPACE</span>
-          <h2 id="room-info-title">Room Info</h2>
+          <span className="room-info__eyebrow">
+            YOUR WORKSPACE
+          </span>
+
+          <h2 id="room-info-title">
+            Room Info
+          </h2>
         </div>
       </header>
 
@@ -296,9 +310,15 @@ function RoomInfoPanel() {
           <span className="room-info__icon" aria-hidden="true">
             ⌂
           </span>
+
           <div className="room-info__copy">
-            <span className="room-info__label">Room</span>
-            <strong className="room-info__value">{roomName}</strong>
+            <span className="room-info__label">
+              Room
+            </span>
+
+            <strong className="room-info__value">
+              {roomName}
+            </strong>
           </div>
         </div>
 
@@ -306,8 +326,12 @@ function RoomInfoPanel() {
           <span className="room-info__icon" aria-hidden="true">
             ♙
           </span>
+
           <div className="room-info__copy">
-            <span className="room-info__label">Participants</span>
+            <span className="room-info__label">
+              Participants
+            </span>
+
             <strong className="room-info__value">
               {participantCount}
             </strong>
@@ -318,9 +342,15 @@ function RoomInfoPanel() {
           <span className="room-info__icon" aria-hidden="true">
             #
           </span>
+
           <div className="room-info__copy">
-            <span className="room-info__label">Room ID</span>
-            <strong className="room-info__value">{roomId}</strong>
+            <span className="room-info__label">
+              Room ID
+            </span>
+
+            <strong className="room-info__value">
+              {roomId}
+            </strong>
           </div>
         </div>
       </div>
@@ -341,207 +371,16 @@ function RoomInfoPanel() {
   );
 }
 
-function RoomSwitcher() {
-  const { state, join, dispatch } = useProxi();
-
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [switching, setSwitching] = useState(false);
-  const [error, setError] = useState('');
-
-  const currentRoomId =
-    state.room?.roomId ??
-    state.sessionIntent?.roomId ??
-    config.defaultRoom;
-
-  const loadRooms = useCallback(async (signal) => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/rooms`, {
-        headers: { Accept: 'application/json' },
-        signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Room catalogue request failed (${response.status}).`,
-        );
-      }
-
-      const payload = await response.json();
-
-      if (!Array.isArray(payload?.rooms)) {
-        throw new Error('The server returned an invalid room catalogue.');
-      }
-
-      setRooms(
-        payload.rooms.filter(
-          (room) =>
-            room &&
-            typeof room.roomId === 'string' &&
-            ROOM_ID_PATTERN.test(room.roomId),
-        ),
-      );
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-
-      setError(err.message || 'Unable to load available rooms.');
-    } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    void loadRooms(controller.signal);
-
-    return () => controller.abort();
-  }, [loadRooms]);
-
-  const handleRoomChange = async (event) => {
-    const nextRoomId = event.target.value;
-
-    if (
-      !nextRoomId ||
-      nextRoomId === currentRoomId ||
-      switching
-    ) {
-      return;
-    }
-
-    const selectedRoom = rooms.find(
-      (room) => room.roomId === nextRoomId,
-    );
-
-    if (!selectedRoom) {
-      setError('Select a room from the available room catalogue.');
-      return;
-    }
-
-    const intent = state.sessionIntent;
-
-    if (!intent || !state.selfId) {
-      setError('Join the office before switching rooms.');
-      return;
-    }
-
-    setSwitching(true);
-    setError('');
-
-    try {
-      await join({
-        ...intent,
-        roomId: nextRoomId,
-        withMic: false,
-      });
-
-      dispatch({
-        type: 'notice',
-        notice: {
-          level: 'success',
-          message: `Switched to ${selectedRoom.name || nextRoomId}.`,
-        },
-      });
-
-      void loadRooms();
-    } catch (err) {
-      setError(err.message || 'Could not switch rooms.');
-    } finally {
-      setSwitching(false);
-    }
-  };
-
-  return (
-    <section
-      className="panel room-switcher"
-      aria-labelledby="room-switcher-title"
-    >
-      <header className="panel__header">
-        <div>
-          <span className="room-info__eyebrow">WORKSPACE</span>
-          <h2 id="room-switcher-title">Switch room</h2>
-        </div>
-
-        <button
-          type="button"
-          className="button button--small"
-          disabled={loading || switching}
-          onClick={() => void loadRooms()}
-        >
-          Refresh
-        </button>
-      </header>
-
-      <div className="room-info__details">
-        <label
-          className="room-info__copy"
-          htmlFor="workspace-room-select"
-        >
-          <span className="room-info__label">Available rooms</span>
-
-          <select
-            id="workspace-room-select"
-            className="room-switcher__select"
-            value={currentRoomId}
-            onChange={handleRoomChange}
-            disabled={
-              loading ||
-              switching ||
-              state.status !== 'online'
-            }
-          >
-            {!rooms.some((room) => room.roomId === currentRoomId) && (
-              <option value={currentRoomId}>
-                {currentRoomId} (current)
-              </option>
-            )}
-
-            {rooms.map((room) => (
-              <option key={room.roomId} value={room.roomId}>
-                {room.name || room.roomId}
-                {' · '}
-                {room.liveUsers ?? 0} online
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <p className="room-info__label" role="status">
-          {loading
-            ? 'Loading rooms from the server…'
-            : switching
-              ? 'Switching room…'
-              : state.status !== 'online'
-                ? 'Connect to the server to switch rooms.'
-                : `${rooms.length} rooms available`}
-        </p>
-
-        {error && (
-          <div role="alert" className="room-switcher__error">
-            <p>{error}</p>
-
-            <button
-              type="button"
-              className="button button--small"
-              disabled={loading || switching}
-              onClick={() => void loadRooms()}
-            >
-              Retry
-            </button>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
+/* -------------------------------------------------------
+   OFFICE SETTINGS
+------------------------------------------------------- */
 
 function SettingsPanel() {
-  const { state, toggleMute, setVolume } = useProxi();
+  const {
+    state,
+    toggleMute,
+    setVolume,
+  } = useProxi();
 
   return (
     <>
@@ -554,7 +393,10 @@ function SettingsPanel() {
             <span className="connection-panel__eyebrow">
               PREFERENCES
             </span>
-            <h2 id="settings-panel-title">Audio settings</h2>
+
+            <h2 id="settings-panel-title">
+              Audio settings
+            </h2>
           </div>
         </header>
 
@@ -565,7 +407,10 @@ function SettingsPanel() {
             </span>
 
             <div className="room-info__copy">
-              <span className="room-info__label">Microphone</span>
+              <span className="room-info__label">
+                Microphone
+              </span>
+
               <strong className="room-info__value">
                 {state.muted ? 'Muted' : 'Unmuted'}
               </strong>
@@ -595,7 +440,9 @@ function SettingsPanel() {
               </label>
 
               <strong className="room-info__value">
-                {Math.round(state.masterVolume * 100)}%
+                {Math.round(
+                  state.masterVolume * 100,
+                )}%
               </strong>
             </div>
 
@@ -615,12 +462,15 @@ function SettingsPanel() {
         </div>
       </section>
 
-      <RoomSwitcher />
       <OfficeBlueprintImporter />
       <RoomInfoPanel />
     </>
   );
 }
+
+/* -------------------------------------------------------
+   OFFICE WORKSPACE VIEWS
+------------------------------------------------------- */
 
 function WorkspaceView({ activeView }) {
   switch (activeView) {
@@ -629,7 +479,9 @@ function WorkspaceView({ activeView }) {
         <main
           className="app__body"
           aria-label="People workspace"
-          style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}
+          style={{
+            gridTemplateColumns: 'minmax(0, 1fr)',
+          }}
         >
           <div className="app__sidebar">
             <PeerList />
@@ -643,7 +495,9 @@ function WorkspaceView({ activeView }) {
         <main
           className="app__body"
           aria-label="Audio and diagnostics workspace"
-          style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}
+          style={{
+            gridTemplateColumns: 'minmax(0, 1fr)',
+          }}
         >
           <div className="app__sidebar">
             <ConnectionAudioPanel />
@@ -657,7 +511,9 @@ function WorkspaceView({ activeView }) {
         <main
           className="app__body"
           aria-label="Workspace settings"
-          style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}
+          style={{
+            gridTemplateColumns: 'minmax(0, 1fr)',
+          }}
         >
           <div className="app__sidebar">
             <SettingsPanel />
@@ -688,8 +544,13 @@ function WorkspaceView({ activeView }) {
   }
 }
 
+/* -------------------------------------------------------
+   VIRTUAL OFFICE
+------------------------------------------------------- */
+
 function Office() {
   const { state } = useProxi();
+
   const [activeView, setActiveView] = useState('office');
 
   if (!state.selfId) {
@@ -705,19 +566,26 @@ function Office() {
   const viewDetails = {
     office: {
       title: 'Office Floor',
-      description: 'Your virtual workspace and spatial environment.',
+      description:
+        'Your virtual workspace and spatial environment.',
     },
+
     people: {
       title: 'People',
-      description: 'Discover participants in your current room.',
+      description:
+        'Discover participants in your current room.',
     },
+
     audio: {
       title: 'Audio & Connections',
-      description: 'Monitor live connectivity and spatial audio.',
+      description:
+        'Monitor live connectivity and spatial audio.',
     },
+
     settings: {
       title: 'Settings',
-      description: 'Manage your audio preferences and workspace.',
+      description:
+        'Manage your audio preferences and workspace.',
     },
   };
 
@@ -737,7 +605,9 @@ function Office() {
         {activeView !== 'office' && (
           <header
             className="panel__header"
-            style={{ padding: '16px 20px 0' }}
+            style={{
+              padding: '16px 20px 0',
+            }}
           >
             <div>
               <h1>{currentView.title}</h1>
@@ -753,6 +623,74 @@ function Office() {
     </div>
   );
 }
+
+/* -------------------------------------------------------
+   MEETING HEADER
+
+   This component is inside ProxiProvider so it can call
+   the real leave() function before returning to Dashboard.
+------------------------------------------------------- */
+
+function MeetingHeader({
+  roomId,
+  onLeave,
+}) {
+  const { leave } = useProxi();
+
+  const [leaving, setLeaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLeave = async () => {
+    if (leaving) return;
+
+    setLeaving(true);
+    setError('');
+
+    try {
+      await leave();
+      onLeave();
+    } catch (err) {
+      setError(
+        err.message || 'Unable to leave the meeting.',
+      );
+      setLeaving(false);
+    }
+  };
+
+  return (
+    <header className="relative z-[1000] flex flex-wrap items-center justify-between gap-3 border-b border-[#263149] bg-[#0d131c] px-4 py-3 sm:px-6">
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold tracking-[0.18em] text-[#9ba9c2]">
+          CURRENT MEETING
+        </p>
+
+        <p className="mt-1 truncate text-sm font-semibold text-[#edf2ff]">
+          {roomId}
+        </p>
+
+        {error && (
+          <p role="alert" className="mt-1 text-xs text-red-300">
+            {error}
+          </p>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleLeave}
+        disabled={leaving}
+        className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-2.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {leaving ? 'Leaving meeting…' : 'Leave meeting'}
+      </button>
+    </header>
+  );
+}
+
+/* -------------------------------------------------------
+   AUTHENTICATION ROUTES
+------------------------------------------------------- */
+
 function AuthRoutes({ onLogin }) {
   const location = useLocation();
 
@@ -794,13 +732,19 @@ function AuthRoutes({ onLogin }) {
           <Navigate
             to="/login"
             replace
-            state={{ from: location.pathname }}
+            state={{
+              from: location.pathname,
+            }}
           />
         }
       />
     </Routes>
   );
 }
+
+/* -------------------------------------------------------
+   MAIN APPLICATION
+------------------------------------------------------- */
 
 export function App() {
   const {
@@ -812,71 +756,239 @@ export function App() {
     verifySession,
   } = useAuthSession();
 
-  const [currentRoom, setCurrentRoom] = useState(
-    () => new URLSearchParams(window.location.search).get('room'),
-  );
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  /*
+   * Preserve invite-link behavior:
+   * A valid room query can open the invited room after
+   * the authenticated session has been restored.
+   *
+   * Normal login without a room query opens Dashboard.
+   */
+  const [currentRoom, setCurrentRoom] = useState(() => {
+    const roomId = new URLSearchParams(
+      window.location.search,
+    ).get('room');
+
+    const normalizedRoomId =
+      typeof roomId === 'string'
+        ? roomId.trim().toLowerCase()
+        : '';
+
+    return ROOM_ID_PATTERN.test(normalizedRoomId)
+      ? normalizedRoomId
+      : null;
+  });
 
   const currentUser = user?.username ?? null;
 
+  /*
+   * Establish the session after Login.jsx successfully
+   * stores the token and returns the username.
+   */
   const handleLogin = useCallback(
     (username) => {
       const token = localStorage.getItem('token');
 
-      if (!token || typeof username !== 'string' || !username) {
-        throw new Error('Login did not return a valid session.');
+      if (
+        !token ||
+        typeof username !== 'string' ||
+        !username.trim()
+      ) {
+        throw new Error(
+          'Login did not return a valid session.',
+        );
       }
 
-      login({ token, username });
+      login({
+        token,
+        username: username.trim(),
+      });
+
+      setCurrentRoom(null);
+
+      const url = new URL(window.location.href);
+      url.searchParams.delete('room');
+
+      window.history.replaceState({}, '', url);
+
+      navigate('/dashboard', {
+        replace: true,
+      });
     },
-    [login],
+    [login, navigate],
   );
 
+  /*
+   * Logout clears the existing authentication session
+   * and removes any active room from the URL.
+   */
   const handleLogout = useCallback(() => {
     logout();
     setCurrentRoom(null);
 
     const url = new URL(window.location.href);
+
     url.searchParams.delete('room');
 
     window.history.replaceState({}, '', url);
-  }, [logout]);
 
-  const handleJoinRoom = useCallback((roomId) => {
-    const normalizedRoomId =
-      typeof roomId === 'string' ? roomId.trim() : '';
+    navigate('/login', {
+      replace: true,
+    });
+  }, [logout, navigate]);
 
-    if (!ROOM_ID_PATTERN.test(normalizedRoomId)) {
-      return;
-    }
+  /*
+   * Called by Dashboard after successful room creation
+   * or room verification.
+   */
+  const handleJoinRoom = useCallback(
+    (roomId) => {
+      const normalizedRoomId =
+        typeof roomId === 'string'
+          ? roomId.trim().toLowerCase()
+          : '';
+
+      if (
+        !ROOM_ID_PATTERN.test(normalizedRoomId)
+      ) {
+        return;
+      }
+
+      const url = new URL(window.location.href);
+
+      url.searchParams.set(
+        'room',
+        normalizedRoomId,
+      );
+
+      window.history.pushState(
+        {},
+        '',
+        url,
+      );
+
+      setCurrentRoom(normalizedRoomId);
+    },
+    [],
+  );
+
+  /*
+   * After the actual ProxiContext leave() operation,
+   * return the user to Dashboard.
+   */
+  const handleLeaveMeeting = useCallback(() => {
+    setCurrentRoom(null);
 
     const url = new URL(window.location.href);
-    url.searchParams.set('room', normalizedRoomId);
 
-    window.history.pushState({}, '', url);
-    setCurrentRoom(normalizedRoomId);
+    url.searchParams.delete('room');
+
+    window.history.replaceState(
+      {},
+      '',
+      url,
+    );
+
+    navigate('/dashboard', {
+      replace: true,
+    });
+  }, [navigate]);
+
+  /*
+   * Keep React state synchronized with browser back/forward.
+   */
+  useEffect(() => {
+    const handlePopState = () => {
+      const roomId = new URLSearchParams(
+        window.location.search,
+      ).get('room');
+
+      const normalizedRoomId =
+        typeof roomId === 'string'
+          ? roomId.trim().toLowerCase()
+          : '';
+
+      setCurrentRoom(
+        ROOM_ID_PATTERN.test(normalizedRoomId)
+          ? normalizedRoomId
+          : null,
+      );
+    };
+
+    window.addEventListener(
+      'popstate',
+      handlePopState,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'popstate',
+        handlePopState,
+      );
+    };
   }, []);
 
-  if (loading) {
-    return <LoadingScreen message="Verifying your login session…" />;
-  }
+  /*
+   * A restored authenticated session should land on
+   * Dashboard instead of the old /login route.
+   */
+  useEffect(() => {
+    if (
+      currentUser &&
+      !currentRoom &&
+      location.pathname !== '/dashboard'
+    ) {
+      navigate('/dashboard', {
+        replace: true,
+      });
+    }
+  }, [
+    currentUser,
+    currentRoom,
+    location.pathname,
+    navigate,
+  ]);
 
-  if (error && !currentUser && localStorage.getItem('token')) {
+  if (loading) {
     return (
-      <SessionErrorScreen
-        message={error}
-        onRetry={() => void verifySession()}
-        onSignOut={logout}
+      <LoadingScreen
+        message="Verifying your login session…"
       />
     );
   }
 
-  if (!currentUser) {
-    return <AuthRoutes onLogin={handleLogin} />;
+  if (
+    error &&
+    !currentUser &&
+    localStorage.getItem('token')
+  ) {
+    return (
+      <SessionErrorScreen
+        message={error}
+        onRetry={() => void verifySession()}
+        onSignOut={handleLogout}
+      />
+    );
   }
 
+  /*
+   * Authentication pages are accessible only when
+   * the user does not have a verified active session.
+   */
+  if (!currentUser) {
+    return (
+      <AuthRoutes onLogin={handleLogin} />
+    );
+  }
+
+  /*
+   * Main authenticated landing page.
+   */
   if (!currentRoom) {
     return (
-      <RoomManager
+      <Dashboard
         username={currentUser}
         onJoinRoom={handleJoinRoom}
         onLogout={handleLogout}
@@ -884,71 +996,24 @@ export function App() {
     );
   }
 
+  /*
+   * Existing virtual office.
+   *
+   * ProxiProvider is mounted only while a meeting is
+   * active. Leaving the meeting first calls leave(),
+   * then unmounts this provider and its resources.
+   */
   return (
-    <>
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
-          backgroundColor: 'rgba(15, 23, 42, 0.85)',
-          backdropFilter: 'blur(4px)',
-          borderBottom: '1px solid #334155',
-          padding: '10px 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <div
-          style={{
-            color: '#f8fafc',
-            fontFamily: 'system-ui, sans-serif',
-          }}
-        >
-          <span style={{ color: '#94a3b8', fontSize: '14px' }}>
-            Room ID:
-          </span>
+    <ProxiProvider>
+      <div className="min-h-screen bg-[#080b14]">
+        <MeetingHeader
+          roomId={currentRoom}
+          onLeave={handleLeaveMeeting}
+        />
 
-          <strong
-            style={{
-              marginLeft: '8px',
-              letterSpacing: '1px',
-            }}
-          >
-            {currentRoom}
-          </strong>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('room');
-
-            window.history.pushState({}, '', url);
-            setCurrentRoom(null);
-          }}
-          style={{
-            backgroundColor: '#ef4444',
-            color: 'white',
-            border: 'none',
-            padding: '6px 12px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-          }}
-        >
-          Leave Room
-        </button>
-      </div>
-
-      <ProxiProvider>
         <Office />
-      </ProxiProvider>
-    </>
+      </div>
+    </ProxiProvider>
   );
 }
 
