@@ -1,21 +1,19 @@
 /*
  * ProxiSpeakMeet
- * Tailwind CSS v4 Foundation
+ * Tailwind CSS v4
  *
- * Existing styles.css remains untouched.
- * Tailwind Preflight is intentionally excluded
- * to preserve the existing application's appearance.
+ * Existing styles.css is preserved.
+ * Tailwind Preflight is intentionally disabled.
  */
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
-/* =========================================================
-   Tailwind Theme Mapping
-   Existing CSS variables remain the source of truth.
-========================================================= */
+/* =====================================================
+   Existing ProxiSpeak Design Tokens
+===================================================== */
 
-@theme {
+@theme inline {
   /* Colors */
 
   --color-bg: var(--bg);
@@ -40,51 +38,26 @@
   --color-badge-bg: var(--badge-bg);
   --color-badge-border: var(--badge-border);
 
+  /* Typography */
 
-  /* Border Radius */
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+
+  /* Radius */
 
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
 
-
-  /* Spacing */
-
-  --spacing-1: 4px;
-  --spacing-2: 8px;
-  --spacing-3: 12px;
-  --spacing-4: 16px;
-  --spacing-5: 20px;
-  --spacing-6: 24px;
-  --spacing-8: 32px;
-
-
-  /* Typography */
-
-  --font-sans:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
-
-
   /* Shadows */
 
-  --shadow-panel: var(--shadow-panel);
+  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.22);
 }
 
-
-/* =========================================================
-   ProxiSpeak Utility Extensions
-========================================================= */
+/* =====================================================
+   Custom Utilities
+===================================================== */
 
 @layer utilities {
-
   .ps-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: var(--line-strong) transparent;
@@ -107,5 +80,4 @@
   .ps-scrollbar::-webkit-scrollbar-thumb:hover {
     background: var(--accent);
   }
-
 }
