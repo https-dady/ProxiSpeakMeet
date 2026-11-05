@@ -71,7 +71,12 @@ export default function Signup() {
 
       const payload = await response.json().catch(() => ({}));
 
-      if (!response.ok && !payload.emailVerificationRequired) {
+      const accountRequiresVerification =
+        response.status === 201 ||
+        (response.status === 502 &&
+          payload.emailVerificationRequired === true);
+
+      if (!accountRequiresVerification) {
         throw new Error(
           payload.error ||
             payload.message ||
@@ -79,13 +84,20 @@ export default function Signup() {
         );
       }
 
+      const emailDeliveryFailed = response.status === 502;
+
       navigate(
         `/verify-email?email=${encodeURIComponent(email)}`,
         {
           replace: true,
           state: {
             email,
-            message: payload.message || '',
+            message:
+              payload.message ||
+              (emailDeliveryFailed
+                ? 'Your account was created, but the verification email could not be sent. Request a new code below.'
+                : 'Verification code sent to your email address.'),
+            emailDeliveryFailed,
           },
         },
       );
@@ -102,7 +114,6 @@ export default function Signup() {
   return (
     <main className="grid min-h-dvh w-full grid-cols-1 overflow-x-hidden bg-[#080b14] font-sans text-[#edf2ff] lg:grid-cols-2">
 
-      {/* Branding panel */}
       <section className="relative hidden min-h-dvh flex-col justify-between overflow-hidden border-r border-[#263149] bg-[radial-gradient(ellipse_at_20%_15%,rgba(129,117,255,0.13),transparent_40%),radial-gradient(ellipse_at_80%_80%,rgba(90,209,154,0.07),transparent_38%),#0d131c] p-8 isolate lg:flex xl:p-14">
 
         <div className="pointer-events-none absolute -right-[18%] top-[25%] aspect-square w-[70%] rounded-full border border-[rgba(129,117,255,0.12)] shadow-[0_0_0_45px_rgba(129,117,255,0.025),0_0_0_95px_rgba(129,117,255,0.02)]" />
@@ -170,10 +181,8 @@ export default function Signup() {
         </div>
       </section>
 
-      {/* Signup panel */}
       <section className="relative flex min-h-dvh min-w-0 flex-col items-center justify-center bg-[radial-gradient(ellipse_at_100%_0%,rgba(129,117,255,0.045),transparent_35%),#080b14] px-[22px] py-[25px] sm:px-8 lg:px-[clamp(30px,5.2vw,84px)] lg:py-[45px]">
 
-        {/* Mobile branding */}
         <div className="mb-[30px] inline-flex w-full max-w-[460px] items-center gap-3 text-[17px] font-extrabold tracking-tight text-[#edf2ff] lg:hidden">
 
           <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl border border-[rgba(129,117,255,0.4)] bg-[rgba(129,117,255,0.12)] text-xl text-[#a69cff]">
@@ -185,7 +194,6 @@ export default function Signup() {
 
         <div className="my-auto w-full max-w-[430px]">
 
-          {/* Heading */}
           <div className="mb-[25px]">
 
             <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[2.1px] text-[#a69cff]">
@@ -203,7 +211,6 @@ export default function Signup() {
             </p>
           </div>
 
-          {/* Error */}
           {error && (
             <div
               className="mb-5 break-words rounded-[10px] border border-[rgba(255,107,129,0.25)] bg-[rgba(255,107,129,0.08)] px-3.5 py-3 text-[11px] leading-[1.8] text-[#ff9eae]"
@@ -213,15 +220,12 @@ export default function Signup() {
             </div>
           )}
 
-          {/* Signup form */}
           <form
             className="grid w-full gap-[17px]"
             onSubmit={handleSubmit}
           >
 
-            {/* Username */}
             <div className="grid min-w-0 gap-[8px]">
-
               <label
                 htmlFor="signup-username"
                 className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
@@ -245,9 +249,7 @@ export default function Signup() {
               />
             </div>
 
-            {/* Email */}
             <div className="grid min-w-0 gap-[8px]">
-
               <label
                 htmlFor="signup-email"
                 className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
@@ -269,9 +271,7 @@ export default function Signup() {
               />
             </div>
 
-            {/* Password */}
             <div className="grid min-w-0 gap-[8px]">
-
               <label
                 htmlFor="signup-password"
                 className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
@@ -294,9 +294,7 @@ export default function Signup() {
               />
             </div>
 
-            {/* Confirm password */}
             <div className="grid min-w-0 gap-[8px]">
-
               <label
                 htmlFor="signup-confirm-password"
                 className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
@@ -319,7 +317,6 @@ export default function Signup() {
               />
             </div>
 
-            {/* Submit */}
             <button
               className="mt-[3px] flex min-h-[49px] w-full items-center justify-center gap-3 rounded-[11px] border border-transparent bg-[#8175ff] px-[18px] py-[13px] text-xs font-extrabold leading-[1.5] text-[#080b14] transition-[transform,background,box-shadow] duration-200 hover:-translate-y-px hover:bg-[#958bff] hover:shadow-[0_9px_25px_rgba(129,117,255,0.18)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#5ad19a] disabled:cursor-wait disabled:opacity-60"
               type="submit"
@@ -328,10 +325,7 @@ export default function Signup() {
               {loading ? 'Creating account...' : 'Create account'}
 
               {!loading && (
-                <span
-                  className="text-[17px] leading-none"
-                  aria-hidden="true"
-                >
+                <span className="text-[17px] leading-none" aria-hidden="true">
                   →
                 </span>
               )}
@@ -339,7 +333,6 @@ export default function Signup() {
 
           </form>
 
-          {/* Login navigation */}
           <p className="mt-[22px] text-center text-[11px] leading-[1.8] text-[#9ba9c2]">
             Already have an account?{' '}
             <Link
@@ -350,7 +343,6 @@ export default function Signup() {
             </Link>
           </p>
 
-          {/* Verification note */}
           <div className="mt-[24px] flex items-start justify-center gap-2 rounded-[10px] border border-[#263149] bg-[#101625]/70 px-4 py-3 text-[10px] leading-[1.8] text-[#9ba9c2]">
             <span className="mt-0.5 shrink-0 text-[#5ad19a]" aria-hidden="true">
               ●
@@ -364,13 +356,9 @@ export default function Signup() {
 
         </div>
 
-        {/* Footer */}
         <footer className="mt-[30px] flex w-full max-w-[430px] flex-wrap justify-between gap-2.5 text-[9px] leading-[1.8] text-[#7889a5] max-[760px]:mt-auto max-[760px]:max-w-[460px] max-[760px]:pt-8 max-[380px]:flex-col max-[380px]:gap-1">
-
           <span>© {new Date().getFullYear()} ProxiSpeak Meet</span>
-
           <span>Built for better connections.</span>
-
         </footer>
 
       </section>
