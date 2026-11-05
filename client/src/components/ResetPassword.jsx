@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import config from '../config.js';
 
 const API_BASE_URL = `${String(config.serverUrl).replace(/\/+$/, '')}/api/auth`;
+const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -19,19 +20,62 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  const cooldownIntervalRef = useRef(null);
+  const redirectTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current);
+      }
+
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const startCooldown = () => {
+    if (cooldownIntervalRef.current) {
+      clearInterval(cooldownIntervalRef.current);
+    }
+
+    setCooldown(RESEND_COOLDOWN_SECONDS);
+
+    cooldownIntervalRef.current = setInterval(() => {
+      setCooldown((previous) => {
+        if (previous <= 1) {
+          clearInterval(cooldownIntervalRef.current);
+          cooldownIntervalRef.current = null;
+          return 0;
+        }
+
+        return previous - 1;
+      });
+    }, 1000);
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (loading) return;
+    if (loading || completed) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedOtp = otp.trim();
 
     if (!normalizedEmail || !normalizedOtp || !password || !confirmPassword) {
       setError('Please complete all fields.');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError('Enter a valid email address.');
       return;
     }
 
@@ -78,9 +122,12 @@ export default function ResetPassword() {
         );
       }
 
-      setNotice('Your password has been reset successfully.');
+      setCompleted(true);
+      setNotice(
+        payload.message || 'Your password has been reset successfully.',
+      );
 
-      setTimeout(() => {
+      redirectTimeoutRef.current = setTimeout(() => {
         navigate('/login', {
           replace: true,
           state: {
@@ -91,8 +138,7 @@ export default function ResetPassword() {
       }, 1200);
     } catch (err) {
       setError(
-        err.message ||
-          'Unable to connect to the server. Please try again.',
+        err.message || 'Unable to connect to the server. Please try again.',
       );
     } finally {
       setLoading(false);
@@ -100,12 +146,17 @@ export default function ResetPassword() {
   };
 
   const handleResend = async () => {
-    if (loading) return;
+    if (loading || completed || cooldown > 0) return;
 
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail) {
       setError('Enter your registered email address first.');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError('Enter a valid email address.');
       return;
     }
 
@@ -137,9 +188,11 @@ export default function ResetPassword() {
 
       setNotice(
         payload.message ||
-          'If an eligible account exists, a new password-reset OTP has been requested.',
+          'If an account exists for that email, password-reset instructions will be sent.',
       );
+
       setOtp('');
+      startCooldown();
     } catch (err) {
       setError(err.message || 'Unable to request a new OTP.');
     } finally {
@@ -148,147 +201,116 @@ export default function ResetPassword() {
   };
 
   return (
-    <main className="grid min-h-dvh w-full grid-cols-1 overflow-x-hidden bg-[#080b14] font-sans text-[#edf2ff] lg:grid-cols-2">
+    <main className="min-h-screen bg-[#080b14] text-[#edf2ff] lg:grid lg:grid-cols-2">
+      <section className="relative hidden min-h-screen flex-col justify-between overflow-hidden border-r border-[#263149] bg-[#101625] px-12 py-10 lg:flex xl:px-20">
+        <div className="pointer-events-none absolute -left-32 top-32 h-96 w-96 rounded-full bg-[#8175ff]/10 blur-[120px]" />
+        <div className="pointer-events-none absolute -right-20 bottom-20 h-80 w-80 rounded-full bg-[#5ad19a]/5 blur-[110px]" />
 
-      {/* Branding panel */}
-      <section className="relative hidden min-h-dvh flex-col justify-between overflow-hidden border-r border-[#263149] bg-[radial-gradient(ellipse_at_20%_15%,rgba(129,117,255,0.13),transparent_40%),radial-gradient(ellipse_at_80%_80%,rgba(90,209,154,0.07),transparent_38%),#0d131c] p-8 isolate lg:flex xl:p-14">
-
-        <div className="pointer-events-none absolute -right-[18%] top-[25%] aspect-square w-[70%] rounded-full border border-[rgba(129,117,255,0.12)] shadow-[0_0_0_45px_rgba(129,117,255,0.025),0_0_0_95px_rgba(129,117,255,0.02)]" />
-
-        <div className="pointer-events-none absolute bottom-[15%] right-[10%] h-44 w-44 rounded-full bg-[rgba(129,117,255,0.08)] blur-[75px]" />
-
-        <Link
-          to="/login"
-          className="relative z-10 inline-flex w-fit items-center gap-3 text-[19px] font-extrabold tracking-tight text-[#edf2ff] no-underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8175ff]"
-        >
-          <span className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[14px] border border-[rgba(129,117,255,0.4)] bg-[rgba(129,117,255,0.12)] text-[22px] font-extrabold text-[#a69cff]">
+        <Link to="/login" className="relative flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#8175ff] text-xl font-bold text-white shadow-lg shadow-[#8175ff]/20">
             P
           </span>
 
-          <span>
-            ProxiSpeak
-            <span className="text-[#a69cff]"> Meet</span>
+          <span className="text-xl font-semibold tracking-tight">
+            ProxiSpeak <span className="text-[#a69cff]">Meet</span>
           </span>
         </Link>
 
-        <div className="relative z-10 my-auto w-full max-w-[590px] py-16">
-
-          <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[2.1px] text-[#a69cff]">
-            <span className="h-0.5 w-[19px] rounded-full bg-[#5ad19a]" />
+        <div className="relative max-w-xl">
+          <span className="mb-6 inline-flex rounded-full border border-[#8175ff]/30 bg-[#8175ff]/10 px-4 py-2 text-xs font-semibold tracking-[0.2em] text-[#a69cff]">
             A FRESH START
           </span>
 
-          <h1 className="mt-[22px] text-[clamp(36px,4.1vw,64px)] font-extrabold leading-[1.12] tracking-[-2.7px] [overflow-wrap:anywhere]">
-            Your next great
-            <br />
-            conversation <span className="text-[#a69cff]">awaits.</span>
+          <h1 className="text-5xl font-bold leading-[1.15] tracking-tight xl:text-6xl">
+            Your next great conversation{' '}
+            <span className="text-[#a69cff]">awaits.</span>
           </h1>
 
-          <p className="mt-[23px] max-w-[455px] text-[13px] leading-[1.95] text-[#9ba9c2]">
+          <p className="mt-7 max-w-lg text-base leading-8 text-[#9ba9c2]">
             Secure your account and return to a workspace built for natural
             conversations, collaboration, and connection.
           </p>
 
-          <blockquote className="relative mt-[38px] max-w-[460px] rounded-2xl border border-[rgba(129,117,255,0.16)] bg-white/[0.025] px-6 py-5 backdrop-blur-xl">
+          <div className="mt-12 rounded-2xl border border-[#263149] bg-[#151e30]/80 p-7 backdrop-blur">
+            <span className="text-4xl text-[#8175ff]">“</span>
 
-            <span className="block h-[31px] font-serif text-[46px] leading-none text-[#5ad19a]">
-              “
-            </span>
-
-            <p className="my-3 mb-4 text-xs leading-[1.9] text-[#d5def1]">
+            <p className="mt-2 text-lg leading-8 text-[#edf2ff]">
               Better connections start with being there. Let's get you back
               to your workspace.
             </p>
 
-            <footer className="text-[9px] font-extrabold tracking-[1.5px] text-[#7889a5]">
+            <p className="mt-6 text-xs font-semibold tracking-[0.18em] text-[#9ba9c2]">
               THE PROXISPEAK PHILOSOPHY
-            </footer>
-
-          </blockquote>
+            </p>
+          </div>
         </div>
 
-        <div className="relative z-10 flex flex-wrap justify-between gap-3 text-[9px] leading-[1.7] text-[#7889a5]">
+        <div className="relative flex items-center justify-between text-xs text-[#71809a]">
           <span>Less friction. More connection.</span>
-          <span className="tracking-[1.1px]">
-            PROXIMITY-POWERED CONVERSATIONS
-          </span>
+          <span>PROXIMITY-POWERED CONVERSATIONS</span>
         </div>
       </section>
 
-      {/* Reset password panel */}
-      <section className="relative flex min-h-dvh min-w-0 flex-col items-center justify-center bg-[radial-gradient(ellipse_at_100%_0%,rgba(129,117,255,0.045),transparent_35%),#080b14] px-[22px] py-[25px] sm:px-8 lg:px-[clamp(30px,5.2vw,84px)] lg:py-[45px]">
+      <section className="relative flex min-h-screen flex-col justify-between px-5 py-8 sm:px-10 lg:px-12 xl:px-20">
+        <div className="pointer-events-none absolute right-0 top-0 h-80 w-80 rounded-full bg-[#8175ff]/5 blur-[110px]" />
 
-        {/* Mobile branding */}
-        <div className="mb-[30px] inline-flex w-full max-w-[460px] items-center gap-3 text-[17px] font-extrabold tracking-tight text-[#edf2ff] lg:hidden">
-
-          <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl border border-[rgba(129,117,255,0.4)] bg-[rgba(129,117,255,0.12)] text-xl text-[#a69cff]">
+        <Link to="/login" className="relative flex items-center gap-3 lg:hidden">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8175ff] font-bold text-white">
             P
           </span>
 
-          <span>ProxiSpeak Meet</span>
-        </div>
+          <span className="text-lg font-semibold">
+            ProxiSpeak <span className="text-[#a69cff]">Meet</span>
+          </span>
+        </Link>
 
-        <div className="my-auto w-full max-w-[430px]">
-
-          {/* Back navigation */}
+        <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-12">
           <Link
             to="/forgot-password"
-            className="mb-[25px] inline-flex items-center gap-2 text-[11px] font-bold text-[#9ba9c2] no-underline transition-colors hover:text-[#a69cff] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8175ff]"
+            className="mb-9 inline-flex w-fit items-center gap-2 text-sm text-[#9ba9c2] transition hover:text-[#a69cff]"
           >
             <span aria-hidden="true">←</span>
             Back
           </Link>
 
-          {/* Heading */}
-          <div className="mb-[25px]">
-
-            <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[2.1px] text-[#a69cff]">
-              <span className="h-0.5 w-[19px] rounded-full bg-[#5ad19a]" />
+          <div className="mb-8">
+            <span className="mb-4 inline-flex rounded-full border border-[#8175ff]/30 bg-[#8175ff]/10 px-3 py-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#a69cff]">
               SECURE YOUR ACCOUNT
             </span>
 
-            <h2 className="mt-[15px] text-[clamp(26px,2.6vw,36px)] font-extrabold leading-[1.25] tracking-[-1.3px] [overflow-wrap:anywhere]">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
               Reset your password
             </h2>
 
-            <p className="mt-3 text-xs leading-[1.85] text-[#9ba9c2]">
+            <p className="mt-3 text-sm leading-7 text-[#9ba9c2]">
               Enter the six-digit code from your email and choose a new
               password.
             </p>
           </div>
 
-          {/* Error */}
           {error && (
             <div
-              className="mb-5 break-words rounded-[10px] border border-[rgba(255,107,129,0.25)] bg-[rgba(255,107,129,0.08)] px-3.5 py-3 text-[11px] leading-[1.8] text-[#ff9eae]"
+              className="mb-5 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm leading-6 text-red-300"
               role="alert"
             >
               {error}
             </div>
           )}
 
-          {/* Success */}
           {notice && (
             <div
-              className="mb-5 break-words rounded-[10px] border border-[rgba(90,209,154,0.22)] bg-[rgba(90,209,154,0.08)] px-3.5 py-3 text-[11px] leading-[1.8] text-[#8fe3b9]"
+              className="mb-5 rounded-xl border border-[#5ad19a]/20 bg-[#5ad19a]/10 px-4 py-3 text-sm leading-6 text-[#5ad19a]"
               role="status"
             >
               {notice}
             </div>
           )}
 
-          {/* Reset form */}
-          <form
-            className="grid w-full gap-[17px]"
-            onSubmit={handleSubmit}
-          >
-
-            {/* Email */}
-            <div className="grid min-w-0 gap-[8px]">
-
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
               <label
                 htmlFor="reset-email"
-                className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
+                className="mb-2 block text-sm font-medium text-[#edf2ff]"
               >
                 Email address
               </label>
@@ -305,17 +327,15 @@ export default function ResetPassword() {
                   setError('');
                 }}
                 required
-                disabled={loading}
-                className="block min-h-[46px] w-full min-w-0 rounded-[11px] border border-[#263149] bg-[#101625] px-[15px] py-[12px] text-xs leading-[1.5] text-[#edf2ff] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[#7889a5] hover:border-[rgba(143,164,202,0.35)] focus-visible:border-[#8175ff] focus-visible:bg-[#151e30] focus-visible:shadow-[0_0_0_3px_rgba(129,117,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={loading || completed}
+                className="w-full rounded-xl border border-[#263149] bg-[#151e30] px-4 py-3.5 text-sm text-[#edf2ff] outline-none transition placeholder:text-[#71809a] focus:border-[#8175ff] focus:ring-2 focus:ring-[#8175ff]/20 disabled:opacity-60"
               />
             </div>
 
-            {/* OTP */}
-            <div className="grid min-w-0 gap-[8px]">
-
+            <div>
               <label
                 htmlFor="reset-otp"
-                className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
+                className="mb-2 block text-sm font-medium text-[#edf2ff]"
               >
                 Email verification code
               </label>
@@ -334,26 +354,34 @@ export default function ResetPassword() {
                 }}
                 maxLength={6}
                 required
-                disabled={loading}
-                className="block min-h-[50px] w-full min-w-0 rounded-[11px] border border-[#263149] bg-[#101625] px-[15px] py-[12px] text-center text-lg font-bold tracking-[9px] text-[#edf2ff] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[11px] placeholder:font-normal placeholder:tracking-normal placeholder:text-[#7889a5] hover:border-[rgba(143,164,202,0.35)] focus-visible:border-[#8175ff] focus-visible:bg-[#151e30] focus-visible:shadow-[0_0_0_3px_rgba(129,117,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={loading || completed}
+                className="w-full rounded-xl border border-[#263149] bg-[#151e30] px-4 py-3.5 text-sm tracking-[0.3em] text-[#edf2ff] outline-none transition placeholder:tracking-normal placeholder:text-[#71809a] focus:border-[#8175ff] focus:ring-2 focus:ring-[#8175ff]/20 disabled:opacity-60"
               />
 
-              <button
-                className="mt-1 w-fit border-0 bg-transparent p-0 text-left text-[10px] font-bold text-[#a69cff] transition-colors hover:text-[#5ad19a] hover:underline hover:underline-offset-[3px] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8175ff] disabled:cursor-not-allowed disabled:opacity-50"
-                type="button"
-                onClick={handleResend}
-                disabled={loading}
-              >
-                Didn't receive the code? Request another
-              </button>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-[#71809a]">
+                  Didn't receive the code?
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={loading || completed || cooldown > 0}
+                  className="font-semibold text-[#a69cff] transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {loading
+                    ? 'Please wait...'
+                    : cooldown > 0
+                      ? `Request another in ${cooldown}s`
+                      : 'Request another'}
+                </button>
+              </div>
             </div>
 
-            {/* New password */}
-            <div className="grid min-w-0 gap-[8px]">
-
+            <div>
               <label
                 htmlFor="reset-password"
-                className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
+                className="mb-2 block text-sm font-medium text-[#edf2ff]"
               >
                 New password
               </label>
@@ -371,17 +399,15 @@ export default function ResetPassword() {
                 }}
                 minLength={8}
                 required
-                disabled={loading}
-                className="block min-h-[46px] w-full min-w-0 rounded-[11px] border border-[#263149] bg-[#101625] px-[15px] py-[12px] text-xs leading-[1.5] text-[#edf2ff] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[#7889a5] hover:border-[rgba(143,164,202,0.35)] focus-visible:border-[#8175ff] focus-visible:bg-[#151e30] focus-visible:shadow-[0_0_0_3px_rgba(129,117,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={loading || completed}
+                className="w-full rounded-xl border border-[#263149] bg-[#151e30] px-4 py-3.5 text-sm text-[#edf2ff] outline-none transition placeholder:text-[#71809a] focus:border-[#8175ff] focus:ring-2 focus:ring-[#8175ff]/20 disabled:opacity-60"
               />
             </div>
 
-            {/* Confirm password */}
-            <div className="grid min-w-0 gap-[8px]">
-
+            <div>
               <label
                 htmlFor="reset-confirm-password"
-                className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
+                className="mb-2 block text-sm font-medium text-[#edf2ff]"
               >
                 Confirm new password
               </label>
@@ -399,50 +425,43 @@ export default function ResetPassword() {
                 }}
                 minLength={8}
                 required
-                disabled={loading}
-                className="block min-h-[46px] w-full min-w-0 rounded-[11px] border border-[#263149] bg-[#101625] px-[15px] py-[12px] text-xs leading-[1.5] text-[#edf2ff] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[#7889a5] hover:border-[rgba(143,164,202,0.35)] focus-visible:border-[#8175ff] focus-visible:bg-[#151e30] focus-visible:shadow-[0_0_0_3px_rgba(129,117,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={loading || completed}
+                className="w-full rounded-xl border border-[#263149] bg-[#151e30] px-4 py-3.5 text-sm text-[#edf2ff] outline-none transition placeholder:text-[#71809a] focus:border-[#8175ff] focus:ring-2 focus:ring-[#8175ff]/20 disabled:opacity-60"
               />
             </div>
 
-            {/* Submit */}
             <button
-              className="mt-[3px] flex min-h-[49px] w-full items-center justify-center gap-3 rounded-[11px] border border-transparent bg-[#8175ff] px-[18px] py-[13px] text-xs font-extrabold leading-[1.5] text-[#080b14] transition-[transform,background,box-shadow] duration-200 hover:-translate-y-px hover:bg-[#958bff] hover:shadow-[0_9px_25px_rgba(129,117,255,0.18)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#5ad19a] disabled:cursor-wait disabled:opacity-60"
               type="submit"
-              disabled={loading}
+              disabled={loading || completed}
+              className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#8175ff] px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-[#8175ff]/15 transition hover:bg-[#7164f0] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? 'Resetting password...' : 'Reset password'}
+              {loading
+                ? 'Please wait...'
+                : completed
+                  ? 'Password reset successful'
+                  : 'Reset password'}
 
-              {!loading && (
-                <span className="text-[17px] leading-none" aria-hidden="true">
-                  →
-                </span>
+              {!loading && !completed && (
+                <span aria-hidden="true">→</span>
               )}
             </button>
-
           </form>
 
-          {/* Login navigation */}
-          <p className="mt-[22px] text-center text-[11px] leading-[1.8] text-[#9ba9c2]">
+          <p className="mt-8 text-center text-sm text-[#9ba9c2]">
             Remember your password?{' '}
             <Link
               to="/login"
-              className="font-extrabold text-[#a69cff] no-underline hover:text-[#5ad19a] hover:underline hover:underline-offset-[3px] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8175ff]"
+              className="font-semibold text-[#a69cff] transition hover:text-white"
             >
               Sign in
             </Link>
           </p>
-
         </div>
 
-        {/* Footer */}
-        <footer className="mt-[30px] flex w-full max-w-[430px] flex-wrap justify-between gap-2.5 text-[9px] leading-[1.8] text-[#7889a5] max-[760px]:mt-auto max-[760px]:max-w-[460px] max-[760px]:pt-8 max-[380px]:flex-col max-[380px]:gap-1">
-
+        <footer className="relative flex flex-wrap items-center justify-between gap-2 border-t border-[#263149] pt-5 text-xs text-[#71809a]">
           <span>© {new Date().getFullYear()} ProxiSpeak Meet</span>
-
           <span>Built for better connections.</span>
-
         </footer>
-
       </section>
     </main>
   );
