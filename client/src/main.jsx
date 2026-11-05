@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import { App } from './App.jsx';
+
+// Tailwind CSS v4
+import './tailwind.css';
+
+// Existing application stylesheet
 import './styles.css';
 
 createRoot(document.getElementById('root')).render(
