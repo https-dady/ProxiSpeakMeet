@@ -30,7 +30,9 @@ import { createApp } from './app.js';
 import { createSocketServer } from './sockets/index.js';
 import { startRuntime } from './runtime.js';
 
-// Import newly created authentication and room routes
+import { createSocketAuthentication } from './sockets/authentication.js';
+
+// Import existing API routes.
 import authRoutes from './routes/auth.js';
 import roomRoutes from './routes/room.js';
 
@@ -66,16 +68,15 @@ async function main() {
     logger: log,
   });
 
-  // --- BEGIN: Inject custom API routes for Auth and Rooms ---
-  // Apply CORS to allow frontend communication
+  // Apply CORS to allow frontend communication.
   app.use(cors());
-  // Ensure JSON body parsing is active for incoming API POST requests
+
+  // Ensure JSON body parsing is active for API requests.
   app.use(express.json());
-  
-  // Mount the customized routes
+
+  // Mount existing API routes.
   app.use('/api/auth', authRoutes);
   app.use('/api/room', roomRoutes);
-  // --- END: Inject custom API routes ---
 
   httpServer.on('request', app);
 
@@ -86,6 +87,23 @@ async function main() {
     config,
     logger: log,
   });
+
+  /*
+   * Authenticate every Socket.IO connection before it reaches
+   * the existing room, presence or WebRTC event handlers.
+   *
+   * The middleware verifies the JWT and resolves the account
+   * from MongoDB. It attaches the trusted identity to:
+   *
+   * socket.data.authenticatedUser
+   *
+   * Existing socket event payloads remain unchanged.
+   */
+  io.use(
+    createSocketAuthentication({
+      secret: config.auth.jwtSecret,
+    }),
+  );
 
   redisBus?.subscribe((event) => {
     switch (event.type) {
