@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 
 import config from '../config.js';
 
@@ -10,6 +15,9 @@ export default function VerifyEmail() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
+  const emailDeliveryFailed =
+    location.state?.emailDeliveryFailed === true;
+
   const [email, setEmail] = useState(
     location.state?.email || searchParams.get('email') || '',
   );
@@ -18,12 +26,17 @@ export default function VerifyEmail() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+
+  const [notice, setNotice] = useState(
+    emailDeliveryFailed
+      ? 'Your account was created, but the verification email could not be sent. Request a new code below.'
+      : location.state?.message || '',
+  );
 
   const handleVerify = async (event) => {
     event.preventDefault();
 
-    if (loading) return;
+    if (loading || resending) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedOtp = otp.trim();
@@ -65,7 +78,10 @@ export default function VerifyEmail() {
         );
       }
 
-      setNotice('Email verified successfully. Redirecting to sign in…');
+      setNotice(
+        payload.message ||
+          'Email verified successfully. Redirecting to sign in…',
+      );
 
       window.setTimeout(() => {
         navigate('/login', {
@@ -114,17 +130,22 @@ export default function VerifyEmail() {
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(
+        const resendError = new Error(
           payload.error ||
             payload.message ||
             'Unable to resend the verification code.',
         );
+
+        resendError.retryAfterSeconds = payload.retryAfterSeconds;
+
+        throw resendError;
       }
 
       setOtp('');
+
       setNotice(
         payload.message ||
-          'If the account is eligible, a new verification code has been sent.',
+          'If the account requires verification, a new code will be sent.',
       );
     } catch (err) {
       setError(err.message || 'Unable to resend the verification code.');
@@ -219,7 +240,6 @@ export default function VerifyEmail() {
 
         <div className="my-auto w-full max-w-[430px]">
 
-          {/* Back navigation */}
           <Link
             to="/signup"
             className="mb-[30px] inline-flex items-center gap-2 text-[11px] font-bold text-[#9ba9c2] no-underline transition-colors hover:text-[#a69cff] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8175ff]"
@@ -228,7 +248,6 @@ export default function VerifyEmail() {
             Back to sign up
           </Link>
 
-          {/* Heading */}
           <div className="mb-[29px]">
 
             <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[2.1px] text-[#a69cff]">
@@ -246,7 +265,6 @@ export default function VerifyEmail() {
             </p>
           </div>
 
-          {/* Error */}
           {error && (
             <div
               className="mb-5 break-words rounded-[10px] border border-[rgba(255,107,129,0.25)] bg-[rgba(255,107,129,0.08)] px-3.5 py-3 text-[11px] leading-[1.8] text-[#ff9eae]"
@@ -256,7 +274,6 @@ export default function VerifyEmail() {
             </div>
           )}
 
-          {/* Success */}
           {notice && (
             <div
               className="mb-5 break-words rounded-[10px] border border-[rgba(90,209,154,0.22)] bg-[rgba(90,209,154,0.08)] px-3.5 py-3 text-[11px] leading-[1.8] text-[#8fe3b9]"
@@ -266,13 +283,11 @@ export default function VerifyEmail() {
             </div>
           )}
 
-          {/* Verification form */}
           <form
             className="grid w-full gap-5"
             onSubmit={handleVerify}
           >
 
-            {/* Email */}
             <div className="grid min-w-0 gap-[9px]">
 
               <label
@@ -294,12 +309,11 @@ export default function VerifyEmail() {
                   setNotice('');
                 }}
                 required
-                disabled={loading}
+                disabled={loading || resending}
                 className="block min-h-[49px] w-full min-w-0 rounded-[11px] border border-[#263149] bg-[#101625] px-[15px] py-[13px] text-xs leading-[1.5] text-[#edf2ff] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[#7889a5] hover:border-[rgba(143,164,202,0.35)] focus-visible:border-[#8175ff] focus-visible:bg-[#151e30] focus-visible:shadow-[0_0_0_3px_rgba(129,117,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
 
-            {/* OTP */}
             <div className="grid min-w-0 gap-[9px]">
 
               <label
@@ -322,16 +336,15 @@ export default function VerifyEmail() {
                 }}
                 maxLength={6}
                 required
-                disabled={loading}
+                disabled={loading || resending}
                 className="block min-h-[54px] w-full min-w-0 rounded-[11px] border border-[#263149] bg-[#101625] px-[15px] py-[13px] text-center text-lg font-bold tracking-[9px] text-[#edf2ff] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[11px] placeholder:font-normal placeholder:tracking-normal placeholder:text-[#7889a5] hover:border-[rgba(143,164,202,0.35)] focus-visible:border-[#8175ff] focus-visible:bg-[#151e30] focus-visible:shadow-[0_0_0_3px_rgba(129,117,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
 
-            {/* Verify button */}
             <button
-              className="mt-[5px] flex min-h-[50px] w-full items-center justify-center gap-3 rounded-[11px] border border-transparent bg-[#8175ff] px-[18px] py-[13px] text-xs font-extrabold leading-[1.5] text-[#080b14] transition-[transform,background,box-shadow] duration-200 hover:-translate-y-px hover:bg-[#958bff] hover:shadow-[0_9px_25px_rgba(129,117,255,0.18)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#5ad19a] disabled:cursor-wait disabled:opacity-60"
+              className="flex min-h-[50px] w-full items-center justify-center gap-3 rounded-[11px] border border-transparent bg-[#8175ff] px-[18px] py-[13px] text-xs font-extrabold leading-[1.5] text-[#080b14] transition-[transform,background,box-shadow] duration-200 hover:-translate-y-px hover:bg-[#958bff] hover:shadow-[0_9px_25px_rgba(129,117,255,0.18)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#5ad19a] disabled:cursor-wait disabled:opacity-60"
               type="submit"
-              disabled={loading}
+              disabled={loading || resending}
             >
               {loading ? 'Verifying email...' : 'Verify email'}
 
@@ -344,7 +357,6 @@ export default function VerifyEmail() {
 
           </form>
 
-          {/* Resend OTP */}
           <div className="mt-[25px] flex flex-wrap items-center justify-center gap-2 text-center text-[11px] leading-[1.8] text-[#9ba9c2]">
 
             <span>Didn't receive the code?</span>
@@ -360,18 +372,16 @@ export default function VerifyEmail() {
 
           </div>
 
-          {/* Login navigation */}
           <p className="mt-[24px] text-center text-[11px] leading-[1.8] text-[#9ba9c2]">
             Already verified?{' '}
             <Link
               to="/login"
-              className="font-extrabold text-[#a69cff] no-underline hover:text-[#5ad19a] hover:underline hover:underline-offset-[3px] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8175ff]"
+              className="font-extrabold text-[#a69cff] no-underline hover:text-[#5ad19a] hover:underline hover:underline-offset-[3px]"
             >
               Sign in
             </Link>
           </p>
 
-          {/* Security note */}
           <div className="mt-[30px] flex items-center justify-center gap-2 text-center text-[10px] leading-[1.8] text-[#7889a5]">
             <span className="text-[8px] text-[#5ad19a]" aria-hidden="true">
               ●
@@ -382,7 +392,6 @@ export default function VerifyEmail() {
 
         </div>
 
-        {/* Footer */}
         <footer className="mt-[38px] flex w-full max-w-[430px] flex-wrap justify-between gap-2.5 text-[9px] leading-[1.8] text-[#7889a5] max-[760px]:mt-auto max-[760px]:max-w-[460px] max-[760px]:pt-10 max-[380px]:flex-col max-[380px]:gap-1">
 
           <span>© {new Date().getFullYear()} ProxiSpeak Meet</span>
