@@ -9,17 +9,24 @@ export default function Login({ onLogin }) {
   const location = useLocation();
 
   const [form, setForm] = useState({
-    identifier: location.state?.verifiedEmail || '',
+    identifier:
+      location.state?.verifiedEmail ||
+      location.state?.email ||
+      '',
     password: '',
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(
-    location.state?.verifiedEmail
-      ? 'Email verified successfully. You can now sign in.'
-      : '',
+    location.state?.passwordReset
+      ? 'Your password has been reset successfully. You can now sign in.'
+      : location.state?.verifiedEmail
+        ? 'Email verified successfully. You can now sign in.'
+        : '',
   );
+
+  const [verificationEmail, setVerificationEmail] = useState('');
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -31,6 +38,10 @@ export default function Login({ onLogin }) {
 
     setError('');
     setNotice('');
+
+    if (name === 'identifier') {
+      setVerificationEmail('');
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -48,6 +59,7 @@ export default function Login({ onLogin }) {
     setLoading(true);
     setError('');
     setNotice('');
+    setVerificationEmail('');
 
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
@@ -64,18 +76,24 @@ export default function Login({ onLogin }) {
 
       const payload = await response.json().catch(() => ({}));
 
+      if (
+        response.status === 403 &&
+        payload.emailVerificationRequired
+      ) {
+        setVerificationEmail(
+          payload.email || (
+            identifier.includes('@') ? identifier : ''
+          ),
+        );
+
+        setError(
+          'Your email is not verified yet. Verify your email before signing in.',
+        );
+
+        return;
+      }
+
       if (!response.ok) {
-        if (
-          response.status === 403 &&
-          payload.emailVerificationRequired
-        ) {
-          setError(
-            'Your email is not verified yet. Verify your email before signing in.',
-          );
-
-          return;
-        }
-
         throw new Error(
           payload.error ||
             payload.message ||
@@ -107,7 +125,7 @@ export default function Login({ onLogin }) {
       }
 
       // App.jsx owns the authenticated view.
-      // Do not navigate to an unregistered /rooms route.
+      // Preserve the existing session integration.
       onLogin(username);
     } catch (err) {
       setError(
@@ -118,6 +136,10 @@ export default function Login({ onLogin }) {
       setLoading(false);
     }
   };
+
+  const verificationUrl = verificationEmail
+    ? `/verify-email?email=${encodeURIComponent(verificationEmail)}`
+    : '/verify-email';
 
   return (
     <main className="grid min-h-dvh w-full grid-cols-1 overflow-x-hidden bg-[#080b14] font-sans text-[#edf2ff] lg:grid-cols-2">
@@ -233,7 +255,10 @@ export default function Login({ onLogin }) {
               {error.includes('not verified') && (
                 <div className="mt-2">
                   <Link
-                    to="/signup"
+                    to={verificationUrl}
+                    state={{
+                      email: verificationEmail,
+                    }}
                     className="font-bold text-[#a69cff] underline underline-offset-[3px] hover:text-[#5ad19a]"
                   >
                     Continue to email verification
