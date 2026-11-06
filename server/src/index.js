@@ -8,8 +8,6 @@
 
 import http from 'node:http';
 import process from 'node:process';
-import express from 'express';
-import cors from 'cors';
 
 import config from './config/index.js';
 import logger from './utils/logger.js';
@@ -31,10 +29,6 @@ import { createSocketServer } from './sockets/index.js';
 import { startRuntime } from './runtime.js';
 
 import { createSocketAuthentication } from './sockets/authentication.js';
-
-// Import existing API routes.
-import authRoutes from './routes/auth.js';
-import roomRoutes from './routes/room.js';
 
 const log = logger;
 
@@ -68,16 +62,7 @@ async function main() {
     logger: log,
   });
 
-  // Apply CORS to allow frontend communication.
-  app.use(cors());
-
-  // Ensure JSON body parsing is active for API requests.
-  app.use(express.json());
-
-  // Mount existing API routes.
-  app.use('/api/auth', authRoutes);
-  app.use('/api/room', roomRoutes);
-
+  // app.js already owns Express middleware and API route registration.
   httpServer.on('request', app);
 
   const io = createSocketServer({
@@ -88,17 +73,7 @@ async function main() {
     logger: log,
   });
 
-  /*
-   * Authenticate every Socket.IO connection before it reaches
-   * the existing room, presence or WebRTC event handlers.
-   *
-   * The middleware verifies the JWT and resolves the account
-   * from MongoDB. It attaches the trusted identity to:
-   *
-   * socket.data.authenticatedUser
-   *
-   * Existing socket event payloads remain unchanged.
-   */
+  // Authenticate Socket.IO connections before connection handlers run.
   io.use(
     createSocketAuthentication({
       secret: config.auth.jwtSecret,
@@ -135,7 +110,6 @@ async function main() {
     logger: log,
   });
 
-  // Reject startup if the requested port cannot be bound.
   await new Promise((resolve, reject) => {
     const onError = (err) => {
       httpServer.off('listening', onListening);
@@ -184,7 +158,6 @@ async function main() {
 
       let shutdownFailed = false;
 
-      // 1. Stop background timers and await active runtime tasks.
       try {
         await stopRuntime();
       } catch (err) {
@@ -192,8 +165,6 @@ async function main() {
         log.error('runtime shutdown failed:', err);
       }
 
-      // 2. Close Socket.IO and its underlying HTTP server.
-      // Do not call httpServer.close() a second time.
       try {
         await new Promise((resolve) => {
           io.close(() => resolve());
@@ -203,7 +174,6 @@ async function main() {
         log.error('Socket.IO shutdown failed:', err);
       }
 
-      // 3. Persist remaining dirty presence state.
       try {
         await services.store.flush();
       } catch (err) {
@@ -211,7 +181,6 @@ async function main() {
         log.error('presence flush failed during shutdown:', err);
       }
 
-      // 4. Close Redis resources.
       try {
         await redisBus?.close();
       } catch (err) {
@@ -219,7 +188,6 @@ async function main() {
         log.error('Redis shutdown failed:', err);
       }
 
-      // 5. Disconnect MongoDB last.
       try {
         await disconnectMongo();
       } catch (err) {
