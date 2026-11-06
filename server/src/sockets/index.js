@@ -19,6 +19,8 @@ import { resolveCollision } from '../services/obstacleService.js';
 import { makeEvent } from '../db/redis.js';
 import { corsOrigin } from '../utils/origin.js';
 
+import { randomUUID } from 'node:crypto';
+
 import {
   requireActiveRoomMembership,
 } from './membership.js';
@@ -108,6 +110,102 @@ function onConnection({
     refillPerSec: cfg.limits.signalEventsPerSec,
   });
 let identity = null;
+
+let historySessionId = null;
+let lastHistoryTouchAt = 0;
+
+const meetingHistory = services.meetingHistory;
+
+function authenticatedAccount() {
+  return socket.data.authenticatedUser ?? null;
+}
+
+async function startMeetingHistory({ room, roomId, participantCount }) {
+  const account = authenticatedAccount();
+
+  if (!meetingHistory || !account?.userId) {
+    socketsLog.warn(
+      'meeting history was not started: authenticated account or history service is unavailable',
+    );
+    return;
+  }
+
+  const sessionId = randomUUID();
+
+  try {
+    await meetingHistory.startMeeting({
+      userId: account.userId,
+      sessionId,
+      roomId,
+      roomName: room?.name ?? room?.title ?? roomId,
+      username: account.username,
+      role: 'participant',
+      participantCountAtJoin: Math.max(1, participantCount),
+    });
+
+    historySessionId = sessionId;
+    lastHistoryTouchAt = Date.now();
+  } catch (err) {
+    socketsLog.error(`meeting history start failed: ${err.message}`);
+  }
+}
+
+async function touchMeetingHistory() {
+  if (!meetingHistory || !historySessionId) return;
+
+  // Persist heartbeat at most once every 30 seconds.
+  const now = Date.now();
+
+  if (now - lastHistoryTouchAt < 30_000) return;
+
+  lastHistoryTouchAt = now;
+
+  try {
+    const account = authenticatedAccount();
+
+    if (!account?.userId) return;
+
+    await meetingHistory.touchMeeting({
+      userId: account.userId,
+      sessionId: historySessionId,
+    });
+  } catch (err) {
+    socketsLog.error(
+      `meeting history heartbeat update failed: ${err.message}`,
+    );
+  }
+}
+
+async function finishMeetingHistory(reason) {
+  if (!meetingHistory || !historySessionId) return;
+
+  const sessionId = historySessionId;
+
+  historySessionId = null;
+  lastHistoryTouchAt = 0;
+
+  const account = authenticatedAccount();
+
+  if (!account?.userId) return;
+
+  const status =
+    reason === 'client-leave' || reason === 'room-switch'
+      ? 'completed'
+      : 'abandoned';
+
+  try {
+    await meetingHistory.endMeeting({
+      userId: account.userId,
+      sessionId,
+      status,
+    });
+  } catch (err) {
+    socketsLog.error(
+      `meeting history close failed: ${err.message}`,
+    );
+  }
+}
+
 let leaveInProgress = null;
 
 // Serialize room lifecycle operations for this socket.
@@ -335,6 +433,12 @@ function serializeLifecycle(operation) {
 
       await socket.join(roomId);
 
+      await startMeetingHistory({
+  room,
+  roomId,
+  participantCount: store.byRoom(roomId).length,
+});
+
       const peers = store
         .byRoom(roomId)
         .filter((peer) => peer.id !== socket.id)
@@ -515,7 +619,7 @@ function serializeLifecycle(operation) {
           'active room membership is required',
         );
       }
-
+      await touchMeetingHistory();
       return {};
     }),
   );
@@ -668,10 +772,11 @@ function serializeLifecycle(operation) {
     const leavingIdentity = identity;
     const { roomId } = leavingIdentity;
 
-    leaveInProgress = (async () => {
-      try {
-        peerGraph.removeUser(socket.id, reason);
+   leaveInProgress = (async () => {
+  try {
+    await finishMeetingHistory(reason);
 
+    peerGraph.removeUser(socket.id, reason);
         socket.to(roomId).emit('peer:left', {
           id: socket.id,
           reason,
