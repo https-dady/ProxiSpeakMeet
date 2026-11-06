@@ -2,7 +2,7 @@ const STORAGE_KEY = 'proxispeak:active-meeting';
 
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 
-const MAX_NAME_LENGTH = 50;
+const MAX_NAME_LENGTH = 24;
 
 const DEFAULT_COLOR = '#4f8cff';
 
@@ -10,7 +10,7 @@ const ALLOWED_AVATARS = new Set([
   'circle',
   'square',
   'triangle',
-  'hexagon',
+  'hex',
 ]);
 
 function isValidColor(color) {
@@ -62,17 +62,6 @@ function normalizeMeetingIntent(intent) {
   };
 }
 
-/**
- * Save the active meeting intent.
- *
- * sessionStorage is intentional:
- * - Survives browser refresh.
- * - Isolated to the current browser tab.
- * - Automatically cleared when the tab session ends.
- *
- * No access tokens, refresh tokens, or credentials
- * are stored by this utility.
- */
 export function saveActiveMeeting(intent) {
   const normalizedIntent =
     normalizeMeetingIntent(intent);
@@ -102,11 +91,6 @@ export function saveActiveMeeting(intent) {
   }
 }
 
-/**
- * Restore the active meeting intent.
- *
- * Invalid, outdated, or malformed records are removed.
- */
 export function getActiveMeeting() {
   try {
     const storedValue =
@@ -149,12 +133,6 @@ export function getActiveMeeting() {
   }
 }
 
-/**
- * Remove persisted meeting information.
- *
- * Called after an intentional meeting leave,
- * invalid meeting rejection, or session termination.
- */
 export function clearActiveMeeting() {
   try {
     sessionStorage.removeItem(STORAGE_KEY);
