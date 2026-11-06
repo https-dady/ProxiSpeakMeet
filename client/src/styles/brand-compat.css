@@ -1,0 +1,154 @@
+/*
+ * ProxiSpeakMeet
+ * Legacy CSS Compatibility Layer
+ *
+ * Purpose:
+ * Preserve existing component functionality and layouts
+ * while transitioning the application to the new brand.
+ */
+
+/* =========================================================
+   LEGACY TOKEN MAPPING
+========================================================= */
+
+:root {
+  /* Backgrounds */
+
+  --bg: #F6F6F6;
+  --bg-elev: #FFFFFF;
+  --bg-elev-2: #EEEEEE;
+
+  /* Borders */
+
+  --line: #E5E5E5;
+  --line-strong: #D5D5D5;
+
+  /* Typography */
+
+  --text: #1E1E1E;
+  --text-dim: #686868;
+
+  /* Brand */
+
+  --accent: #F3184C;
+
+  /* Status */
+
+  --ok: #269B67;
+  --warn: #E4A52B;
+  --error: #D93636;
+
+  /* Radius */
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+
+  /* Form controls */
+
+  --input-bg: #FFFFFF;
+  --input-border: #E5E5E5;
+  --input-border-hover: #F3184C;
+  --input-focus-ring: rgba(243, 24, 76, 0.15);
+
+  /* Badges */
+
+  --badge-bg: rgba(243, 24, 76, 0.08);
+  --badge-border: rgba(243, 24, 76, 0.20);
+
+  /* Elevation */
+
+  --shadow-panel: 0 8px 28px rgba(30, 30, 30, 0.06);
+
+  color-scheme: light;
+}
+
+/* =========================================================
+   BRAND TYPOGRAPHY
+========================================================= */
+
+html,
+body {
+  font-family: 'Lato', sans-serif;
+}
+
+body {
+  background-color: #F6F6F6;
+  color: #1E1E1E;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =========================================================
+   EXISTING COMPONENT COMPATIBILITY
+========================================================= */
+
+.button--primary {
+  background: #F3184C;
+  border-color: #F3184C;
+  color: #FFFFFF;
+  box-shadow: 0 6px 18px rgba(243, 24, 76, 0.16);
+}
+
+.button--primary:hover:not(:disabled) {
+  background: #D91543;
+  border-color: #D91543;
+  box-shadow: 0 8px 22px rgba(243, 24, 76, 0.24);
+}
+
+.button--toggle.button--active {
+  border-color: #F3184C;
+  color: #F3184C;
+}
+
+.chip--interactive:hover,
+.chip--active {
+  border-color: #F3184C;
+  background: rgba(243, 24, 76, 0.08);
+  color: #1E1E1E;
+}
+
+.chip--interactive:focus-visible {
+  outline-color: #F3184C;
+}
+
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible,
+.gate__card input:focus-visible {
+  outline-color: #F3184C;
+  border-color: #F3184C;
+  box-shadow: 0 0 0 3px rgba(243, 24, 76, 0.12);
+}
+
+/* =========================================================
+   PRESERVE VIRTUAL OFFICE RENDERING
+========================================================= */
+
+/*
+ * The canvas world has its own rendering environment.
+ * Do not apply dashboard surface colors to canvas layers.
+ */
+
+.world__stage {
+  background: #1E1E1E;
+}
+
+.world__layer {
+  isolation: isolate;
+}
+
+/* =========================================================
+   ACCESSIBILITY
+========================================================= */
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline-color: #F3184C;
+}
