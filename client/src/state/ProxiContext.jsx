@@ -20,6 +20,12 @@ import { SpatialAudioEngine } from '../audio/SpatialAudioEngine.js';
 import { PeerManager } from '../webrtc/PeerManager.js';
 import { soundFactorBetween } from '../audio/occlusion.js';
 
+import {
+  saveActiveMeeting,
+  getActiveMeeting,
+  clearActiveMeeting,
+} from '../utils/meetingSessionStorage.js';
+
 const ProxiContext = createContext(null);
 
 const initialState = {
@@ -261,6 +267,12 @@ export function ProxiProvider({
     (ack, intent) => {
       const world = worldRef.current;
 
+      /*
+       * Persist only after the server has acknowledged
+       * a successful room join.
+       */
+      saveActiveMeeting(intent);
+
       world.self = {
         ...world.self,
         id: ack.self.id,
@@ -332,9 +344,34 @@ export function ProxiProvider({
     [syncRoster, startHeartbeat],
   );
 
+  /*
+   * Restore a previously active meeting after:
+   * - Initial socket connection following page refresh.
+   * - Socket.IO reconnection after network interruption.
+   *
+   * The persisted room must match the room in the URL.
+   */
   const rejoinAfterReconnect = useCallback(async () => {
     const client = clientRef.current;
-    const intent = stateRef.current.sessionIntent;
+
+    let intent = stateRef.current.sessionIntent;
+
+    if (!intent) {
+      const persistedIntent = getActiveMeeting();
+
+      const urlRoomId = new URLSearchParams(
+        window.location.search,
+      ).get('room');
+
+      if (
+        persistedIntent &&
+        urlRoomId &&
+        persistedIntent.roomId ===
+          urlRoomId.trim().toLowerCase()
+      ) {
+        intent = persistedIntent;
+      }
+    }
 
     if (!client || !intent) {
       return;
@@ -351,8 +388,8 @@ export function ProxiProvider({
       applyJoinAck(ack, intent);
 
       /*
-       * If a microphone stream still exists after reconnecting, ensure
-       * the newly negotiated peer connections receive its audio track.
+       * If a microphone stream still exists after reconnecting,
+       * ensure the newly negotiated peer connections receive its audio track.
        */
       if (localStreamRef.current) {
         await peersRef.current?.replaceOutgoingTrack(
@@ -372,6 +409,10 @@ export function ProxiProvider({
         },
       });
     } catch (err) {
+      /*
+       * Preserve the saved intent after a failed reconnect.
+       * A later Socket.IO reconnection can retry the join.
+       */
       dispatch({
         type: 'notice',
         notice: {
@@ -508,147 +549,107 @@ export function ProxiProvider({
     client.on('peer:joined', ({ peer }) => {
       const world = worldRef.current;
 
+      if (!peer?.id || peer.id === world.self.id) {
+        return;
+      }
+
       world.peers.set(peer.id, {
         ...peer,
         level: 0,
         speaking: false,
         soundFactor: 1,
         connection: 'pending',
-        distancePx: Infinity,
       });
 
       dispatch({
         type: 'roster',
         roster: syncRoster(world),
       });
-
-      dispatch({
-        type: 'notice',
-        notice: {
-          level: 'info',
-          message: `${peer.name} joined the office`,
-        },
-      });
     });
 
-    client.on('peer:left', ({ id, reason }) => {
+    client.on('peer:left', ({ id }) => {
       const world = worldRef.current;
-      const peer = world.peers.get(id);
+
+      if (!id) {
+        return;
+      }
+
+      audio.detachRemoteStream(id);
+      peersRef.current?.closePeer(id);
 
       world.peers.delete(id);
       world.edges.delete(id);
-      audio.detachRemoteStream(id);
-
-      if (peerManager.connections.has(id)) {
-        peerManager.handleHangup({
-          peerId: id,
-        });
-      }
 
       dispatch({
         type: 'roster',
         roster: syncRoster(world),
       });
-
-      if (peer) {
-        dispatch({
-          type: 'notice',
-          notice: {
-            level: 'info',
-            message: `${peer.name} left (${reason})`,
-          },
-        });
-      }
     });
 
-    client.socket.on('presence:moved', (payload) => {
+    client.on('presence:moved', (payload) => {
       const world = worldRef.current;
+
+      if (!payload?.id || payload.id === world.self.id) {
+        return;
+      }
+
       const peer = world.peers.get(payload.id);
 
       if (!peer) {
         return;
       }
 
-      peer.x = payload.x;
-      peer.y = payload.y;
-      peer.angle = payload.angle;
+      Object.assign(peer, {
+        x: payload.x,
+        y: payload.y,
+        angle: payload.angle ?? peer.angle ?? 0,
+      });
 
-      peer.distancePx = Math.hypot(
-        payload.x - world.self.x,
-        payload.y - world.self.y,
-      );
+      peer.soundFactor = soundFactorBetween(
+        world.self,
+        peer,
+        world.obstacles,
+      ).soundFactor;
+
+      dispatch({
+        type: 'roster',
+        roster: syncRoster(world),
+      });
     });
 
-    client.socket.on('presence:snapshot', (payload = {}) => {
+    client.on('presence:snapshot', (payload = {}) => {
       const world = worldRef.current;
 
-      const snapshotPeers = Array.isArray(payload.peers)
+      const peers = Array.isArray(payload.peers)
         ? payload.peers
         : [];
 
-      const livePeerIds = new Set(
-        snapshotPeers
-          .map((peer) => peer?.id)
-          .filter(
-            (id) =>
-              typeof id === 'string' &&
-              id !== world.self.id,
-          ),
+      const activeIds = new Set(
+        peers.map((peer) => peer.id),
       );
 
-      const knownPeerIds = new Set([
-        ...world.peers.keys(),
-        ...(peerManager.connections?.keys?.() ?? []),
-        ...world.edges.keys(),
-      ]);
-
-      for (const peerId of knownPeerIds) {
-        if (livePeerIds.has(peerId)) {
-          continue;
-        }
-
-        world.peers.delete(peerId);
-        world.edges.delete(peerId);
-        audio.detachRemoteStream(peerId);
-
-        if (peerManager.connections.has(peerId)) {
-          peerManager.handleHangup({
-            peerId,
-          });
+      for (const peerId of world.peers.keys()) {
+        if (!activeIds.has(peerId)) {
+          audio.detachRemoteStream(peerId);
+          peersRef.current?.closePeer(peerId);
+          world.peers.delete(peerId);
+          world.edges.delete(peerId);
         }
       }
 
-      const previousPeers = world.peers;
-      const nextPeers = new Map();
-
-      for (const snapshotPeer of snapshotPeers) {
-        if (
-          !snapshotPeer ||
-          typeof snapshotPeer.id !== 'string' ||
-          snapshotPeer.id === world.self.id
-        ) {
+      for (const peer of peers) {
+        if (!peer?.id || peer.id === world.self.id) {
           continue;
         }
 
-        const previous = previousPeers.get(snapshotPeer.id);
+        const previous = world.peers.get(peer.id);
 
-        nextPeers.set(snapshotPeer.id, {
+        world.peers.set(peer.id, {
           ...previous,
-          ...snapshotPeer,
-          level: previous?.level ?? 0,
-          speaking: previous?.speaking ?? false,
-          soundFactor: previous?.soundFactor ?? 1,
+          ...peer,
           connection: previous?.connection ?? 'pending',
-          distancePx: Math.hypot(
-            (snapshotPeer.x ?? previous?.x ?? 0) -
-              world.self.x,
-            (snapshotPeer.y ?? previous?.y ?? 0) -
-              world.self.y,
-          ),
         });
       }
-
-      world.peers = nextPeers;
 
       dispatch({
         type: 'roster',
@@ -659,9 +660,11 @@ export function ProxiProvider({
     client.on('peer:media-state', ({ id, micEnabled }) => {
       const peer = worldRef.current.peers.get(id);
 
-      if (peer) {
-        peer.micEnabled = micEnabled;
+      if (!peer) {
+        return;
       }
+
+      peer.micEnabled = micEnabled;
 
       dispatch({
         type: 'roster',
@@ -669,121 +672,94 @@ export function ProxiProvider({
       });
     });
 
-    client.on('peer:negotiate', (payload) => {
-      const world = worldRef.current;
-      const peerId = payload.peer.id;
-      const peer = world.peers.get(peerId);
+    client.on('peer:avatar', (payload) => {
+      const peer = worldRef.current.peers.get(payload?.id);
 
-      if (peer) {
-        peer.x = payload.peer.x;
-        peer.y = payload.peer.y;
-        peer.name = payload.peer.name;
-        peer.color = payload.peer.color;
-        peer.avatar = payload.peer.avatar;
-        peer.soundFactor = payload.soundFactor ?? 1;
-      } else {
-        world.peers.set(peerId, {
-          ...payload.peer,
-          soundFactor: payload.soundFactor ?? 1,
-          level: 0,
-          speaking: false,
-          connection: 'pending',
-        });
+      if (!peer) {
+        return;
       }
 
-      world.edges.set(peerId, {
-        generation: payload.generation,
-        soundFactor: payload.soundFactor ?? 1,
-      });
-
-      audio.setPeerOcclusion(
-        peerId,
-        payload.soundFactor ?? 1,
-      );
+      peer.avatar = payload.peer.avatar;
 
       dispatch({
         type: 'roster',
-        roster: syncRoster(world),
-      });
-
-      void peerManager.handleNegotiate(payload);
-    });
-
-    client.on('peer:signal', (payload) => {
-      void peerManager.handleSignal(payload);
-    });
-
-    client.on('peer:hangup', ({ peerId }) => {
-      const world = worldRef.current;
-      const peer = world.peers.get(peerId);
-
-      world.edges.delete(peerId);
-      audio.detachRemoteStream(peerId);
-
-      if (peer) {
-        peer.connection = 'out-of-range';
-        peer.speaking = false;
-      }
-
-      peerManager.handleHangup({
-        peerId,
-      });
-
-      dispatch({
-        type: 'roster',
-        roster: syncRoster(world),
+        roster: syncRoster(worldRef.current),
       });
     });
 
-    client.on(
-      'peer:audio-obstruction',
-      ({ peerId, soundFactor }) => {
-        const world = worldRef.current;
-        const edge = world.edges.get(peerId);
-
-        if (edge) {
-          edge.soundFactor = soundFactor;
-        }
-
-        const peer = world.peers.get(peerId);
-
-        if (peer) {
-          peer.soundFactor = soundFactor;
-        }
-
-        audio.setPeerOcclusion(peerId, soundFactor);
-      },
-    );
-
-    client.on('presence:clusters', ({ clusters }) => {
-      worldRef.current.clusters = clusters;
-
+    client.on('presence:clusters', (payload) => {
       dispatch({
         type: 'clusters',
-        clusters,
+        clusters: payload?.clusters ?? [],
       });
     });
 
-    client.on('audit:completed', (payload) => {
-      dispatch({
-        type: 'notice',
-        notice: {
-          level: payload.withinBudget ? 'ok' : 'error',
-          message:
-            `Spatial audit: $near p95 ${payload.p95Ms}ms · ` +
-            `${payload.matched} peers in earshot · ` +
-            `${
-              payload.withinBudget ? 'within' : 'OVER'
-            } the ${config.audit.budgetMs}ms budget`,
-        },
-      });
+    client.on('presence:edges', (payload) => {
+      const world = worldRef.current;
+
+      world.edges.clear();
+
+      for (const edge of payload?.edges ?? []) {
+        world.edges.set(edge.peerId, edge);
+      }
 
       dispatch({
         type: 'stats',
         stats: {
-          audit: payload,
+          edges: world.edges.size,
         },
       });
+    });
+
+    client.on('presence:stats', (payload) => {
+      dispatch({
+        type: 'stats',
+        stats: {
+          remote: payload,
+        },
+      });
+    });
+
+    client.on('peer:offer', async (payload) => {
+      try {
+        await peersRef.current?.handleOffer(payload);
+      } catch (err) {
+        dispatch({
+          type: 'notice',
+          notice: {
+            level: 'warn',
+            message: `Peer offer failed: ${err.message}`,
+          },
+        });
+      }
+    });
+
+    client.on('peer:answer', async (payload) => {
+      try {
+        await peersRef.current?.handleAnswer(payload);
+      } catch (err) {
+        dispatch({
+          type: 'notice',
+          notice: {
+            level: 'warn',
+            message: `Peer answer failed: ${err.message}`,
+          },
+        });
+      }
+    });
+
+    client.on('peer:ice-candidate', async (payload) => {
+      try {
+        await peersRef.current?.handleIceCandidate(payload);
+      } catch (err) {
+        dispatch({
+          type: 'notice',
+          notice: {
+            level: 'warn',
+            message: `ICE candidate failed: ${err.message}`,
+          },
+        });
+      }
     });
 
     client.on('audit:remote', (payload) => {
@@ -817,129 +793,102 @@ export function ProxiProvider({
   }, [serverUrl, rejoinAfterReconnect, syncRoster]);
 
   const requestMicrophone = useCallback(async () => {
-  dispatch({
-    type: 'mic',
-    mic: {
-      state: 'requesting',
-      error: null,
-    },
-  });
-
-  if (!navigator.mediaDevices?.getUserMedia) {
-    const error = new Error(
-      'Microphone access requires a supported browser and secure context (HTTPS or localhost).',
-    );
-
     dispatch({
       type: 'mic',
       mic: {
-        state: 'denied',
-        error: error.message,
+        state: 'requesting',
+        error: null,
       },
     });
 
-    throw error;
-  }
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error(
+          'Microphone access is not supported by this browser.',
+        );
+      }
 
-  let stream = null;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false,
+      });
 
-  try {
-    // Request microphone access.
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        channelCount: 1,
-      },
-      video: false,
-    });
+      const track = stream.getAudioTracks()[0];
 
-    const audioTracks = stream.getAudioTracks();
+      if (!track) {
+        stream.getTracks().forEach((item) => item.stop());
 
-    if (audioTracks.length === 0) {
-      throw new Error(
-        'The selected microphone did not provide an audio track.',
-      );
-    }
+        throw new Error(
+          'The selected microphone did not provide an audio track.',
+        );
+      }
 
-    const track = audioTracks[0];
+      /*
+       * Store the stream before updating peer connections.
+       */
+      localStreamRef.current = stream;
 
-    // Respect the current mute state.
-    track.enabled = !mutedRef.current;
+      const muted = mutedRef.current;
 
-    // Store the stream before updating peer connections.
-    localStreamRef.current = stream;
+      track.enabled = !muted;
 
-    // Initialize/resume Web Audio and attach the local analyser.
-    const audio = audioRef.current;
+      audioRef.current?.setLocalStream(stream);
+      audioRef.current?.setLocalMuted(muted);
 
-    if (!audio) {
-      throw new Error(
-        'The audio engine is not initialized. Please try again.',
-      );
-    }
+      /*
+       * Attach the microphone to existing WebRTC peer connections.
+       * This also handles peers who joined before microphone permission
+       * was granted.
+       */
+      await peersRef.current?.replaceOutgoingTrack(stream);
 
-    await audio.init();
-    await audio.setLocalStream(stream);
+      /*
+       * Publish the actual microphone state to the room server.
+       */
+      if (
+        clientRef.current?.connected &&
+        stateRef.current.sessionIntent
+      ) {
+        clientRef.current.emit('peer:media-ready', {
+          micEnabled: !muted,
+        });
+      }
 
-    /*
-     * Critical fix:
-     * Attach the microphone to existing WebRTC peer connections.
-     * PeerManager now reserves an audio sender when creating each
-     * connection, even if the microphone was unavailable at that time.
-     */
-    await peersRef.current?.replaceOutgoingTrack(stream);
+      dispatch({
+        type: 'mic',
+        mic: {
+          state: 'ready',
+          error: null,
+          device: track.label || 'default microphone',
+        },
+      });
 
-    // Publish the actual microphone state to the room server.
-    if (clientRef.current?.connected && stateRef.current.sessionIntent) {
-      clientRef.current.emit('peer:media-ready', {
-        micEnabled: !mutedRef.current,
+      return stream;
+    } catch (err) {
+      const message =
+        err.name === 'NotAllowedError'
+          ? 'Microphone permission was denied. Allow microphone access in your browser settings, then try again.'
+          : err.name === 'NotFoundError'
+            ? 'No microphone was found on this device.'
+            : err.message || 'Unable to access microphone.';
+
+      dispatch({
+        type: 'mic',
+        mic: {
+          state: 'denied',
+          error: message,
+        },
+      });
+
+      throw Object.assign(new Error(message), {
+        cause: err,
       });
     }
-
-    dispatch({
-      type: 'mic',
-      mic: {
-        state: 'ready',
-        error: null,
-        device: track.label || 'default microphone',
-      },
-    });
-
-    return stream;
-  } catch (err) {
-    // Stop a partially acquired stream to avoid leaving the microphone active.
-    if (stream) {
-      for (const track of stream.getTracks()) {
-        track.stop();
-      }
-    }
-
-    if (localStreamRef.current === stream) {
-      localStreamRef.current = null;
-    }
-
-    const message =
-      err?.name === 'NotAllowedError'
-        ? 'Microphone permission was denied. Allow microphone access in your browser settings, then try again.'
-        : err?.name === 'NotFoundError'
-          ? 'No microphone was found on this device.'
-          : `Microphone unavailable: ${err?.message ?? String(err)}`;
-
-    dispatch({
-      type: 'mic',
-      mic: {
-        state: 'denied',
-        error: message,
-      },
-    });
-
-    throw Object.assign(new Error(message), {
-      cause: err,
-    });
-  }
-}, []);
+  }, []);
 
   const join = useCallback(
     async ({
@@ -956,7 +905,9 @@ export function ProxiProvider({
       const client = clientRef.current;
 
       if (!client) {
-        throw new Error('The server connection is not initialized.');
+        throw new Error(
+          'The server connection is not initialized.',
+        );
       }
 
       const intent = {
@@ -977,7 +928,10 @@ export function ProxiProvider({
       }
 
       try {
-        const ack = await client.request('room:join', intent);
+        const ack = await client.request(
+          'room:join',
+          intent,
+        );
 
         applyJoinAck(ack, intent);
 
@@ -1043,6 +997,11 @@ export function ProxiProvider({
         },
       });
     } finally {
+      /*
+       * An intentional leave must remove persisted meeting intent.
+       */
+      clearActiveMeeting();
+
       const world = worldRef.current;
 
       clearInterval(heartbeatRef.current);
@@ -1109,72 +1068,57 @@ export function ProxiProvider({
   }, []);
 
   const setVolume = useCallback((volume) => {
-    audioRef.current?.setMasterVolume(volume);
+    const normalizedVolume = Math.max(
+      0,
+      Math.min(1, Number(volume) || 0),
+    );
 
     dispatch({
       type: 'volume',
-      volume,
+      volume: normalizedVolume,
     });
   }, []);
 
-  const sendPosition = useCallback((x, y, angle) => {
+  const sendPosition = useCallback((position) => {
+    const client = clientRef.current;
+
+    if (!client?.connected) {
+      return;
+    }
+
     const now = performance.now();
 
-    if (
-      now - sendRef.current.lastSentAt <
-      config.network.positionThrottleMs
-    ) {
+    const elapsed =
+      now - sendRef.current.lastSentAt;
+
+    const minimumInterval =
+      config.network.positionSendIntervalMs;
+
+    sendRef.current.pending = position;
+
+    if (elapsed < minimumInterval) {
       return;
     }
 
     sendRef.current.lastSentAt = now;
 
-    clientRef.current?.socket.emit(
-      'position:update',
-      { x, y, angle },
-      (ack) => {
-        if (!ack?.ok) {
-          return;
-        }
-
-        const self = worldRef.current.self;
-
-        if (typeof ack.x === 'number') {
-          self.authority = {
-            x: ack.x,
-            y: ack.y,
-          };
-        }
-      },
-    );
+    sendRef.current.send(position);
   }, []);
 
   const requestAudit = useCallback(async () => {
-    const self = worldRef.current.self;
+    const client = clientRef.current;
 
-    const params = new URLSearchParams({
-      roomId:
-        worldRef.current.room?.roomId ??
-        config.defaultRoom,
-      x: String(Math.round(self.x)),
-      y: String(Math.round(self.y)),
-      radius: String(worldRef.current.earshotRadiusPx),
-      samples: '25',
-    });
+    if (!client?.connected) {
+      throw new Error(
+        'Cannot run spatial audit while disconnected.',
+      );
+    }
 
     try {
-      const response = await fetch(
-        `${config.serverUrl}/api/spatial-audit?${params}`,
+      const report = await client.request(
+        'audit:request',
+        {},
       );
-
-      const report = await response.json();
-
-      dispatch({
-        type: 'stats',
-        stats: {
-          audit: report,
-        },
-      });
 
       dispatch({
         type: 'notice',
@@ -1256,4 +1200,4 @@ export function useProxi() {
   return context;
 }
 
-export default ProxiContext; 
+export default ProxiContext;
