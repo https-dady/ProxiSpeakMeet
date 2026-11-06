@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 
 import { config } from '../config/index.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { corsOrigin } from '../utils/origin.js';
 
 import {
   createAuthSession,
@@ -27,26 +28,33 @@ const COOKIE_OPTIONS = Object.freeze({
   maxAge: REFRESH_SESSION_MAX_AGE,
 });
 
+const originPolicy = corsOrigin(config);
+
 /**
- * Validate request origin for cookie-based operations.
- *
- * Browser requests include Origin. Requests without Origin
- * are allowed for server-to-server clients.
+ * Enforce the same origin policy used by Express CORS.
  */
 function validateRequestOrigin(req, res) {
-  const requestOrigin = req.get('origin');
+  const origin = req.get('origin');
 
-  if (!requestOrigin) {
+  if (!origin) {
     return true;
   }
 
-  const allowedOrigins = config.server.clientOrigins;
+  if (originPolicy === true) {
+    return true;
+  }
 
-  if (
-    Array.isArray(allowedOrigins) &&
-    allowedOrigins.length > 0 &&
-    !allowedOrigins.includes(requestOrigin)
-  ) {
+  if (typeof originPolicy !== 'function') {
+    return false;
+  }
+
+  let allowed = false;
+
+  originPolicy(origin, (error, result) => {
+    allowed = !error && result === true;
+  });
+
+  if (!allowed) {
     res.status(403).json({
       error: 'Request origin is not allowed.',
     });
@@ -59,8 +67,6 @@ function validateRequestOrigin(req, res) {
 
 /**
  * Read the refresh token from the Cookie header.
- *
- * This avoids requiring an additional cookie-parser dependency.
  */
 function readRefreshToken(req) {
   const cookieHeader = req.headers.cookie;
@@ -69,12 +75,10 @@ function readRefreshToken(req) {
     return null;
   }
 
-  const cookies = cookieHeader.split(';');
-
-  for (const cookie of cookies) {
+  for (const cookie of cookieHeader.split(';')) {
     const separatorIndex = cookie.indexOf('=');
 
-    if (separatorIndex === -1) {
+    if (separatorIndex < 0) {
       continue;
     }
 
@@ -86,35 +90,26 @@ function readRefreshToken(req) {
       continue;
     }
 
-    const value = cookie
+    const token = cookie
       .slice(separatorIndex + 1)
       .trim();
 
-    return /^[a-f0-9]{96}$/.test(value)
-      ? value
+    return /^[a-f0-9]{96}$/.test(token)
+      ? token
       : null;
   }
 
   return null;
 }
 
-/**
- * Set the HttpOnly refresh-token cookie.
- */
-function setRefreshCookie(res, refreshToken) {
+function setRefreshCookie(res, token) {
   res.cookie(
     COOKIE_NAME,
-    refreshToken,
+    token,
     COOKIE_OPTIONS,
   );
 }
 
-/**
- * Clear the refresh-token cookie.
- *
- * Cookie path and security attributes must match
- * the original cookie configuration.
- */
 function clearRefreshCookie(res) {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: COOKIE_OPTIONS.httpOnly,
@@ -124,12 +119,6 @@ function clearRefreshCookie(res) {
   });
 }
 
-/**
- * Create a short-lived access JWT.
- *
- * Payload matches authenticateToken middleware:
- * { userId, username }
- */
 function createAccessToken(user) {
   return jwt.sign(
     {
@@ -146,13 +135,6 @@ function createAccessToken(user) {
 
 /**
  * POST /api/auth/session/start
- *
- * Creates a persistent refresh session after successful login.
- *
- * Requires:
- * Authorization: Bearer <access-token>
- *
- * The refresh token is returned only as an HttpOnly cookie.
  */
 router.post(
   '/start',
@@ -197,13 +179,6 @@ router.post(
 
 /**
  * POST /api/auth/session/refresh
- *
- * Rotates the refresh token and issues a new access JWT.
- *
- * Refresh token:
- * - Read from HttpOnly cookie.
- * - Validated and rotated server-side.
- * - Never returned in the response body.
  */
 router.post(
   '/refresh',
@@ -265,9 +240,6 @@ router.post(
 
 /**
  * POST /api/auth/session/logout
- *
- * Revokes the current refresh session and clears
- * the browser's HttpOnly refresh-token cookie.
  */
 router.post(
   '/logout',
