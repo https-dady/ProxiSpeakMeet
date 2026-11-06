@@ -41,9 +41,9 @@ function LoadingScreen({
   message = 'Loading your workspace…',
 }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#080b14] px-6 text-[#edf2ff]">
+    <main className="grid min-h-screen place-items-center bg-[#1E1E1E] px-6 text-[#F6F6F6]">
       <div className="text-center">
-        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#8175ff] text-xl font-bold">
+        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F3184C] text-xl font-bold">
           P
         </div>
 
@@ -51,7 +51,7 @@ function LoadingScreen({
           ProxiSpeak Meet
         </h1>
 
-        <p className="mt-3 text-sm text-[#9ba9c2]">
+        <p className="mt-3 text-sm text-[#BDBDBD]">
           {message}
         </p>
       </div>
@@ -65,17 +65,17 @@ function SessionErrorScreen({
   onSignOut,
 }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#080b14] px-5 py-10 text-[#edf2ff]">
-      <section className="w-full max-w-md rounded-2xl border border-[#263149] bg-[#101625] p-7">
+    <main className="grid min-h-screen place-items-center bg-[#1E1E1E] px-5 py-10 text-[#F6F6F6]">
+      <section className="w-full max-w-md rounded-2xl border border-[#454545] bg-[#303030] p-7">
         <h1 className="text-xl font-bold">
           Unable to verify your session
         </h1>
 
-        <p className="mt-4 text-sm leading-7 text-[#9ba9c2]">
+        <p className="mt-4 text-sm leading-7 text-[#BDBDBD]">
           {message}
         </p>
 
-        <p className="mt-3 text-xs leading-6 text-[#71809a]">
+        <p className="mt-3 text-xs leading-6 text-[#B0B0B0]">
           Check your connection to the server and try again.
         </p>
 
@@ -83,7 +83,7 @@ function SessionErrorScreen({
           <button
             type="button"
             onClick={onRetry}
-            className="flex-1 rounded-xl bg-[#8175ff] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7164f0]"
+            className="flex-1 rounded-xl bg-[#F3184C] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#D91343]"
           >
             Retry
           </button>
@@ -91,7 +91,7 @@ function SessionErrorScreen({
           <button
             type="button"
             onClick={onSignOut}
-            className="flex-1 rounded-xl border border-[#263149] px-4 py-3 text-sm font-semibold text-[#edf2ff] transition hover:bg-[#151e30]"
+            className="flex-1 rounded-xl border border-[#454545] px-4 py-3 text-sm font-semibold text-[#F6F6F6] transition hover:bg-[#3A3A3A]"
           >
             Sign in again
           </button>
@@ -403,7 +403,7 @@ function SettingsPanel() {
         <div className="room-info__details">
           <div className="room-info__item">
             <span className="room-info__icon" aria-hidden="true">
-              ♫
+              ◉
             </span>
 
             <div className="room-info__copy">
@@ -418,9 +418,8 @@ function SettingsPanel() {
 
             <button
               type="button"
-              className="button button--small"
+              className="button button--secondary"
               onClick={toggleMute}
-              aria-pressed={state.muted}
             >
               {state.muted ? 'Unmute' : 'Mute'}
             </button>
@@ -428,124 +427,88 @@ function SettingsPanel() {
 
           <div className="room-info__item">
             <span className="room-info__icon" aria-hidden="true">
-              🔊
+              ◖
             </span>
 
             <div className="room-info__copy">
               <label
                 className="room-info__label"
-                htmlFor="settings-master-volume"
+                htmlFor="master-volume"
               >
-                Master output volume
+                Master volume
               </label>
 
               <strong className="room-info__value">
-                {Math.round(
-                  state.masterVolume * 100,
-                )}%
+                {Math.round(state.volume * 100)}%
               </strong>
             </div>
-
-            <input
-              id="settings-master-volume"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={state.masterVolume}
-              onChange={(event) =>
-                setVolume(Number(event.target.value))
-              }
-              aria-label="Master output volume"
-            />
           </div>
+
+          <input
+            id="master-volume"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={state.volume}
+            onChange={(event) =>
+              setVolume(Number(event.target.value))
+            }
+          />
         </div>
       </section>
-
-      <OfficeBlueprintImporter />
-      <RoomInfoPanel />
     </>
   );
 }
 
 /* -------------------------------------------------------
-   OFFICE WORKSPACE VIEWS
+   OFFICE WORKSPACE VIEW
 ------------------------------------------------------- */
 
 function WorkspaceView({ activeView }) {
-  switch (activeView) {
-    case 'people':
-      return (
-        <main
-          className="app__body"
-          aria-label="People workspace"
-          style={{
-            gridTemplateColumns: 'minmax(0, 1fr)',
-          }}
-        >
-          <div className="app__sidebar">
-            <PeerList />
-            <RoomInfoPanel />
-          </div>
-        </main>
-      );
-
-    case 'audio':
-      return (
-        <main
-          className="app__body"
-          aria-label="Audio and diagnostics workspace"
-          style={{
-            gridTemplateColumns: 'minmax(0, 1fr)',
-          }}
-        >
-          <div className="app__sidebar">
-            <ConnectionAudioPanel />
-            <AuditPanel />
-          </div>
-        </main>
-      );
-
-    case 'settings':
-      return (
-        <main
-          className="app__body"
-          aria-label="Workspace settings"
-          style={{
-            gridTemplateColumns: 'minmax(0, 1fr)',
-          }}
-        >
-          <div className="app__sidebar">
-            <SettingsPanel />
-          </div>
-        </main>
-      );
-
-    case 'office':
-    default:
-      return (
-        <main
-          className="app__body"
-          aria-label="Virtual office workspace"
-        >
-          <WorldCanvas />
-
-          <aside
-            className="app__sidebar"
-            aria-label="Workspace information and diagnostics"
-          >
-            <PeerList />
-            <ConnectionAudioPanel />
-            <RoomInfoPanel />
-            <AuditPanel />
-          </aside>
-        </main>
-      );
+  if (activeView === 'people') {
+    return (
+      <div className="workspace-grid">
+        <PeerList />
+      </div>
+    );
   }
+
+  if (activeView === 'audio') {
+    return (
+      <div className="workspace-grid">
+        <ConnectionAudioPanel />
+        <RoomInfoPanel />
+      </div>
+    );
+  }
+
+  if (activeView === 'settings') {
+    return (
+      <div className="workspace-grid">
+        <SettingsPanel />
+        <OfficeBlueprintImporter />
+      </div>
+    );
+  }
+
+  return (
+    <div className="workspace-grid workspace-grid--office">
+      <div className="workspace-grid__main">
+        <WorldCanvas />
+      </div>
+
+      <aside className="workspace-grid__sidebar">
+        <RoomInfoPanel />
+        <ConnectionAudioPanel />
+        <AuditPanel />
+      </aside>
+    </div>
+  );
 }
 
 /* -------------------------------------------------------
-   VIRTUAL OFFICE
+   OFFICE APPLICATION
 ------------------------------------------------------- */
 
 function Office() {
@@ -626,9 +589,6 @@ function Office() {
 
 /* -------------------------------------------------------
    MEETING HEADER
-
-   This component is inside ProxiProvider so it can call
-   the real leave() function before returning to Dashboard.
 ------------------------------------------------------- */
 
 function MeetingHeader({
@@ -658,13 +618,13 @@ function MeetingHeader({
   };
 
   return (
-    <header className="relative z-[1000] flex flex-wrap items-center justify-between gap-3 border-b border-[#263149] bg-[#0d131c] px-4 py-3 sm:px-6">
+    <header className="relative z-[1000] flex flex-wrap items-center justify-between gap-3 border-b border-[#454545] bg-[#303030] px-4 py-3 sm:px-6">
       <div className="min-w-0">
-        <p className="text-[10px] font-bold tracking-[0.18em] text-[#9ba9c2]">
+        <p className="text-[10px] font-bold tracking-[0.18em] text-[#BDBDBD]">
           CURRENT MEETING
         </p>
 
-        <p className="mt-1 truncate text-sm font-semibold text-[#edf2ff]">
+        <p className="mt-1 truncate text-sm font-semibold text-[#F6F6F6]">
           {roomId}
         </p>
 
@@ -679,7 +639,7 @@ function MeetingHeader({
         type="button"
         onClick={handleLeave}
         disabled={leaving}
-        className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-2.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded-xl border border-[#F3184C]/40 bg-[#F3184C]/10 px-4 py-2.5 text-xs font-semibold text-[#F6F6F6] transition hover:bg-[#F3184C]/20 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {leaving ? 'Leaving meeting…' : 'Leave meeting'}
       </button>
@@ -788,7 +748,7 @@ export function App() {
    * stores the token and returns the username.
    */
   const handleLogin = useCallback(
-    (username) => {
+    async (username) => {
       const token = localStorage.getItem('token');
 
       if (
@@ -801,21 +761,32 @@ export function App() {
         );
       }
 
-      login({
-        token,
-        username: username.trim(),
-      });
+      try {
+        await login({
+          token,
+          username: username.trim(),
+        });
 
-      setCurrentRoom(null);
+        setCurrentRoom(null);
 
-      const url = new URL(window.location.href);
-      url.searchParams.delete('room');
+        const url = new URL(window.location.href);
+        url.searchParams.delete('room');
 
-      window.history.replaceState({}, '', url);
+        window.history.replaceState({}, '', url);
 
-      navigate('/dashboard', {
-        replace: true,
-      });
+        navigate('/dashboard', {
+          replace: true,
+        });
+
+        return true;
+      } catch (error) {
+        console.error(
+          'Login session initialization failed:',
+          error.message,
+        );
+
+        throw error;
+      }
     },
     [login, navigate],
   );
@@ -1005,7 +976,7 @@ export function App() {
    */
   return (
     <ProxiProvider>
-      <div className="min-h-screen bg-[#080b14]">
+      <div className="min-h-screen bg-[#1E1E1E]">
         <MeetingHeader
           roomId={currentRoom}
           onLeave={handleLeaveMeeting}
