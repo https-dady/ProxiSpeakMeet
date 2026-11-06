@@ -13,73 +13,112 @@ import {
 
 const router = Router();
 
-const REFRESH_COOKIE_NAME = 'psm_refresh_token';
+const COOKIE_NAME = 'psm_refresh_token';
 
-const REFRESH_COOKIE_MAX_AGE =
-  30 * 24 * 60 * 60 * 1000;
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 
-const isProduction =
-  process.env.NODE_ENV === 'production';
+const isProduction = config.isProduction;
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',
+  path: '/api/auth/session',
+  maxAge: COOKIE_MAX_AGE,
+};
+
+const clearCookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',
+  path: '/api/auth/session',
+};
 
 /**
- * Cookie configuration.
- *
- * HttpOnly prevents JavaScript access to refresh tokens.
- * Secure is enabled in production.
+ * Validate browser Origin against configured client origins.
  */
-function getCookieOptions() {
-  return {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'lax',
-    path: '/api/auth/session',
-    maxAge: REFRESH_COOKIE_MAX_AGE,
-  };
+function validateOrigin(req, res) {
+  const origin = req.get('origin');
+
+  if (!origin) {
+    res.status(403).json({
+      error: 'Request origin is required.',
+    });
+
+    return false;
+  }
+
+  let normalizedOrigin;
+
+  try {
+    normalizedOrigin = new URL(origin).origin;
+  } catch {
+    res.status(403).json({
+      error: 'Invalid request origin.',
+    });
+
+    return false;
+  }
+
+  const allowedOrigins = config.server.clientOrigins;
+
+  const isAllowed = allowedOrigins.includes(normalizedOrigin);
+
+  const isLocalDevelopment =
+    !isProduction &&
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(
+      normalizedOrigin,
+    );
+
+  if (!isAllowed && !isLocalDevelopment) {
+    res.status(403).json({
+      error: 'Request origin is not authorized.',
+    });
+
+    return false;
+  }
+
+  return true;
 }
 
 /**
- * Extract refresh token from request cookies.
+ * Extract refresh token from HttpOnly cookie.
  */
 function getRefreshToken(req) {
   const cookieHeader = req.headers.cookie;
 
-  if (typeof cookieHeader !== 'string') {
-    return null;
-  }
+  if (!cookieHeader) return null;
 
-  const cookies = cookieHeader.split(';');
-
-  for (const cookie of cookies) {
-    const separator = cookie.indexOf('=');
+  for (const item of cookieHeader.split(';')) {
+    const separator = item.indexOf('=');
 
     if (separator === -1) continue;
 
-    const name = cookie.slice(0, separator).trim();
+    const name = item.slice(0, separator).trim();
 
-    if (name !== REFRESH_COOKIE_NAME) continue;
+    if (name !== COOKIE_NAME) continue;
 
-    return cookie.slice(separator + 1).trim();
+    return item.slice(separator + 1).trim();
   }
 
   return null;
 }
 
-/**
- * Create access token.
- */
+function setRefreshCookie(res, token) {
+  res.cookie(COOKIE_NAME, token, cookieOptions);
+}
+
+function clearRefreshCookie(res) {
+  res.clearCookie(COOKIE_NAME, clearCookieOptions);
+}
+
 function createAccessToken(user) {
-  const secret = config.auth.jwtSecret;
-
-  if (!secret || secret.length < 32) {
-    throw new Error('JWT_SECRET is missing or invalid.');
-  }
-
   return jwt.sign(
     {
       userId: user._id.toString(),
       username: user.username,
     },
-    secret,
+    config.auth.jwtSecret,
     {
       expiresIn: config.auth.jwtExpiresIn || '24h',
       algorithm: 'HS256',
@@ -88,84 +127,44 @@ function createAccessToken(user) {
 }
 
 /**
- * Set refresh cookie.
- */
-function setRefreshCookie(res, token) {
-  res.cookie(
-    REFRESH_COOKIE_NAME,
-    token,
-    getCookieOptions(),
-  );
-}
-
-/**
- * Clear refresh cookie.
- */
-function clearRefreshCookie(res) {
-  res.clearCookie(
-    REFRESH_COOKIE_NAME,
-    {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/api/auth/session',
-    },
-  );
-}
-
-/**
  * POST /api/auth/session/start
- *
- * Creates a persistent session after successful login.
- *
- * Requires the existing access token.
  */
-router.post(
-  '/start',
-  authenticateToken,
-  async (req, res) => {
-    try {
-      const user = await User.findById(
-        req.user.userId,
-      ).select('_id username isEmailVerified');
+router.post('/start', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select(
+      '_id username isEmailVerified',
+    );
 
-      if (!user || !user.isEmailVerified) {
-        return res.status(401).json({
-          error: 'Account is unavailable or unverified.',
-        });
-      }
-
-      const session = await createAuthSession(user._id);
-
-      setRefreshCookie(
-        res,
-        session.refreshToken,
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: 'Persistent session created.',
-        expiresAt: session.expiresAt,
-      });
-    } catch (error) {
-      console.error(
-        'Session creation failed:',
-        error.message,
-      );
-
-      return res.status(500).json({
-        error: 'Unable to create persistent session.',
+    if (!user || !user.isEmailVerified) {
+      return res.status(401).json({
+        error: 'Account is unavailable or unverified.',
       });
     }
-  },
-);
+
+    const session = await createAuthSession(user._id);
+
+    setRefreshCookie(res, session.refreshToken);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Persistent session established.',
+      expiresAt: session.expiresAt,
+    });
+  } catch (error) {
+    console.error('Session creation failed:', error.message);
+
+    return res.status(500).json({
+      error: 'Unable to establish persistent session.',
+    });
+  }
+});
 
 /**
  * POST /api/auth/session/refresh
- *
- * Rotates the refresh token and issues a new access token.
  */
 router.post('/refresh', async (req, res) => {
+  if (!validateOrigin(req, res)) return;
+
   try {
     const refreshToken = getRefreshToken(req);
 
@@ -177,9 +176,7 @@ router.post('/refresh', async (req, res) => {
       });
     }
 
-    const session = await rotateAuthSession(
-      refreshToken,
-    );
+    const session = await rotateAuthSession(refreshToken);
 
     if (!session) {
       clearRefreshCookie(res);
@@ -189,43 +186,32 @@ router.post('/refresh', async (req, res) => {
       });
     }
 
-    const user = {
+    const accessToken = createAccessToken({
       _id: session.user.userId,
       username: session.user.username,
-    };
+    });
 
-    const accessToken = createAccessToken(user);
-
-    setRefreshCookie(
-      res,
-      session.refreshToken,
-    );
+    setRefreshCookie(res, session.refreshToken);
 
     return res.status(200).json({
       token: accessToken,
-      user: {
-        userId: session.user.userId,
-        username: session.user.username,
-      },
+      user: session.user,
     });
   } catch (error) {
-    console.error(
-      'Session refresh failed:',
-      error.message,
-    );
+    console.error('Session refresh failed:', error.message);
 
     return res.status(500).json({
-      error: 'Unable to refresh your session.',
+      error: 'Unable to refresh authentication session.',
     });
   }
 });
 
 /**
  * POST /api/auth/session/logout
- *
- * Revokes the current persistent session.
  */
 router.post('/logout', async (req, res) => {
+  if (!validateOrigin(req, res)) return;
+
   try {
     const refreshToken = getRefreshToken(req);
 
@@ -237,18 +223,15 @@ router.post('/logout', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Session logged out successfully.',
+      message: 'Session terminated successfully.',
     });
   } catch (error) {
-    console.error(
-      'Session logout failed:',
-      error.message,
-    );
+    console.error('Session logout failed:', error.message);
 
     clearRefreshCookie(res);
 
     return res.status(500).json({
-      error: 'Unable to terminate your session.',
+      error: 'Unable to terminate authentication session.',
     });
   }
 });
