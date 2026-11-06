@@ -1,14 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 
 import config from '../config.js';
 
 const API_BASE_URL = String(config.serverUrl).replace(/\/+$/, '');
 
 const AUTH_ENDPOINT = `${API_BASE_URL}/api/auth`;
+
 const SESSION_ENDPOINT = `${AUTH_ENDPOINT}/me`;
 const SESSION_START_ENDPOINT = `${AUTH_ENDPOINT}/session/start`;
 const SESSION_REFRESH_ENDPOINT = `${AUTH_ENDPOINT}/session/refresh`;
 const SESSION_LOGOUT_ENDPOINT = `${AUTH_ENDPOINT}/session/logout`;
+
+/*
+ * Prevent duplicate refresh requests across components
+ * and concurrent API operations in this browser tab.
+ */
+let refreshPromise = null;
+
+/*
+ * Prevent duplicate session initialization for the same token.
+ */
+const sessionStartPromises = new Map();
 
 function readStoredSession() {
   return {
@@ -45,62 +61,82 @@ async function readPayload(response) {
   return response.json().catch(() => ({}));
 }
 
-export function useAuthSession() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+/*
+ * Establish persistent authentication session.
+ *
+ * The backend stores the refresh token in an
+ * HttpOnly cookie. It is never exposed to JavaScript.
+ */
+async function establishPersistentSession(token) {
+  if (sessionStartPromises.has(token)) {
+    return sessionStartPromises.get(token);
+  }
 
-  /**
-   * Creates the persistent HttpOnly refresh session.
-   *
-   * Login already returns an access token.
-   * This endpoint exchanges that authenticated identity
-   * for a persistent refresh-token cookie.
-   */
-  const establishPersistentSession = useCallback(
-    async (token) => {
-      const response = await fetch(SESSION_START_ENDPOINT, {
+  const request = (async () => {
+    const response = await fetch(
+      SESSION_START_ENDPOINT,
+      {
         method: 'POST',
         credentials: 'include',
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${token}`,
         },
-      });
-
-      const payload = await readPayload(response);
-
-      if (!response.ok) {
-        throw new Error(
-          payload.error ||
-            'Unable to establish persistent session.',
-        );
-      }
-
-      return true;
-    },
-    [],
-  );
-
-  /**
-   * Rotates the refresh token and obtains a new access token.
-   *
-   * The refresh token is sent automatically through
-   * the HttpOnly cookie.
-   */
-  const refreshAccessToken = useCallback(async () => {
-    const response = await fetch(SESSION_REFRESH_ENDPOINT, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        Accept: 'application/json',
       },
-    });
+    );
 
     const payload = await readPayload(response);
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
+      throw new Error(
+        payload.error ||
+          'Unable to establish persistent session.',
+      );
+    }
+
+    return true;
+  })();
+
+  sessionStartPromises.set(token, request);
+
+  try {
+    return await request;
+  } finally {
+    if (sessionStartPromises.get(token) === request) {
+      sessionStartPromises.delete(token);
+    }
+  }
+}
+
+/*
+ * Refresh an expired access token.
+ *
+ * Multiple simultaneous callers share one refresh request.
+ */
+async function refreshAccessToken() {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    const response = await fetch(
+      SESSION_REFRESH_ENDPOINT,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+        },
+      },
+    );
+
+    const payload = await readPayload(response);
+
+    if (!response.ok) {
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
         return null;
       }
 
@@ -115,30 +151,47 @@ export function useAuthSession() {
       !payload.token.trim()
     ) {
       throw new Error(
-        'The server returned an invalid refreshed token.',
+        'Invalid access token received from server.',
       );
     }
 
     localStorage.setItem('token', payload.token);
 
-    if (payload.user?.username) {
+    if (
+      typeof payload.user?.username === 'string' &&
+      payload.user.username.trim()
+    ) {
       localStorage.setItem(
         'username',
-        payload.user.username,
+        payload.user.username.trim(),
       );
     }
 
     return payload.token;
-  }, []);
+  })();
 
-  /**
-   * Establishes the client session after successful login.
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
+}
+
+export function useAuthSession() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  /*
+   * LOGIN
    *
-   * App.jsx calls:
+   * Contract:
    * login({ token, username })
+   *
+   * Resolves only after persistent session initialization.
    */
   const login = useCallback(
-    ({ token, username }) => {
+    async ({ token, username }) => {
       if (
         typeof token !== 'string' ||
         !token.trim() ||
@@ -150,56 +203,72 @@ export function useAuthSession() {
         );
       }
 
+      const normalizedToken = token.trim();
       const normalizedUsername = username.trim();
 
-      localStorage.setItem('token', token);
-      localStorage.setItem('username', normalizedUsername);
-
-      setUser({
-        userId: '',
-        username: normalizedUsername,
-      });
-
+      setLoading(true);
       setError('');
-      setLoading(false);
 
       /*
-       * Establish the HttpOnly refresh cookie.
-       *
-       * Do not clear the access token if this request fails.
-       * The login itself has already succeeded.
+       * Store credentials temporarily so the session
+       * can survive a network retry during initialization.
        */
-      void establishPersistentSession(token).catch((err) => {
-        console.error(
-          'Persistent session initialization failed:',
-          err.message,
-        );
+      localStorage.setItem('token', normalizedToken);
 
-        setError(
-          'You are signed in, but automatic session renewal could not be initialized. Please check your connection.',
-        );
-      });
+      localStorage.setItem(
+        'username',
+        normalizedUsername,
+      );
+
+      try {
+        await establishPersistentSession(normalizedToken);
+
+        const authenticatedUser = {
+          userId: '',
+          username: normalizedUsername,
+        };
+
+        setUser(authenticatedUser);
+        setError('');
+
+        return true;
+      } catch (err) {
+        clearStoredSession();
+
+        setUser(null);
+
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Unable to initialize persistent session.';
+
+        setError(message);
+
+        throw err;
+      } finally {
+        setLoading(false);
+      }
     },
-    [establishPersistentSession],
+    [],
   );
 
-  /**
-   * Clears the local session and revokes the
-   * persistent server-side refresh session.
+  /*
+   * LOGOUT
+   *
+   * Clear local credentials immediately.
+   * Revoke the server-side refresh session.
    */
-  const logout = useCallback(() => {
-    const logoutRequest = fetch(SESSION_LOGOUT_ENDPOINT, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        Accept: 'application/json',
+  const logout = useCallback(async () => {
+    const request = fetch(
+      SESSION_LOGOUT_ENDPOINT,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+        },
       },
-    }).catch((err) => {
-      console.error(
-        'Server logout request failed:',
-        err.message,
-      );
-    });
+    );
 
     clearStoredSession();
 
@@ -207,20 +276,28 @@ export function useAuthSession() {
     setError('');
     setLoading(false);
 
-    return logoutRequest;
+    try {
+      await request;
+    } catch (err) {
+      console.error(
+        'Server logout request failed:',
+        err.message,
+      );
+    }
   }, []);
 
-  /**
-   * Verifies the current access token.
+  /*
+   * VERIFY SESSION
    *
-   * If expired:
-   * 1. Refresh the access token.
-   * 2. Retry /me.
-   * 3. Restore the authenticated user.
+   * 1. Read saved access token.
+   * 2. Verify through /me.
+   * 3. Refresh if the access token expired.
+   * 4. Retry /me with the refreshed token.
+   * 5. Restore authenticated user.
    */
   const verifySession = useCallback(
     async (signal) => {
-      let session = readStoredSession();
+      const session = readStoredSession();
 
       if (signal?.aborted) {
         return false;
@@ -229,11 +306,9 @@ export function useAuthSession() {
       if (!session.token || !session.username) {
         clearStoredSession();
 
-        if (!signal?.aborted) {
-          setUser(null);
-          setError('');
-          setLoading(false);
-        }
+        setUser(null);
+        setError('');
+        setLoading(false);
 
         return false;
       }
@@ -242,15 +317,18 @@ export function useAuthSession() {
       setError('');
 
       try {
-        let response = await fetch(SESSION_ENDPOINT, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${session.token}`,
+        let response = await fetch(
+          SESSION_ENDPOINT,
+          {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              Accept: 'application/json',
+              Authorization: `Bearer ${session.token}`,
+            },
+            signal,
           },
-          signal,
-        });
+        );
 
         if (signal?.aborted) {
           return false;
@@ -258,10 +336,11 @@ export function useAuthSession() {
 
         /*
          * Access token expired or invalid.
-         * Attempt refresh before logging out.
+         * Try refreshing before ending the session.
          */
         if (response.status === 401) {
-          const refreshedToken = await refreshAccessToken();
+          const refreshedToken =
+            await refreshAccessToken();
 
           if (signal?.aborted) {
             return false;
@@ -276,15 +355,18 @@ export function useAuthSession() {
             return false;
           }
 
-          response = await fetch(SESSION_ENDPOINT, {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              Accept: 'application/json',
-              Authorization: `Bearer ${refreshedToken}`,
+          response = await fetch(
+            SESSION_ENDPOINT,
+            {
+              method: 'GET',
+              credentials: 'include',
+              headers: {
+                Accept: 'application/json',
+                Authorization: `Bearer ${refreshedToken}`,
+              },
+              signal,
             },
-            signal,
-          });
+          );
         }
 
         if (signal?.aborted) {
@@ -315,7 +397,9 @@ export function useAuthSession() {
           return false;
         }
 
-        const verifiedUser = normalizeUser(payload?.user);
+        const verifiedUser = normalizeUser(
+          payload?.user,
+        );
 
         if (!verifiedUser) {
           throw new Error(
@@ -341,8 +425,8 @@ export function useAuthSession() {
         }
 
         /*
-         * Network errors must not destroy a potentially
-         * valid authentication session.
+         * Network failures must not automatically erase
+         * potentially valid saved credentials.
          */
         setUser(null);
 
@@ -359,11 +443,11 @@ export function useAuthSession() {
         }
       }
     },
-    [refreshAccessToken],
+    [],
   );
 
-  /**
-   * Restore session when the application mounts.
+  /*
+   * INITIAL SESSION RESTORATION
    */
   useEffect(() => {
     const controller = new AbortController();
