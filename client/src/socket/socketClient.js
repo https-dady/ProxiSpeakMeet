@@ -1,16 +1,33 @@
 /**
  * Socket.io client wrapper.
  *
- * Owns connection lifecycle, reconnect behaviour and the typed event bus.
- * The rest of the application subscribes through on() and onStatus().
+ * Owns connection lifecycle, reconnect behaviour,
+ * authentication handshake and the typed event bus.
  */
 import { io } from 'socket.io-client';
 import config from '../config.js';
+
+function getSocketAuth(callback) {
+  let token = '';
+
+  try {
+    token = localStorage.getItem('token') || '';
+  } catch {
+    // Guest connections remain supported when storage is unavailable.
+  }
+
+  callback(
+    token
+      ? { token }
+      : {},
+  );
+}
 
 export function createSocketClient({
   url = config.serverUrl,
 } = {}) {
   const socket = io(url, {
+    auth: getSocketAuth,
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 500,
@@ -128,10 +145,7 @@ export function createSocketClient({
 
     /**
      * Subscribe to connection status.
-     *
-     * Immediately reports the current status so callers
-     * cannot miss an initial connection that happened
-     * before subscription.
+     * Immediately reports current connection state.
      */
     onStatus(handler) {
       if (typeof handler !== 'function') {
