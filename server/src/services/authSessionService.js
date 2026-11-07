@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import mongoose from 'mongoose';
 
 import AuthSession from '../models/AuthSession.js';
 import User from '../models/User.js';
@@ -6,41 +7,58 @@ import User from '../models/User.js';
 const REFRESH_TOKEN_BYTES = 48;
 const REFRESH_SESSION_DAYS = 30;
 
-const REFRESH_SESSION_DURATION =
-  REFRESH_SESSION_DAYS * 24 * 60 * 60 * 1000;
+function getSessionExpiry() {
+  return new Date(
+    Date.now() +
+      REFRESH_SESSION_DAYS * 24 * 60 * 60 * 1000,
+  );
+}
 
-const getSessionExpiry = () =>
-  new Date(Date.now() + REFRESH_SESSION_DURATION);
-
-const hashRefreshToken = (token) =>
-  createHash('sha256')
+function hashRefreshToken(token) {
+  return createHash('sha256')
     .update(token)
     .digest('hex');
+}
 
-const generateRefreshToken = () =>
-  randomBytes(REFRESH_TOKEN_BYTES).toString('hex');
+function generateRefreshToken() {
+  return randomBytes(REFRESH_TOKEN_BYTES).toString('hex');
+}
 
-const isValidRefreshToken = (token) =>
-  typeof token === 'string' &&
-  /^[a-f0-9]{96}$/.test(token);
+function isValidRefreshToken(token) {
+  return (
+    typeof token === 'string' &&
+    /^[a-f0-9]{96}$/.test(token)
+  );
+}
 
-/**
- * Creates a new persistent authentication session.
- *
- * Raw refresh token is returned only once.
- * Only its SHA-256 hash is stored in MongoDB.
- */
+function normalizeUser(user) {
+  return {
+    userId: user._id.toString(),
+    username: user.username,
+  };
+}
+
 export async function createAuthSession(userId) {
-  if (!userId) {
+  if (!userId || !mongoose.isValidObjectId(userId)) {
     throw new Error(
-      'User ID is required to create an auth session.',
+      'A valid user ID is required to create an auth session.',
+    );
+  }
+
+  const user = await User.findById(userId)
+    .select('_id username isEmailVerified')
+    .lean();
+
+  if (!user || !user.isEmailVerified) {
+    throw new Error(
+      'A verified account is required to create an auth session.',
     );
   }
 
   const refreshToken = generateRefreshToken();
 
   const session = await AuthSession.create({
-    userId,
+    userId: user._id,
     tokenHash: hashRefreshToken(refreshToken),
     expiresAt: getSessionExpiry(),
     lastUsedAt: new Date(),
@@ -53,104 +71,87 @@ export async function createAuthSession(userId) {
   };
 }
 
-/**
- * Atomically rotates an existing refresh token.
- *
- * The old token hash is replaced using findOneAndUpdate.
- * Concurrent requests cannot successfully reuse the same
- * refresh token because the old hash stops matching after
- * the first successful update.
- */
 export async function rotateAuthSession(refreshToken) {
   if (!isValidRefreshToken(refreshToken)) {
     return null;
   }
 
-  const previousTokenHash =
-    hashRefreshToken(refreshToken);
+  const tokenHash = hashRefreshToken(refreshToken);
+  const sessionMongo = await mongoose.startSession();
 
-  const nextRefreshToken = generateRefreshToken();
+  let rotatedSession = null;
 
-  const nextTokenHash =
-    hashRefreshToken(nextRefreshToken);
+  try {
+    await sessionMongo.withTransaction(async () => {
+      const existingSession = await AuthSession.findOne({
+        tokenHash,
+        expiresAt: { $gt: new Date() },
+      }).session(sessionMongo);
 
-  const now = new Date();
+      if (!existingSession) {
+        return;
+      }
 
-  /*
-   * Locate the active session without consuming it.
-   */
-  const existingSession = await AuthSession.findOne({
-    tokenHash: previousTokenHash,
-    expiresAt: { $gt: now },
-  }).select('_id userId');
+      const user = await User.findById(
+        existingSession.userId,
+      )
+        .select('_id username isEmailVerified')
+        .session(sessionMongo);
 
-  if (!existingSession) {
-    return null;
-  }
+      if (!user || !user.isEmailVerified) {
+        await AuthSession.deleteOne({
+          _id: existingSession._id,
+        }).session(sessionMongo);
 
-  /*
-   * Verify the account before rotating the token.
-   */
-  const user = await User.findById(
-    existingSession.userId,
-  ).select('_id username isEmailVerified');
+        return;
+      }
 
-  if (!user || !user.isEmailVerified) {
-    await AuthSession.deleteOne({
-      _id: existingSession._id,
-      tokenHash: previousTokenHash,
+      const nextRefreshToken = generateRefreshToken();
+      const nextExpiry = getSessionExpiry();
+
+      await AuthSession.create(
+        [
+          {
+            userId: user._id,
+            tokenHash: hashRefreshToken(nextRefreshToken),
+            expiresAt: nextExpiry,
+            lastUsedAt: new Date(),
+          },
+        ],
+        {
+          session: sessionMongo,
+        },
+      );
+
+      const deletion = await AuthSession.deleteOne(
+        {
+          _id: existingSession._id,
+          tokenHash,
+        },
+        {
+          session: sessionMongo,
+        },
+      );
+
+      if (deletion.deletedCount !== 1) {
+        throw new Error(
+          'Refresh session was already consumed.',
+        );
+      }
+
+      rotatedSession = {
+        user: normalizeUser(user),
+        refreshToken: nextRefreshToken,
+        expiresAt: nextExpiry,
+      };
     });
 
-    return null;
+    return rotatedSession;
+  } finally {
+    await sessionMongo.endSession();
   }
-
-  const nextExpiry = getSessionExpiry();
-
-  /*
-   * Atomic compare-and-replace:
-   *
-   * Only one request can replace the old token hash.
-   * Any concurrent request using the same old token
-   * will receive null.
-   */
-  const updatedSession =
-    await AuthSession.findOneAndUpdate(
-      {
-        _id: existingSession._id,
-        tokenHash: previousTokenHash,
-        expiresAt: { $gt: now },
-      },
-      {
-        $set: {
-          tokenHash: nextTokenHash,
-          expiresAt: nextExpiry,
-          lastUsedAt: now,
-        },
-      },
-      {
-        new: true,
-        runValidators: true,
-      },
-    ).select('_id');
-
-  if (!updatedSession) {
-    return null;
-  }
-
-  return {
-    user: {
-      userId: user._id.toString(),
-      username: user.username,
-    },
-    refreshToken: nextRefreshToken,
-    sessionId: updatedSession._id.toString(),
-    expiresAt: nextExpiry,
-  };
 }
 
-/**
- * Revokes one authentication session.
- */
 export async function revokeAuthSession(refreshToken) {
   if (!isValidRefreshToken(refreshToken)) {
     return false;
@@ -163,16 +164,10 @@ export async function revokeAuthSession(refreshToken) {
   return result.deletedCount > 0;
 }
 
-/**
- * Revokes every active session belonging to a user.
- *
- * Used for account-security operations such as
- * password changes and credential compromise.
- */
 export async function revokeAllAuthSessions(userId) {
-  if (!userId) {
+  if (!userId || !mongoose.isValidObjectId(userId)) {
     throw new Error(
-      'User ID is required to revoke auth sessions.',
+      'A valid user ID is required to revoke auth sessions.',
     );
   }
 
