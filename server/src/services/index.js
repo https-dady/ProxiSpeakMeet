@@ -20,6 +20,7 @@ import {
   getCachedRoom,
   chooseSpawn,
   getRoom,
+  getRoomAccess,
   listRooms,
   persistRoom,
   invalidateRoomCache,
@@ -96,6 +97,7 @@ export function createServices({
 
     // Existing room services.
     getRoom,
+    getRoomAccess,
     getCachedRoom,
     listRooms,
     persistRoom,
