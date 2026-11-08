@@ -219,6 +219,7 @@ export function createApp({
       })),
     });
   });
+
   // -----------------------------------------------------------
   // ROOM CATALOGUE
   // -----------------------------------------------------------
@@ -229,7 +230,8 @@ export function createApp({
    * Returns public rooms and private rooms accessible to the
    * authenticated account.
    *
-   * Missing access metadata fails closed.
+   * Fail-closed:
+   * Rooms with missing access metadata are not exposed.
    */
   app.get(
     '/api/rooms',
@@ -237,54 +239,37 @@ export function createApp({
     async (req, res, next) => {
       try {
         const rooms = await services.listRooms();
-
-        const userId = req.user?.userId;
-
-        if (!userId) {
-          return res.status(401).json({
-            ok: false,
-            error: 'Authentication is required.',
-          });
-        }
-
-        const normalizedUserId = String(userId).toLowerCase();
+        const userId = String(req.user.userId);
 
         const visibleRooms = [];
 
         for (const room of rooms) {
           const access = await getRoomAccess(room.roomId);
 
-          // Never expose a room if its access record is missing.
+          // Missing access metadata must never be treated as public.
           if (!access) {
             continue;
           }
 
-          // Only explicitly public rooms are visible to everyone
-          // who has successfully authenticated.
           if (access.visibility === 'public') {
             visibleRooms.push(room);
             continue;
           }
 
-          // Unknown visibility values fail closed.
           if (access.visibility !== 'private') {
             continue;
           }
 
           const ownerId = access.ownerId
-            ? String(access.ownerId).toLowerCase()
+            ? String(access.ownerId)
             : null;
 
           const allowedUsers = Array.isArray(access.allowedUsers)
-            ? access.allowedUsers.map((id) =>
-                String(id).toLowerCase(),
-              )
+            ? access.allowedUsers.map((id) => String(id))
             : [];
 
-          const isOwner = ownerId === normalizedUserId;
-
-          const isAllowed =
-            allowedUsers.includes(normalizedUserId);
+          const isOwner = ownerId === userId;
+          const isAllowed = allowedUsers.includes(userId);
 
           if (isOwner || isAllowed) {
             visibleRooms.push(room);
@@ -320,9 +305,11 @@ export function createApp({
    * POST /api/rooms/import-blueprint
    *
    * Imports a validated JSON blueprint into the existing room system.
+   * Authentication is mandatory.
    */
   app.post(
     '/api/rooms/import-blueprint',
+    authenticateToken,
     async (req, res, next) => {
       try {
         const result = await importOfficeBlueprint(
