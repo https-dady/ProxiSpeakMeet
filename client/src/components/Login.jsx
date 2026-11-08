@@ -17,6 +17,7 @@ export default function Login({ onLogin }) {
   });
 
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
   const [notice, setNotice] = useState(
@@ -127,7 +128,6 @@ export default function Login({ onLogin }) {
         localStorage.removeItem('email');
       }
 
-      // Wait for application authentication integration.
       await onLogin(username);
 
       setError('');
@@ -148,316 +148,387 @@ export default function Login({ onLogin }) {
     : '/verify-email';
 
   return (
-    <main className="grid min-h-dvh w-full grid-cols-1 overflow-hidden bg-[#1E1E1E] font-sans text-[#F6F6F6] lg:grid-cols-2">
+    <main className="min-h-dvh w-full bg-[#F5F4FC] font-sans text-[#202334]">
 
-      {/* LEFT BRANDING PANEL */}
+      <div className="grid min-h-dvh lg:grid-cols-[1.05fr_0.95fr]">
 
-      <section className="relative hidden min-h-dvh flex-col justify-between overflow-hidden bg-[#1E1E1E] p-10 lg:flex xl:p-16">
+        {/* LEFT BRANDING SECTION */}
 
-        {/* Decorative elements */}
+        <section className="relative hidden overflow-hidden bg-[#EFEDFF] p-10 lg:flex lg:flex-col lg:justify-between xl:p-16">
 
-        <div className="pointer-events-none absolute -right-32 top-20 h-[450px] w-[450px] rounded-full border border-white/[0.05] shadow-[0_0_0_60px_rgba(255,255,255,0.015),0_0_0_120px_rgba(255,255,255,0.01)]" />
+          {/* Background decorations */}
 
-        <div className="pointer-events-none absolute -bottom-20 -left-20 h-80 w-80 rounded-full bg-[#F3184C]/[0.08] blur-[100px]" />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-32 top-20 h-[420px] w-[420px] rounded-full border border-[#5546F5]/10 shadow-[0_0_0_60px_rgba(85,70,245,0.025),0_0_0_120px_rgba(85,70,245,0.02)]"
+          />
 
-        {/* Brand */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-32 -left-20 h-[400px] w-[400px] rounded-full bg-[#5546F5]/10 blur-[100px]"
+          />
 
-        <Link
-          to="/login"
-          className="relative z-10 inline-flex w-fit items-center gap-3 text-xl font-extrabold tracking-tight text-[#F6F6F6] no-underline"
-        >
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#F3184C] text-xl font-black text-white shadow-[0_8px_25px_rgba(243,24,76,0.25)]">
-            P
-          </span>
+          {/* Brand */}
 
-          <span>
-            ProxiSpeak
-            <span className="text-[#F3184C]"> Meet</span>
-          </span>
-        </Link>
-
-        {/* Hero content */}
-
-        <div className="relative z-10 my-auto max-w-[580px] py-16">
-
-          <span className="inline-flex items-center gap-2 rounded-full border border-[#F3184C]/30 bg-[#F3184C]/10 px-4 py-2 text-[10px] font-extrabold uppercase tracking-[2px] text-[#F3184C]">
-
-            <span className="h-1.5 w-1.5 rounded-full bg-[#F3184C]" />
-
-            YOUR VIRTUAL WORKSPACE
-
-          </span>
-
-          <h1 className="mt-8 text-[clamp(42px,4.5vw,68px)] font-extrabold leading-[1.12] tracking-[-2.8px]">
-
-            Great conversations
-
-            <br />
-
-            happen{' '}
-
-            <span className="text-[#F3184C]">
-              naturally.
-            </span>
-
-          </h1>
-
-          <p className="mt-7 max-w-[440px] text-sm leading-[2] text-[#A5A5A5]">
-            Move closer. Start talking. Experience a virtual office where
-            conversations flow as naturally as they do in person.
-          </p>
-
-          {/* Philosophy card */}
-
-          <blockquote className="mt-12 max-w-[450px] rounded-2xl border border-white/[0.08] bg-[#303030] p-7">
-
-            <span className="block text-5xl font-serif leading-none text-[#F3184C]">
-              “
-            </span>
-
-            <p className="mt-3 text-sm leading-[1.9] text-[#F6F6F6]">
-              Distance shouldn't get in the way of great conversations.
-              Sometimes, all it takes is moving a little closer.
-            </p>
-
-            <footer className="mt-5 text-[10px] font-extrabold tracking-[1.8px] text-[#929292]">
-              THE PROXISPEAK PHILOSOPHY
-            </footer>
-
-          </blockquote>
-
-        </div>
-
-        {/* Footer */}
-
-        <div className="relative z-10 flex flex-wrap justify-between gap-3 text-[10px] text-[#929292]">
-
-          <span>
-            Less friction. More connection.
-          </span>
-
-          <span className="tracking-[1px]">
-            PROXIMITY-POWERED CONVERSATIONS
-          </span>
-
-        </div>
-
-      </section>
-
-      {/* RIGHT LOGIN PANEL */}
-
-      <section className="relative flex min-h-dvh min-w-0 flex-col items-center justify-center bg-[#F6F6F6] px-6 py-8 text-[#1E1E1E] sm:px-10 lg:px-[clamp(35px,6vw,90px)]">
-
-        {/* Mobile branding */}
-
-        <div className="mb-12 inline-flex w-full max-w-[440px] items-center gap-3 lg:hidden">
-
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#F3184C] text-xl font-black text-white">
-            P
-          </span>
-
-          <span className="text-lg font-extrabold">
-            ProxiSpeak Meet
-          </span>
-
-        </div>
-
-        <div className="my-auto w-full max-w-[430px]">
-
-          {/* Heading */}
-
-          <div className="mb-10">
-
-            <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[2px] text-[#F3184C]">
-
-              <span className="h-0.5 w-5 rounded-full bg-[#F3184C]" />
-
-              WELCOME BACK
-
-            </span>
-
-            <h2 className="mt-5 text-[clamp(30px,3vw,40px)] font-extrabold leading-tight tracking-[-1.5px]">
-              Sign in to your space
-            </h2>
-
-            <p className="mt-3 text-sm leading-[1.8] text-[#686868]">
-              Pick up where your conversations left off.
-            </p>
-
-          </div>
-
-          {/* Error */}
-
-          {error && (
-            <div
-              role="alert"
-              className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700"
-            >
-              {error}
-
-              {error.includes('not verified') && (
-                <div className="mt-3">
-
-                  <Link
-                    to={verificationUrl}
-                    state={{
-                      email: verificationEmail,
-                    }}
-                    className="font-bold text-[#F3184C] underline underline-offset-4"
-                  >
-                    Continue to email verification
-                  </Link>
-
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Success */}
-
-          {notice && (
-            <div
-              role="status"
-              className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-xs leading-relaxed text-green-700"
-            >
-              {notice}
-            </div>
-          )}
-
-          {/* Login form */}
-
-          <form
-            className="grid w-full gap-6"
-            onSubmit={handleSubmit}
+          <Link
+            to="/login"
+            aria-label="ProxiSpeak Meet home"
+            className="relative z-10 inline-flex w-fit items-center gap-3 no-underline"
           >
 
-            {/* Username / Email */}
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#5546F5] text-2xl font-black text-white shadow-lg shadow-[#5546F5]/20">
+              P
+            </span>
 
-            <div className="grid gap-2.5">
+            <span className="text-xl font-extrabold tracking-tight text-[#202334]">
+              ProxiSpeak
+              <span className="text-[#5546F5]">
+                {' '}Meet
+              </span>
+            </span>
 
-              <label
-                htmlFor="login-identifier"
-                className="text-xs font-bold text-[#303030]"
-              >
-                Username or email address
-              </label>
+          </Link>
 
-              <input
-                id="login-identifier"
-                name="identifier"
-                type="text"
-                autoComplete="username"
-                placeholder="Enter your username or email"
-                value={form.identifier}
-                onChange={handleChange}
-                required
-                disabled={loading}
-                className="min-h-[54px] w-full rounded-xl border border-[#E1E1E1] bg-white px-4 text-sm text-[#1E1E1E] outline-none transition-all placeholder:text-[#A0A0A0] hover:border-[#BDBDBD] focus:border-[#F3184C] focus:ring-4 focus:ring-[#F3184C]/10 disabled:cursor-not-allowed disabled:opacity-60"
+          {/* Hero content */}
+
+          <div className="relative z-10 my-auto max-w-[560px] py-16">
+
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#5546F5]/15 bg-white/70 px-4 py-2 text-[10px] font-extrabold uppercase tracking-[2px] text-[#5546F5]">
+
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 rounded-full bg-[#5546F5]"
               />
 
-            </div>
+              YOUR VIRTUAL WORKSPACE
 
-            {/* Password */}
+            </span>
 
-            <div className="grid gap-2.5">
+            <h1 className="mt-8 text-[clamp(40px,4.5vw,66px)] font-extrabold leading-[1.12] tracking-[-2.5px] text-[#202334]">
 
-              <div className="flex items-center justify-between gap-3">
+              Work together.
 
-                <label
-                  htmlFor="login-password"
-                  className="text-xs font-bold text-[#303030]"
-                >
-                  Password
-                </label>
+              <br />
 
-                <Link
-                  to="/forgot-password"
-                  className="text-xs font-bold text-[#F3184C] transition-colors hover:text-[#C9143F] hover:underline hover:underline-offset-4"
-                >
-                  Forgot password?
-                </Link>
+              <span className="text-[#5546F5]">
+                Naturally.
+              </span>
+
+            </h1>
+
+            <p className="mt-7 max-w-[430px] text-sm leading-[2] text-[#777990]">
+
+              Experience a virtual office where conversations
+              happen naturally. Move closer, connect with your
+              team and work together from anywhere.
+
+            </p>
+
+            {/* Feature cards */}
+
+            <div className="mt-12 grid max-w-[470px] grid-cols-2 gap-4">
+
+              <div className="rounded-2xl border border-white/80 bg-white/75 p-5 shadow-sm">
+
+                <div className="mb-4 grid h-10 w-10 place-items-center rounded-xl bg-[#EFEDFF] text-xl text-[#5546F5]">
+                  ◉
+                </div>
+
+                <h3 className="text-sm font-bold text-[#202334]">
+                  Virtual Office
+                </h3>
+
+                <p className="mt-2 text-xs leading-6 text-[#85879A]">
+                  Meet your team in a shared workspace.
+                </p>
 
               </div>
 
-              <input
-                id="login-password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="Enter your password"
-                value={form.password}
-                onChange={handleChange}
-                required
-                disabled={loading}
-                className="min-h-[54px] w-full rounded-xl border border-[#E1E1E1] bg-white px-4 text-sm text-[#1E1E1E] outline-none transition-all placeholder:text-[#A0A0A0] hover:border-[#BDBDBD] focus:border-[#F3184C] focus:ring-4 focus:ring-[#F3184C]/10 disabled:cursor-not-allowed disabled:opacity-60"
-              />
+              <div className="rounded-2xl border border-white/80 bg-white/75 p-5 shadow-sm">
+
+                <div className="mb-4 grid h-10 w-10 place-items-center rounded-xl bg-[#EFEDFF] text-xl text-[#5546F5]">
+                  ♧
+                </div>
+
+                <h3 className="text-sm font-bold text-[#202334]">
+                  Natural Audio
+                </h3>
+
+                <p className="mt-2 text-xs leading-6 text-[#85879A]">
+                  Conversations powered by proximity.
+                </p>
+
+              </div>
 
             </div>
 
-            {/* Submit button */}
+          </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-2 flex min-h-[54px] w-full items-center justify-center gap-3 rounded-xl bg-[#F3184C] px-5 py-4 text-sm font-extrabold text-white shadow-[0_8px_22px_rgba(243,24,76,0.18)] transition-all hover:-translate-y-0.5 hover:bg-[#D91543] hover:shadow-[0_12px_28px_rgba(243,24,76,0.25)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#F3184C] disabled:cursor-wait disabled:opacity-60"
-            >
+          {/* Footer */}
 
-              {loading ? 'Signing in...' : 'Sign in'}
+          <footer className="relative z-10 flex flex-wrap justify-between gap-3 text-[10px] font-semibold tracking-wide text-[#9294A7]">
 
-              {!loading && (
-                <span className="text-lg" aria-hidden="true">
-                  →
-                </span>
-              )}
-
-            </button>
-
-          </form>
-
-          {/* Signup */}
-
-          <p className="mt-9 text-center text-sm text-[#686868]">
-
-            New to ProxiSpeak?{' '}
-
-            <Link
-              to="/signup"
-              className="font-extrabold text-[#F3184C] transition-colors hover:text-[#C9143F] hover:underline hover:underline-offset-4"
-            >
-              Create an account
-            </Link>
-
-          </p>
-
-          {/* Bottom note */}
-
-          <div className="mt-10 flex items-center justify-center gap-2 text-center text-[11px] text-[#929292]">
-
-            <span className="text-[#F3184C]">
-              ●
+            <span>
+              LESS FRICTION. MORE CONNECTION.
             </span>
 
-            Your workspace is just a sign-in away.
+            <span>
+              PROXISPEAK MEET
+            </span>
+
+          </footer>
+
+        </section>
+
+        {/* RIGHT LOGIN SECTION */}
+
+        <section className="flex min-h-dvh flex-col items-center justify-center bg-white px-5 py-10 sm:px-10 lg:px-12 xl:px-20">
+
+          <div className="my-auto w-full max-w-[440px]">
+
+            {/* Mobile brand */}
+
+            <Link
+              to="/login"
+              className="mb-12 inline-flex items-center gap-3 no-underline lg:hidden"
+            >
+
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#5546F5] text-xl font-black text-white">
+                P
+              </span>
+
+              <span className="text-lg font-extrabold text-[#202334]">
+                ProxiSpeak
+                <span className="text-[#5546F5]">
+                  {' '}Meet
+                </span>
+              </span>
+
+            </Link>
+
+            {/* Heading */}
+
+            <div className="mb-9">
+
+              <span className="text-[11px] font-extrabold uppercase tracking-[2px] text-[#5546F5]">
+                WELCOME BACK
+              </span>
+
+              <h2 className="mt-4 text-[clamp(30px,3vw,40px)] font-extrabold leading-tight tracking-[-1.5px] text-[#202334]">
+                Sign in to your space
+              </h2>
+
+              <p className="mt-3 text-sm leading-7 text-[#85879A]">
+                Pick up where your conversations left off.
+              </p>
+
+            </div>
+
+            {/* Error */}
+
+            {error && (
+
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-xs leading-6 text-red-700"
+              >
+
+                {error}
+
+                {error.includes('not verified') && (
+
+                  <div className="mt-3">
+
+                    <Link
+                      to={verificationUrl}
+                      state={{
+                        email: verificationEmail,
+                      }}
+                      className="font-bold text-[#5546F5] underline underline-offset-4"
+                    >
+                      Continue to email verification
+                    </Link>
+
+                  </div>
+
+                )}
+
+              </div>
+
+            )}
+
+            {/* Success */}
+
+            {notice && (
+
+              <div
+                role="status"
+                aria-live="polite"
+                className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-4 text-xs leading-6 text-green-700"
+              >
+                {notice}
+              </div>
+
+            )}
+
+            {/* Login form */}
+
+            <form
+              onSubmit={handleSubmit}
+              className="grid w-full gap-6"
+              noValidate
+            >
+
+              {/* Username / Email */}
+
+              <div className="grid gap-2.5">
+
+                <label
+                  htmlFor="login-identifier"
+                  className="text-xs font-bold text-[#34364A]"
+                >
+                  Username or email address
+                </label>
+
+                <input
+                  id="login-identifier"
+                  name="identifier"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="Enter your username or email"
+                  value={form.identifier}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                  aria-invalid={Boolean(error)}
+                  className="min-h-[56px] w-full rounded-xl border border-[#E9E8F0] bg-[#FAFAFC] px-4 text-sm text-[#202334] outline-none transition-all placeholder:text-[#A4A5B4] hover:border-[#C8C5DC] focus:border-[#5546F5] focus:bg-white focus:ring-4 focus:ring-[#5546F5]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+
+              </div>
+
+              {/* Password */}
+
+              <div className="grid gap-2.5">
+
+                <div className="flex items-center justify-between gap-3">
+
+                  <label
+                    htmlFor="login-password"
+                    className="text-xs font-bold text-[#34364A]"
+                  >
+                    Password
+                  </label>
+
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs font-bold text-[#5546F5] transition-colors hover:text-[#4032D5] hover:underline hover:underline-offset-4"
+                  >
+                    Forgot password?
+                  </Link>
+
+                </div>
+
+                <div className="relative">
+
+                  <input
+                    id="login-password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    value={form.password}
+                    onChange={handleChange}
+                    required
+                    disabled={loading}
+                    aria-invalid={Boolean(error)}
+                    className="min-h-[56px] w-full rounded-xl border border-[#E9E8F0] bg-[#FAFAFC] px-4 pr-16 text-sm text-[#202334] outline-none transition-all placeholder:text-[#A4A5B4] hover:border-[#C8C5DC] focus:border-[#5546F5] focus:bg-white focus:ring-4 focus:ring-[#5546F5]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((value) => !value)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPassword}
+                    disabled={loading}
+                    className="absolute inset-y-0 right-0 flex items-center px-4 text-xs font-bold text-[#777990] transition-colors hover:text-[#5546F5] focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[#5546F5] disabled:opacity-50"
+                  >
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
+
+                </div>
+
+              </div>
+
+              {/* Submit */}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-2 flex min-h-[56px] w-full items-center justify-center gap-3 rounded-xl bg-[#5546F5] px-5 py-4 text-sm font-extrabold text-white shadow-[0_8px_22px_rgba(85,70,245,0.18)] transition-all hover:-translate-y-0.5 hover:bg-[#4637E5] hover:shadow-[0_12px_28px_rgba(85,70,245,0.24)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#5546F5] disabled:cursor-wait disabled:opacity-60"
+              >
+
+                {loading ? 'Signing in...' : 'Sign in'}
+
+                {!loading && (
+                  <span aria-hidden="true" className="text-lg">
+                    →
+                  </span>
+                )}
+
+              </button>
+
+            </form>
+
+            {/* Signup */}
+
+            <p className="mt-9 text-center text-sm text-[#85879A]">
+
+              New to ProxiSpeak?{' '}
+
+              <Link
+                to="/signup"
+                className="font-extrabold text-[#5546F5] transition-colors hover:text-[#4032D5] hover:underline hover:underline-offset-4"
+              >
+                Create an account
+              </Link>
+
+            </p>
+
+            {/* Security note */}
+
+            <div className="mt-10 flex items-center justify-center gap-2 text-center text-[11px] text-[#9294A7]">
+
+              <span
+                aria-hidden="true"
+                className="text-[#5546F5]"
+              >
+                ●
+              </span>
+
+              Your workspace is just a sign-in away.
+
+            </div>
 
           </div>
 
-        </div>
+          {/* Footer */}
 
-        {/* Footer */}
+          <footer className="mt-12 flex w-full max-w-[440px] flex-wrap justify-between gap-3 text-[10px] text-[#A0A1AF]">
 
-        <footer className="mt-12 flex w-full max-w-[430px] flex-wrap justify-between gap-3 text-[10px] text-[#929292]">
+            <span>
+              © {new Date().getFullYear()} ProxiSpeak Meet
+            </span>
 
-          <span>
-            © {new Date().getFullYear()} ProxiSpeak Meet
-          </span>
+            <span>
+              Built for better connections.
+            </span>
 
-          <span>
-            Built for better connections.
-          </span>
+          </footer>
 
-        </footer>
+        </section>
 
-      </section>
+      </div>
 
     </main>
   );
