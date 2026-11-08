@@ -18,7 +18,7 @@ import './tailwind.css';
 import './styles.css';
 import './styles/brand-compat.css';
 import './styles/responsive-overrides.css';
-
+import './styles/motion.css';
 /*
  * Application Bootstrap
  */

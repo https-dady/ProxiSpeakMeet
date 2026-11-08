@@ -1,0 +1,351 @@
+/* =========================================================
+   PROXISPEAK MEET
+   PREMIUM MOTION SYSTEM
+   Lavender / Purple Design
+========================================================= */
+
+:root {
+  --motion-accent: #5546F5;
+  --motion-duration: 350ms;
+  --motion-easing: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* =========================================================
+   ENTRANCE ANIMATIONS
+========================================================= */
+
+@keyframes ps-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes ps-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ps-slide-right {
+  from {
+    opacity: 0;
+    transform: translate3d(-22px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes ps-slide-left {
+  from {
+    opacity: 0;
+    transform: translate3d(22px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes ps-float {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -9px, 0);
+  }
+}
+
+@keyframes ps-glow {
+  0%, 100% {
+    box-shadow: 0 8px 22px rgba(85, 70, 245, 0.16);
+  }
+
+  50% {
+    box-shadow: 0 12px 32px rgba(85, 70, 245, 0.24);
+  }
+}
+
+/* =========================================================
+   AUTHENTICATION PAGE ENTRANCE
+========================================================= */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* Left branding */
+
+  #root > main.min-h-dvh
+  > div > section:first-child > a:first-child {
+    animation: ps-fade-in 700ms var(--motion-easing) both;
+  }
+
+  #root > main.min-h-dvh
+  > div > section:first-child > div.my-auto {
+    animation: ps-slide-right 850ms var(--motion-easing) both;
+    animation-delay: 100ms;
+  }
+
+  /* Right form */
+
+  #root > main.min-h-dvh
+  > div > section:last-child > div.my-auto {
+    animation: ps-fade-up 750ms var(--motion-easing) both;
+    animation-delay: 150ms;
+  }
+
+  /* Left feature cards */
+
+  #root > main.min-h-dvh
+  > div > section:first-child .grid > div:nth-child(1) {
+    animation: ps-fade-up 650ms var(--motion-easing) both;
+    animation-delay: 300ms;
+  }
+
+  #root > main.min-h-dvh
+  > div > section:first-child .grid > div:nth-child(2) {
+    animation: ps-fade-up 650ms var(--motion-easing) both;
+    animation-delay: 420ms;
+  }
+
+  /* Quote card */
+
+  #root > main.min-h-dvh
+  > div > section:first-child .mt-5 {
+    animation: ps-fade-up 700ms var(--motion-easing) both;
+    animation-delay: 520ms;
+  }
+
+  /* Footer */
+
+  #root > main.min-h-dvh footer {
+    animation: ps-fade-in 900ms ease both;
+    animation-delay: 650ms;
+  }
+
+}
+
+/* =========================================================
+   FEATURE CARD INTERACTIONS
+========================================================= */
+
+#root > main.min-h-dvh
+> div > section:first-child .grid > div {
+
+  transition:
+    transform 350ms var(--motion-easing),
+    box-shadow 350ms var(--motion-easing),
+    border-color 350ms ease,
+    background-color 350ms ease;
+
+  will-change: transform;
+
+}
+
+@media (hover: hover) and (pointer: fine) {
+
+  #root > main.min-h-dvh
+  > div > section:first-child .grid > div:hover {
+
+    transform: translate3d(0, -6px, 0);
+
+    box-shadow:
+      0 16px 35px rgba(85, 70, 245, 0.10),
+      0 4px 12px rgba(32, 35, 52, 0.04);
+
+    border-color: rgba(85, 70, 245, 0.22);
+
+  }
+
+}
+
+/* =========================================================
+   FEATURE ICON INTERACTION
+========================================================= */
+
+#root > main.min-h-dvh
+> div > section:first-child .grid > div > div:first-child {
+
+  transition:
+    transform 350ms var(--motion-easing),
+    background-color 300ms ease;
+
+}
+
+@media (hover: hover) and (pointer: fine) {
+
+  #root > main.min-h-dvh
+> div > section:first-child .grid > div:hover > div:first-child {
+
+    transform: scale(1.1) rotate(-5deg);
+    background-color: #e8e4ff;
+
+  }
+
+}
+
+/* =========================================================
+   INPUT INTERACTIONS
+========================================================= */
+
+#root > main.min-h-dvh input {
+
+  transition:
+    border-color 250ms ease,
+    box-shadow 250ms ease,
+    background-color 250ms ease,
+    transform 250ms ease;
+
+}
+
+#root > main.min-h-dvh input:hover:not(:disabled) {
+
+  border-color: #c7c1f7;
+
+}
+
+#root > main.min-h-dvh input:focus {
+
+  border-color: var(--motion-accent);
+
+  background-color: #ffffff;
+
+  box-shadow:
+    0 0 0 4px rgba(85, 70, 245, 0.10),
+    0 3px 12px rgba(85, 70, 245, 0.06);
+
+}
+
+/* =========================================================
+   BUTTON INTERACTIONS
+========================================================= */
+
+#root > main.min-h-dvh button {
+
+  transition:
+    transform 220ms var(--motion-easing),
+    box-shadow 250ms ease,
+    background-color 250ms ease,
+    color 250ms ease,
+    border-color 250ms ease;
+
+}
+
+@media (hover: hover) and (pointer: fine) {
+
+  #root > main.min-h-dvh
+  button[type="submit"]:not(:disabled):hover {
+
+    transform: translateY(-3px);
+
+    box-shadow:
+      0 12px 28px rgba(85, 70, 245, 0.25);
+
+  }
+
+  #root > main.min-h-dvh
+  button[type="button"]:not(:disabled):hover {
+
+    color: var(--motion-accent);
+
+  }
+
+}
+
+#root > main.min-h-dvh
+button[type="submit"]:not(:disabled):active {
+
+  transform: scale(0.985);
+
+  box-shadow:
+    0 4px 12px rgba(85, 70, 245, 0.14);
+
+}
+
+#root > main.min-h-dvh button:disabled {
+
+  cursor: not-allowed;
+  opacity: 0.65;
+
+}
+
+/* =========================================================
+   LINK INTERACTIONS
+========================================================= */
+
+#root > main.min-h-dvh a {
+
+  transition:
+    color 250ms ease,
+    opacity 250ms ease;
+
+}
+
+#root > main.min-h-dvh a:active {
+
+  opacity: 0.75;
+
+}
+
+/* =========================================================
+   BACKGROUND MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  #root > main.min-h-dvh
+  > div > section:first-child > div[aria-hidden="true"] {
+
+    animation: ps-float 8s ease-in-out infinite;
+
+  }
+
+}
+
+/* =========================================================
+   KEYBOARD ACCESSIBILITY
+========================================================= */
+
+#root > main.min-h-dvh a:focus-visible,
+#root > main.min-h-dvh button:focus-visible,
+#root > main.min-h-dvh input:focus-visible {
+
+  outline: 2px solid var(--motion-accent);
+  outline-offset: 3px;
+
+}
+
+/* =========================================================
+   REDUCED MOTION ACCESSIBILITY
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  #root > main.min-h-dvh *,
+  #root > main.min-h-dvh *::before,
+  #root > main.min-h-dvh *::after {
+
+    animation: none !important;
+
+    transition-duration: 0.01ms !important;
+
+    scroll-behavior: auto !important;
+
+    transform: none !important;
+
+  }
+
+}
