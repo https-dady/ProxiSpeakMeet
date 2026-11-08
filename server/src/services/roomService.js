@@ -45,8 +45,8 @@ function isPermanentPersistenceError(err) {
   return (
     name === 'ValidationError' ||
     name === 'CastError' ||
-    code === 11000 || // Duplicate key
-    code === 121       // MongoDB document validation failure
+    code === 11000 ||
+    code === 121
   );
 }
 
@@ -303,8 +303,6 @@ function assertRoomGeometry(room) {
  * Failed writes remain pending for a later retry.
  */
 async function persistWithRetryQueue(room) {
-  // Validate before entering the persistence/retry path.
-  // Invalid geometry must never be queued as a temporary database failure.
   assertRoomGeometry(room);
 
   const roomId = room.roomId;
@@ -341,7 +339,7 @@ async function persistWithRetryQueue(room) {
       log.info(`room "${roomId}" persisted`);
 
       return wire;
-        } catch (err) {
+    } catch (err) {
       const permanent = isPermanentPersistenceError(err);
       const databaseUnavailable =
         mongoose.connection.readyState !== 1;
@@ -458,7 +456,6 @@ export async function getRoom(roomId, { persist = false } = {}) {
 
 export async function listRooms() {
   const roomsById = new Map();
-  let databaseAvailable = false;
 
   // 1. Load persisted rooms from MongoDB.
   try {
@@ -477,8 +474,6 @@ export async function listRooms() {
       .sort({ roomId: 1 })
       .limit(100)
       .lean();
-
-    databaseAvailable = true;
 
     for (const doc of docs) {
       if (doc?.roomId) {
@@ -499,8 +494,6 @@ export async function listRooms() {
   }
 
   // 2. Add pending rooms.
-  // Pending rooms may contain newer room configuration that MongoDB
-  // has not successfully persisted yet, so they take precedence.
   for (const [roomId, room] of pendingPersistence.entries()) {
     if (room?.roomId) {
       roomsById.set(roomId, toRoomWire(room));
@@ -508,7 +501,6 @@ export async function listRooms() {
   }
 
   // 3. Add cached rooms that are not already present.
-  // Persisted rooms remain authoritative unless a pending write exists.
   for (const [roomId, room] of cache.entries()) {
     if (room?.roomId && !roomsById.has(roomId)) {
       roomsById.set(roomId, toRoomWire(room));
@@ -516,7 +508,6 @@ export async function listRooms() {
   }
 
   // 4. Guarantee a usable lobby.
-  // Prefer a persisted, pending, or cached lobby if one already exists.
   if (!roomsById.has('lobby')) {
     roomsById.set('lobby', buildDefaultRoom('lobby'));
   }
@@ -545,6 +536,41 @@ export async function persistRoom(room) {
   const wire = toRoomWire(room);
 
   return persistWithRetryQueue(wire);
+}
+
+/**
+ * Resolve private-room permissions from MongoDB.
+ *
+ * This deliberately does not use toRoomWire(), because the access list
+ * must never be exposed through public room configuration responses.
+ *
+ * Database errors propagate so authorization callers can fail closed.
+ * Legacy rooms without privacy metadata are treated as public.
+ */
+export async function getRoomAccess(roomId) {
+  const doc = await Room.findOne(
+    { roomId },
+    {
+      roomId: 1,
+      ownerId: 1,
+      visibility: 1,
+      allowedUsers: 1,
+    },
+  ).lean();
+
+  if (!doc) {
+    return null;
+  }
+
+  return {
+    roomId: doc.roomId ?? roomId,
+    ownerId: doc.ownerId ? String(doc.ownerId) : null,
+    visibility:
+      doc.visibility === 'private' ? 'private' : 'public',
+    allowedUsers: Array.isArray(doc.allowedUsers)
+      ? doc.allowedUsers.map((userId) => String(userId))
+      : [],
+  };
 }
 
 export function invalidateRoomCache(roomId) {
