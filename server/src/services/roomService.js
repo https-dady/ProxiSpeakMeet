@@ -81,7 +81,6 @@ function normalizeAllowedUsers(users) {
 
 /**
  * Normalize access metadata.
- *
  * Legacy rooms without privacy fields remain public.
  */
 function normalizeRoomAccess(room = {}) {
@@ -235,9 +234,6 @@ const prettyRoomName = (roomId) =>
 
 /**
  * Convert a Mongoose document or plain object to the client wire format.
- *
- * Access metadata is retained so server-side room authorization can use
- * the same normalized representation for cached and persisted rooms.
  */
 export function toRoomWire(doc) {
   const access = normalizeRoomAccess(doc);
@@ -272,9 +268,6 @@ function rememberPending(room) {
 
 /**
  * Validate geometry and access metadata before persistence.
- *
- * Mongoose document pre('validate') hooks do not run for
- * findOneAndUpdate(), so service-level validation is required.
  */
 function assertRoomGeometry(room) {
   const width = room?.width;
@@ -548,6 +541,78 @@ export async function getRoom(roomId, { persist = false } = {}) {
   }
 
   return cache.get(roomId) ?? blueprint;
+}
+
+/**
+ * Read room access metadata from MongoDB.
+ *
+ * Does not create a missing room or silently turn an unknown room into
+ * a public default room. This is important for authorization checks.
+ *
+ * Cached data is used only when MongoDB is temporarily unavailable.
+ */
+export async function getRoomAccess(roomId) {
+  if (
+    typeof roomId !== 'string' ||
+    !roomId.trim()
+  ) {
+    return null;
+  }
+
+  const normalizedRoomId = roomId.trim().toLowerCase();
+
+  try {
+    const doc = await Room.findOne(
+      { roomId: normalizedRoomId },
+      {
+        roomId: 1,
+        visibility: 1,
+        ownerId: 1,
+        allowedUsers: 1,
+      },
+    ).lean();
+
+    if (!doc) {
+      return null;
+    }
+
+    const access = normalizeRoomAccess(doc);
+
+    // Refresh access metadata in an existing cache entry.
+    const cached = cache.get(normalizedRoomId);
+
+    if (cached) {
+      cache.set(normalizedRoomId, {
+        ...cached,
+        ...access,
+      });
+    }
+
+    return {
+      roomId: normalizedRoomId,
+      ...access,
+    };
+  } catch (error) {
+    if (!isTransientMongoError(error)) {
+      throw error;
+    }
+
+    const cached = cache.get(normalizedRoomId);
+
+    if (!cached) {
+      // Fail closed: no database record and no trusted cache entry.
+      return null;
+    }
+
+    log.warn(
+      `room "${normalizedRoomId}" access lookup using cache: ${error.message}`,
+    );
+
+    return {
+      roomId: normalizedRoomId,
+      ...normalizeRoomAccess(cached),
+    };
+  }
 }
 
 export async function listRooms() {
