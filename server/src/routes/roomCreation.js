@@ -3,7 +3,11 @@ import { randomUUID } from 'node:crypto';
 import mongoose from 'mongoose';
 
 import Room from '../models/Room.js';
-import { buildDefaultRoom, invalidateRoomCache } from '../services/roomService.js';
+import User from '../models/User.js';
+import {
+  buildDefaultRoom,
+  invalidateRoomCache,
+} from '../services/roomService.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -15,37 +19,41 @@ function generateRoomId() {
   return randomUUID().slice(0, 13).toLowerCase();
 }
 
+function createValidationError(message) {
+  const error = new Error(message);
+  error.status = 400;
+  return error;
+}
+
 function validateText(value, field, maxLength) {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
 
   if (typeof value !== 'string') {
-    const error = new Error(`${field} must be a string.`);
-    error.status = 400;
-    throw error;
+    throw createValidationError(`${field} must be a string.`);
   }
 
   const normalized = value.trim();
 
   if (normalized.length > maxLength) {
-    const error = new Error(
+    throw createValidationError(
       `${field} cannot exceed ${maxLength} characters.`,
     );
-    error.status = 400;
-    throw error;
   }
 
   return normalized;
 }
 
 function validateAllowedUsers(value, ownerId) {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
 
   if (!Array.isArray(value) || value.length > MAX_ALLOWED_USERS) {
-    const error = new Error(
+    throw createValidationError(
       `allowedUsers must be an array containing at most ${MAX_ALLOWED_USERS} user IDs.`,
     );
-    error.status = 400;
-    throw error;
   }
 
   const uniqueIds = new Set();
@@ -56,14 +64,14 @@ function validateAllowedUsers(value, ownerId) {
       typeof id !== 'string' ||
       !mongoose.isValidObjectId(id)
     ) {
-      const error = new Error('An invalid user ID was supplied.');
-      error.status = 400;
-      throw error;
+      throw createValidationError(
+        'An invalid user ID was supplied.',
+      );
     }
 
     const normalizedId = new mongoose.Types.ObjectId(id).toString();
 
-    if (normalizedId === ownerId.toString()) {
+    if (normalizedId === ownerId) {
       continue;
     }
 
@@ -74,6 +82,35 @@ function validateAllowedUsers(value, ownerId) {
   }
 
   return allowedUsers;
+}
+
+async function verifyInvitedUsers(userIds) {
+  if (userIds.length === 0) {
+    return;
+  }
+
+  const verifiedUsers = await User.find({
+    _id: {
+      $in: userIds,
+    },
+    isEmailVerified: true,
+  })
+    .select('_id')
+    .lean();
+
+  const verifiedUserIds = new Set(
+    verifiedUsers.map((user) => user._id.toString()),
+  );
+
+  const hasInvalidInvitee = userIds.some(
+    (userId) => !verifiedUserIds.has(userId),
+  );
+
+  if (hasInvalidInvitee) {
+    throw createValidationError(
+      'One or more invited accounts do not exist or are not verified.',
+    );
+  }
 }
 
 /**
@@ -91,14 +128,18 @@ function validateAllowedUsers(value, ownerId) {
  */
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    const ownerId = req.user.userId;
+    const authenticatedUserId = req.user?.userId;
 
-    if (!mongoose.isValidObjectId(ownerId)) {
+    if (!mongoose.isValidObjectId(authenticatedUserId)) {
       return res.status(401).json({
         ok: false,
         error: 'Invalid authenticated account.',
       });
     }
+
+    const ownerId = new mongoose.Types.ObjectId(
+      authenticatedUserId,
+    ).toString();
 
     const body = req.body ?? {};
 
@@ -111,10 +152,9 @@ router.post('/', authenticateToken, async (req, res, next) => {
     const visibility = body.visibility ?? 'public';
 
     if (!['public', 'private'].includes(visibility)) {
-      return res.status(400).json({
-        ok: false,
-        error: 'visibility must be either public or private.',
-      });
+      throw createValidationError(
+        'visibility must be either public or private.',
+      );
     }
 
     const allowedUsers = validateAllowedUsers(
@@ -123,10 +163,13 @@ router.post('/', authenticateToken, async (req, res, next) => {
     );
 
     if (visibility === 'public' && allowedUsers.length > 0) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Public rooms cannot have a private access list.',
-      });
+      throw createValidationError(
+        'Public rooms cannot have a private access list.',
+      );
+    }
+
+    if (visibility === 'private') {
+      await verifyInvitedUsers(allowedUsers);
     }
 
     let roomId = '';
@@ -166,7 +209,6 @@ router.post('/', authenticateToken, async (req, res, next) => {
       allowedUsers,
     });
 
-    // Remove any stale in-memory entry for this generated ID.
     invalidateRoomCache(roomId);
 
     return res.status(201).json({
