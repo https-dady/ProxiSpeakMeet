@@ -95,7 +95,7 @@ export function createServices({
     peerGraph,
     audit,
 
-    // Existing room services.
+    // Room services.
     getRoom,
     getRoomAccess,
     getCachedRoom,
