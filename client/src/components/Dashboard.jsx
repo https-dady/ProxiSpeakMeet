@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import config from '../config.js';
+import CreateMeetingModal from './CreateMeetingModal.jsx';
 
 const API_BASE_URL = String(config.serverUrl).replace(/\/+$/, '');
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
@@ -20,8 +21,8 @@ async function readResponse(response) {
   if (!response.ok) {
     throw new Error(
       payload.error ||
-        payload.message ||
-        `Request failed with status ${response.status}.`,
+      payload.message ||
+      `Request failed with status ${response.status}.`,
     );
   }
 
@@ -42,7 +43,6 @@ function NavItem({ active, icon, children, onClick }) {
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-base">
         {icon}
       </span>
-
       {children}
     </button>
   );
@@ -123,14 +123,15 @@ export default function Dashboard({
 
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [creatingRoom, setCreatingRoom] = useState(false);
   const [joiningRoom, setJoiningRoom] = useState(false);
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [error, setError] = useState('');
   const [historyError, setHistoryError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const busy = creatingRoom || joiningRoom;
+  const busy = joiningRoom;
 
   const loadDashboardData = useCallback(async (signal) => {
     setLoading(true);
@@ -156,7 +157,10 @@ export default function Dashboard({
         readResponse(roomsResponse),
       ]);
 
-      if (!profilePayload.user || !Array.isArray(roomsPayload.rooms)) {
+      if (
+        !profilePayload.user ||
+        !Array.isArray(roomsPayload.rooms)
+      ) {
         throw new Error('The server returned invalid dashboard data.');
       }
 
@@ -173,13 +177,11 @@ export default function Dashboard({
         ),
       );
     } catch (err) {
-      if (err.name === 'AbortError' || signal?.aborted) {
-        return;
-      }
+      if (err.name === 'AbortError' || signal?.aborted) return;
 
       setError(
         err.message ||
-          'Unable to load your dashboard. Please try again.',
+        'Unable to load your dashboard. Please try again.',
       );
     } finally {
       if (!signal?.aborted) {
@@ -213,13 +215,11 @@ export default function Dashboard({
 
       setMeetings(records);
     } catch (err) {
-      if (err.name === 'AbortError' || signal?.aborted) {
-        return;
-      }
+      if (err.name === 'AbortError' || signal?.aborted) return;
 
       setHistoryError(
         err.message ||
-          'Unable to load meeting history. Please try again.',
+        'Unable to load meeting history. Please try again.',
       );
     } finally {
       if (!signal?.aborted) {
@@ -244,44 +244,16 @@ export default function Dashboard({
     return () => controller.abort();
   }, [loadDashboardData]);
 
-  const createMeeting = async () => {
-    if (busy) return;
-
-    setCreatingRoom(true);
+  /**
+   * Called only after CreateMeetingModal successfully creates a room.
+   * The modal owns the creation request and its validation state.
+   */
+  const handleMeetingCreated = ({ roomId: createdRoomId }) => {
+    setShowCreateModal(false);
+    setNotice(`Meeting ${createdRoomId} created successfully.`);
     setError('');
-    setNotice('');
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/rooms`, {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      });
-
-      const payload = await readResponse(response);
-      const createdRoomId = payload.roomId ?? payload.room?.roomId;
-
-      if (
-        typeof createdRoomId !== 'string' ||
-        !ROOM_ID_PATTERN.test(createdRoomId)
-      ) {
-        throw new Error('The server returned an invalid meeting ID.');
-      }
-
-      setNotice(`Meeting ${createdRoomId} created successfully.`);
-
-      onJoinRoom(createdRoomId);
-    } catch (err) {
-      setError(
-        err.message ||
-          'Unable to create a meeting. Please try again.',
-      );
-    } finally {
-      setCreatingRoom(false);
-    }
+    onJoinRoom(createdRoomId);
   };
 
   const joinMeeting = async (event) => {
@@ -317,7 +289,7 @@ export default function Dashboard({
     } catch (err) {
       setError(
         err.message ||
-          'Unable to join this meeting. Check the meeting ID.',
+        'Unable to join this meeting. Check the meeting ID.',
       );
     } finally {
       setJoiningRoom(false);
@@ -347,6 +319,7 @@ export default function Dashboard({
       );
 
       await readResponse(response);
+
       onJoinRoom(id);
     } catch (err) {
       setError(err.message || 'Unable to rejoin this meeting.');
@@ -362,6 +335,12 @@ export default function Dashboard({
     .trim()
     .slice(0, 2)
     .toUpperCase();
+
+  const scrollToJoin = () => {
+    document
+      .getElementById('join-meeting')
+      ?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const renderDashboard = () => (
     <>
@@ -391,20 +370,16 @@ export default function Dashboard({
           <div className="flex shrink-0 flex-col gap-3 sm:flex-row md:flex-col">
             <button
               type="button"
-              onClick={createMeeting}
-              disabled={busy || loading}
+              onClick={() => setShowCreateModal(true)}
+              disabled={loading || busy}
               className="rounded-xl bg-[#F3184C] px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#F3184C]/20 transition hover:bg-[#D91443] disabled:opacity-50"
             >
-              {creatingRoom ? 'Creating…' : '+ Create meeting'}
+              + Create meeting
             </button>
 
             <button
               type="button"
-              onClick={() => {
-                document
-                  .getElementById('join-meeting')
-                  ?.scrollIntoView({ behavior: 'smooth' });
-              }}
+              onClick={scrollToJoin}
               className="rounded-xl border border-[#686868] bg-[#303030]/70 px-6 py-3.5 text-sm font-semibold text-[#F6F6F6] transition hover:border-[#F3184C]"
             >
               Join a meeting
@@ -417,9 +392,9 @@ export default function Dashboard({
         <ActionCard
           icon="✦"
           title="Create a meeting"
-          description="Start a new virtual office and invite people to join your conversation."
-          buttonText={creatingRoom ? 'Creating meeting…' : 'Create meeting'}
-          onClick={createMeeting}
+          description="Start a new virtual office, choose its visibility and authorize participants."
+          buttonText="Create meeting"
+          onClick={() => setShowCreateModal(true)}
           disabled={busy || loading}
         />
 
@@ -428,11 +403,7 @@ export default function Dashboard({
           title="Join a meeting"
           description="Have a meeting ID? Enter it and join an existing virtual office."
           buttonText="Enter meeting ID"
-          onClick={() =>
-            document
-              .getElementById('join-meeting')
-              ?.scrollIntoView({ behavior: 'smooth' })
-          }
+          onClick={scrollToJoin}
           secondary
         />
       </div>
@@ -940,7 +911,7 @@ export default function Dashboard({
             </div>
           </header>
 
-          <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+          <div className="mx-auto max-w-6xl px-5 py-8 pb-28 sm:px-8 lg:px-10 lg:py-10">
             {error && (
               <div
                 role="alert"
@@ -1028,6 +999,13 @@ export default function Dashboard({
           Settings
         </button>
       </nav>
+
+      {showCreateModal && (
+        <CreateMeetingModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleMeetingCreated}
+        />
+      )}
     </div>
   );
 }
