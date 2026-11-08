@@ -24,7 +24,14 @@ import {
   NotFoundError,
 } from './utils/errors.js';
 
-import { requireRoom } from './services/roomService.js';
+import {
+  requireRoom,
+  getRoomAccess,
+} from './services/roomService.js';
+
+import { authenticateToken } from './middleware/auth.js';
+import { authorizeRoomAccess } from './middleware/authorizeRoomAccess.js';
+
 import { corsOrigin } from './utils/origin.js';
 
 import authRouter from './routes/auth.js';
@@ -103,22 +110,14 @@ export function createApp({
   // AUTHENTICATION
   // -----------------------------------------------------------
 
-  // Existing authentication:
-  // register, login, OTP, password reset and /me.
   app.use('/api/auth', authRouter);
 
-  // Persistent authentication sessions:
-  // POST /api/auth/session/start
-  // POST /api/auth/session/refresh
-  // POST /api/auth/session/logout
   app.use('/api/auth/session', authSessionRouter);
 
   // -----------------------------------------------------------
   // MEETING HISTORY
   // -----------------------------------------------------------
 
-  // GET /api/meetings/history
-  // Returns meeting history for the authenticated user.
   app.use('/api/meetings/history', meetingHistoryRouter);
 
   // -----------------------------------------------------------
@@ -126,7 +125,6 @@ export function createApp({
   // -----------------------------------------------------------
 
   // POST /api/rooms
-  // GET /api/rooms remains handled by catalogue endpoint below.
   app.use('/api/rooms', roomCreationRouter);
 
   const startedAt = Date.now();
@@ -135,10 +133,6 @@ export function createApp({
   // HEALTH
   // -----------------------------------------------------------
 
-  /**
-   * Liveness endpoint.
-   * Deliberately independent of MongoDB and Redis.
-   */
   app.get('/health', (req, res) => {
     res.status(200).json({
       status: 'ok',
@@ -233,30 +227,58 @@ export function createApp({
   /**
    * GET /api/rooms
    *
-   * Returns available rooms with their current live participant counts.
+   * Returns public rooms and private rooms accessible to the
+   * authenticated account.
    */
-  app.get('/api/rooms', async (req, res, next) => {
-    try {
-      const rooms = await services.listRooms();
-      const live = new Map();
+  app.get(
+    '/api/rooms',
+    authenticateToken,
+    async (req, res, next) => {
+      try {
+        const rooms = await services.listRooms();
+        const userId = req.user.userId;
 
-      for (const user of services.store.all()) {
-        live.set(
-          user.roomId,
-          (live.get(user.roomId) ?? 0) + 1,
-        );
+        const visibleRooms = [];
+
+        for (const room of rooms) {
+          const access = await getRoomAccess(room.roomId);
+
+          // Legacy rooms without privacy metadata remain public.
+          if (!access || access.visibility === 'public') {
+            visibleRooms.push(room);
+            continue;
+          }
+
+          const isOwner = access.ownerId === userId;
+
+          const isAllowed =
+            access.allowedUsers.includes(userId);
+
+          if (isOwner || isAllowed) {
+            visibleRooms.push(room);
+          }
+        }
+
+        const live = new Map();
+
+        for (const user of services.store.all()) {
+          live.set(
+            user.roomId,
+            (live.get(user.roomId) ?? 0) + 1,
+          );
+        }
+
+        return res.json({
+          rooms: visibleRooms.map((room) => ({
+            ...room,
+            liveUsers: live.get(room.roomId) ?? 0,
+          })),
+        });
+      } catch (err) {
+        return next(err);
       }
-
-      return res.json({
-        rooms: rooms.map((room) => ({
-          ...room,
-          liveUsers: live.get(room.roomId) ?? 0,
-        })),
-      });
-    } catch (err) {
-      return next(err);
-    }
-  });
+    },
+  );
 
   // -----------------------------------------------------------
   // IMPORT CUSTOM OFFICE BLUEPRINT
@@ -266,7 +288,6 @@ export function createApp({
    * POST /api/rooms/import-blueprint
    *
    * Imports a validated JSON blueprint into the existing room system.
-   * The import service owns blueprint validation and room persistence.
    */
   app.post(
     '/api/rooms/import-blueprint',
@@ -294,37 +315,37 @@ export function createApp({
   /**
    * GET /api/rooms/:roomId
    *
-   * Returns room configuration and current live participant count.
+   * Authentication and room authorization are required.
    */
-  app.get('/api/rooms/:roomId', async (req, res, next) => {
-    try {
-      const roomId = parseRoomId(
-        req.params.roomId,
-      );
+  app.get(
+    '/api/rooms/:roomId',
+    authenticateToken,
+    authorizeRoomAccess,
+    async (req, res, next) => {
+      try {
+        const roomId = parseRoomId(
+          req.params.roomId,
+        );
 
-      const room = await requireRoom(roomId);
+        const room = await requireRoom(roomId);
 
-      const live = services.store
-        .byRoom(roomId).length;
+        const live = services.store
+          .byRoom(roomId).length;
 
-      return res.json({
-        room,
-        liveUsers: live,
-      });
-    } catch (err) {
-      return next(err);
-    }
-  });
+        return res.json({
+          room,
+          liveUsers: live,
+        });
+      } catch (err) {
+        return next(err);
+      }
+    },
+  );
 
   // -----------------------------------------------------------
   // SPATIAL AUDIT
   // -----------------------------------------------------------
 
-  /**
-   * GET /api/spatial-audit
-   *
-   * Returns the complete spatial audit report.
-   */
   const runAudit = async (req, res, next) => {
     try {
       const params = {
@@ -409,7 +430,6 @@ export function createApp({
         instanceId: cfg.server.instanceId,
       });
 
-      // Broadcast completed audits to connected clients.
       io?.to(roomId).emit('audit:completed', {
         roomId,
         at: report.at,
@@ -473,10 +493,6 @@ export function createApp({
   // STATIC CLIENT BUNDLE
   // -----------------------------------------------------------
 
-  /**
-   * Registered after API routes so /api/* cannot be swallowed.
-   * Socket.IO requests are handled by Socket.IO.
-   */
   const clientDist = resolveClientDist(cfg);
 
   const hasClientBundle = fs.existsSync(
