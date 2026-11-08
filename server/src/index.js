@@ -73,6 +73,10 @@ async function main() {
     logger: log,
   });
 
+  // Make the Socket.IO instance available to Express routes.
+  // Private-room access revocation uses it to terminate active sessions.
+  app.set('io', io);
+
   // Authenticate Socket.IO connections before connection handlers run.
   io.use(
     createSocketAuthentication({
