@@ -11,6 +11,8 @@ import cors from 'cors';
 import config, { SERVER_ROOT } from './config/index.js';
 import logger from './utils/logger.js';
 
+import meetingHistoryRouter from './routes/meetingHistory.js';
+
 import {
   requireString,
   requireFiniteNumber,
@@ -110,6 +112,14 @@ export function createApp({
   // POST /api/auth/session/refresh
   // POST /api/auth/session/logout
   app.use('/api/auth/session', authSessionRouter);
+
+  // -----------------------------------------------------------
+  // MEETING HISTORY
+  // -----------------------------------------------------------
+
+  // GET /api/meetings/history
+  // Returns meeting history for the authenticated user.
+  app.use('/api/meetings/history', meetingHistoryRouter);
 
   // -----------------------------------------------------------
   // ROOM CREATION
