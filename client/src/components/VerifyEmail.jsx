@@ -155,69 +155,69 @@ export default function VerifyEmail() {
   };
 
   return (
-    <main className="grid min-h-dvh w-full grid-cols-1 overflow-x-hidden bg-[#080b14] font-sans text-[#edf2ff] lg:grid-cols-2">
+    <main className="grid min-h-dvh w-full grid-cols-1 overflow-x-hidden bg-[#F6F6F6] font-sans text-[#1E1E1E] lg:grid-cols-2">
 
       {/* Branding panel */}
-      <section className="relative hidden min-h-dvh flex-col justify-between overflow-hidden border-r border-[#263149] bg-[radial-gradient(ellipse_at_20%_15%,rgba(129,117,255,0.13),transparent_40%),radial-gradient(ellipse_at_80%_80%,rgba(90,209,154,0.07),transparent_38%),#0d131c] p-8 isolate lg:flex xl:p-14">
+      <section className="relative hidden min-h-dvh flex-col justify-between overflow-hidden border-r border-white/[0.06] bg-[radial-gradient(ellipse_at_20%_15%,rgba(243,24,76,0.10),transparent_40%),radial-gradient(ellipse_at_80%_80%,rgba(90,209,154,0.07),transparent_38%),#1E1E1E] p-8 isolate lg:flex xl:p-14">
 
-        <div className="pointer-events-none absolute -right-[18%] top-[25%] aspect-square w-[70%] rounded-full border border-[rgba(129,117,255,0.12)] shadow-[0_0_0_45px_rgba(129,117,255,0.025),0_0_0_95px_rgba(129,117,255,0.02)]" />
+        <div className="pointer-events-none absolute -right-[18%] top-[25%] aspect-square w-[70%] rounded-full border border-[rgba(243,24,76,0.12)] shadow-[0_0_0_45px_rgba(243,24,76,0.02),0_0_0_95px_rgba(243,24,76,0.015)]" />
 
-        <div className="pointer-events-none absolute bottom-[15%] right-[10%] h-44 w-44 rounded-full bg-[rgba(129,117,255,0.08)] blur-[75px]" />
+        <div className="pointer-events-none absolute bottom-[15%] right-[10%] h-44 w-44 rounded-full bg-[rgba(243,24,76,0.08)] blur-[75px]" />
 
         <Link
           to="/login"
-          className="relative z-10 inline-flex w-fit items-center gap-3 text-[19px] font-extrabold tracking-tight text-[#edf2ff] no-underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8175ff]"
+          className="relative z-10 inline-flex w-fit items-center gap-3 text-[19px] font-extrabold tracking-tight text-[#F6F6F6] no-underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#F3184C]"
         >
-          <span className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[14px] border border-[rgba(129,117,255,0.4)] bg-[rgba(129,117,255,0.12)] text-[22px] font-extrabold text-[#a69cff]">
+          <span className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[14px] border border-[rgba(243,24,76,0.30)] bg-[rgba(243,24,76,0.12)] text-[22px] font-extrabold text-[#F3184C]">
             P
           </span>
 
           <span>
             ProxiSpeak
-            <span className="text-[#a69cff]"> Meet</span>
+            <span className="text-[#F3184C]"> Meet</span>
           </span>
         </Link>
 
         <div className="relative z-10 my-auto w-full max-w-[590px] py-16">
 
-          <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[2.1px] text-[#a69cff]">
+          <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[2.1px] text-[#F3184C]">
             <span className="h-0.5 w-[19px] rounded-full bg-[#5ad19a]" />
             ONE LAST STEP
           </span>
 
-          <h1 className="mt-[22px] text-[clamp(36px,4.1vw,64px)] font-extrabold leading-[1.12] tracking-[-2.7px] [overflow-wrap:anywhere]">
+          <h1 className="mt-[22px] text-[clamp(36px,4.1vw,64px)] font-extrabold leading-[1.12] tracking-[-2.7px] [overflow-wrap:anywhere] text-[#F6F6F6]">
             Make it official.
             <br />
             Start{' '}
-            <span className="text-[#a69cff]">
+            <span className="text-[#F3184C]">
               connecting.
             </span>
           </h1>
 
-          <p className="mt-[23px] max-w-[455px] text-[13px] leading-[1.95] text-[#9ba9c2]">
+          <p className="mt-[23px] max-w-[455px] text-[13px] leading-[1.95] text-[#B8B8B8]">
             Verify your email to secure your account and join your team
             in a virtual workspace built for natural conversations.
           </p>
 
-          <blockquote className="relative mt-[38px] max-w-[460px] rounded-2xl border border-[rgba(129,117,255,0.16)] bg-white/[0.025] px-6 py-5 backdrop-blur-xl">
+          <blockquote className="relative mt-[38px] max-w-[460px] rounded-2xl border border-[rgba(243,24,76,0.16)] bg-white/[0.04] px-6 py-5 backdrop-blur-xl">
 
             <span className="block h-[31px] font-serif text-[46px] leading-none text-[#5ad19a]">
               “
             </span>
 
-            <p className="my-3 mb-4 text-xs leading-[1.9] text-[#d5def1]">
+            <p className="my-3 mb-4 text-xs leading-[1.9] text-[#F6F6F6]">
               The best ideas happen when people can connect without
               barriers.
             </p>
 
-            <footer className="text-[9px] font-extrabold tracking-[1.5px] text-[#7889a5]">
+            <footer className="text-[9px] font-extrabold tracking-[1.5px] text-[#929292]">
               THE PROXISPEAK PHILOSOPHY
             </footer>
 
           </blockquote>
         </div>
 
-        <div className="relative z-10 flex flex-wrap justify-between gap-3 text-[9px] leading-[1.7] text-[#7889a5]">
+        <div className="relative z-10 flex flex-wrap justify-between gap-3 text-[9px] leading-[1.7] text-[#929292]">
           <span>Less friction. More connection.</span>
           <span className="tracking-[1.1px]">
             PROXIMITY-POWERED CONVERSATIONS
@@ -226,12 +226,12 @@ export default function VerifyEmail() {
       </section>
 
       {/* Verification panel */}
-      <section className="relative flex min-h-dvh min-w-0 flex-col items-center justify-center bg-[radial-gradient(ellipse_at_100%_0%,rgba(129,117,255,0.045),transparent_35%),#080b14] px-[22px] py-[25px] sm:px-8 lg:px-[clamp(30px,5.2vw,84px)] lg:py-[60px]">
+      <section className="relative flex min-h-dvh min-w-0 flex-col items-center justify-center bg-[#F6F6F6] px-[22px] py-[25px] sm:px-8 lg:px-[clamp(30px,5.2vw,84px)] lg:py-[60px]">
 
         {/* Mobile branding */}
-        <div className="mb-[42px] inline-flex w-full max-w-[460px] items-center gap-3 text-[17px] font-extrabold tracking-tight text-[#edf2ff] lg:hidden">
+        <div className="mb-[42px] inline-flex w-full max-w-[460px] items-center gap-3 text-[17px] font-extrabold tracking-tight text-[#1E1E1E] lg:hidden">
 
-          <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl border border-[rgba(129,117,255,0.4)] bg-[rgba(129,117,255,0.12)] text-xl text-[#a69cff]">
+          <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl border border-[rgba(243,24,76,0.30)] bg-[rgba(243,24,76,0.12)] text-xl text-[#F3184C]">
             P
           </span>
 
@@ -242,7 +242,7 @@ export default function VerifyEmail() {
 
           <Link
             to="/signup"
-            className="mb-[30px] inline-flex items-center gap-2 text-[11px] font-bold text-[#9ba9c2] no-underline transition-colors hover:text-[#a69cff] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8175ff]"
+            className="mb-[30px] inline-flex items-center gap-2 text-[11px] font-bold text-[#686868] no-underline transition-colors hover:text-[#F3184C] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#F3184C]"
           >
             <span aria-hidden="true">←</span>
             Back to sign up
@@ -250,16 +250,16 @@ export default function VerifyEmail() {
 
           <div className="mb-[29px]">
 
-            <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[2.1px] text-[#a69cff]">
-              <span className="h-0.5 w-[19px] rounded-full bg-[#5ad19a]" />
+            <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[2.1px] text-[#F3184C]">
+              <span className="h-0.5 w-[19px] rounded-full bg-[#269B67]" />
               EMAIL VERIFICATION
             </span>
 
-            <h2 className="mt-[15px] text-[clamp(26px,2.6vw,36px)] font-extrabold leading-[1.25] tracking-[-1.3px] [overflow-wrap:anywhere]">
+            <h2 className="mt-[15px] text-[clamp(26px,2.6vw,36px)] font-extrabold leading-[1.25] tracking-[-1.3px] [overflow-wrap:anywhere] text-[#1E1E1E]">
               Check your inbox
             </h2>
 
-            <p className="mt-3 text-xs leading-[1.85] text-[#9ba9c2]">
+            <p className="mt-3 text-xs leading-[1.85] text-[#686868]">
               Enter the six-digit code sent to your email address to
               activate your ProxiSpeak account.
             </p>
@@ -267,7 +267,7 @@ export default function VerifyEmail() {
 
           {error && (
             <div
-              className="mb-5 break-words rounded-[10px] border border-[rgba(255,107,129,0.25)] bg-[rgba(255,107,129,0.08)] px-3.5 py-3 text-[11px] leading-[1.8] text-[#ff9eae]"
+              className="mb-5 break-words rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-3 text-[11px] leading-[1.8] text-red-700"
               role="alert"
             >
               {error}
@@ -276,7 +276,7 @@ export default function VerifyEmail() {
 
           {notice && (
             <div
-              className="mb-5 break-words rounded-[10px] border border-[rgba(90,209,154,0.22)] bg-[rgba(90,209,154,0.08)] px-3.5 py-3 text-[11px] leading-[1.8] text-[#8fe3b9]"
+              className="mb-5 break-words rounded-[10px] border border-[rgba(38,155,103,0.22)] bg-[rgba(38,155,103,0.08)] px-3.5 py-3 text-[11px] leading-[1.8] text-[#207A52]"
               role="status"
             >
               {notice}
@@ -292,7 +292,7 @@ export default function VerifyEmail() {
 
               <label
                 htmlFor="verification-email"
-                className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
+                className="text-[11px] font-bold leading-relaxed text-[#303030]"
               >
                 Email address
               </label>
@@ -310,7 +310,7 @@ export default function VerifyEmail() {
                 }}
                 required
                 disabled={loading || resending}
-                className="block min-h-[49px] w-full min-w-0 rounded-[11px] border border-[#263149] bg-[#101625] px-[15px] py-[13px] text-xs leading-[1.5] text-[#edf2ff] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[#7889a5] hover:border-[rgba(143,164,202,0.35)] focus-visible:border-[#8175ff] focus-visible:bg-[#151e30] focus-visible:shadow-[0_0_0_3px_rgba(129,117,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="block min-h-[49px] w-full min-w-0 rounded-[11px] border border-[#E5E5E5] bg-white px-[15px] py-[13px] text-xs leading-[1.5] text-[#1E1E1E] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[#929292] hover:border-[#D5D5D5] focus-visible:border-[#F3184C] focus-visible:shadow-[0_0_0_3px_rgba(243,24,76,0.12)] disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
 
@@ -318,7 +318,7 @@ export default function VerifyEmail() {
 
               <label
                 htmlFor="verification-otp"
-                className="text-[11px] font-bold leading-relaxed text-[#d5def1]"
+                className="text-[11px] font-bold leading-relaxed text-[#303030]"
               >
                 Verification code
               </label>
@@ -337,12 +337,12 @@ export default function VerifyEmail() {
                 maxLength={6}
                 required
                 disabled={loading || resending}
-                className="block min-h-[54px] w-full min-w-0 rounded-[11px] border border-[#263149] bg-[#101625] px-[15px] py-[13px] text-center text-lg font-bold tracking-[9px] text-[#edf2ff] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[11px] placeholder:font-normal placeholder:tracking-normal placeholder:text-[#7889a5] hover:border-[rgba(143,164,202,0.35)] focus-visible:border-[#8175ff] focus-visible:bg-[#151e30] focus-visible:shadow-[0_0_0_3px_rgba(129,117,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="block min-h-[54px] w-full min-w-0 rounded-[11px] border border-[#E5E5E5] bg-white px-[15px] py-[13px] text-center text-lg font-bold tracking-[9px] text-[#1E1E1E] outline-none transition-[border-color,box-shadow,background] duration-200 placeholder:text-[11px] placeholder:font-normal placeholder:tracking-normal placeholder:text-[#929292] hover:border-[#D5D5D5] focus-visible:border-[#F3184C] focus-visible:shadow-[0_0_0_3px_rgba(243,24,76,0.12)] disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
 
             <button
-              className="flex min-h-[50px] w-full items-center justify-center gap-3 rounded-[11px] border border-transparent bg-[#8175ff] px-[18px] py-[13px] text-xs font-extrabold leading-[1.5] text-[#080b14] transition-[transform,background,box-shadow] duration-200 hover:-translate-y-px hover:bg-[#958bff] hover:shadow-[0_9px_25px_rgba(129,117,255,0.18)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#5ad19a] disabled:cursor-wait disabled:opacity-60"
+              className="flex min-h-[50px] w-full items-center justify-center gap-3 rounded-[11px] border border-transparent bg-[#F3184C] px-[18px] py-[13px] text-xs font-extrabold leading-[1.5] text-white transition-[transform,background,box-shadow] duration-200 hover:-translate-y-px hover:bg-[#D91543] hover:shadow-[0_9px_25px_rgba(243,24,76,0.18)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#F3184C] disabled:cursor-wait disabled:opacity-60"
               type="submit"
               disabled={loading || resending}
             >
@@ -357,12 +357,12 @@ export default function VerifyEmail() {
 
           </form>
 
-          <div className="mt-[25px] flex flex-wrap items-center justify-center gap-2 text-center text-[11px] leading-[1.8] text-[#9ba9c2]">
+          <div className="mt-[25px] flex flex-wrap items-center justify-center gap-2 text-center text-[11px] leading-[1.8] text-[#686868]">
 
             <span>Didn't receive the code?</span>
 
             <button
-              className="border-0 bg-transparent p-0 font-extrabold text-[#a69cff] transition-colors hover:text-[#5ad19a] hover:underline hover:underline-offset-[3px] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8175ff] disabled:cursor-not-allowed disabled:opacity-50"
+              className="border-0 bg-transparent p-0 font-extrabold text-[#F3184C] transition-colors hover:text-[#D91543] hover:underline hover:underline-offset-[3px] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#F3184C] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               onClick={handleResend}
               disabled={resending || loading}
@@ -372,18 +372,18 @@ export default function VerifyEmail() {
 
           </div>
 
-          <p className="mt-[24px] text-center text-[11px] leading-[1.8] text-[#9ba9c2]">
+          <p className="mt-[24px] text-center text-[11px] leading-[1.8] text-[#686868]">
             Already verified?{' '}
             <Link
               to="/login"
-              className="font-extrabold text-[#a69cff] no-underline hover:text-[#5ad19a] hover:underline hover:underline-offset-[3px]"
+              className="font-extrabold text-[#F3184C] no-underline hover:text-[#D91543] hover:underline hover:underline-offset-[3px]"
             >
               Sign in
             </Link>
           </p>
 
-          <div className="mt-[30px] flex items-center justify-center gap-2 text-center text-[10px] leading-[1.8] text-[#7889a5]">
-            <span className="text-[8px] text-[#5ad19a]" aria-hidden="true">
+          <div className="mt-[30px] flex items-center justify-center gap-2 text-center text-[10px] leading-[1.8] text-[#929292]">
+            <span className="text-[8px] text-[#269B67]" aria-hidden="true">
               ●
             </span>
 
@@ -392,7 +392,7 @@ export default function VerifyEmail() {
 
         </div>
 
-        <footer className="mt-[38px] flex w-full max-w-[430px] flex-wrap justify-between gap-2.5 text-[9px] leading-[1.8] text-[#7889a5] max-[760px]:mt-auto max-[760px]:max-w-[460px] max-[760px]:pt-10 max-[380px]:flex-col max-[380px]:gap-1">
+        <footer className="mt-[38px] flex w-full max-w-[430px] flex-wrap justify-between gap-2.5 text-[9px] leading-[1.8] text-[#929292] max-[760px]:mt-auto max-[760px]:max-w-[460px] max-[760px]:pt-10 max-[380px]:flex-col max-[380px]:gap-1">
 
           <span>© {new Date().getFullYear()} ProxiSpeak Meet</span>
 
