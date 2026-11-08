@@ -2,8 +2,8 @@ import mongoose from 'mongoose';
 
 /**
  * A persisted office: its pixel dimensions plus the furniture/wall rectangles
- * that block sound. `blocksAudio` rectangles feed the occlusion calculation on
- * both the server (authoritative soundFactor) and the client (drawing).
+ * that block sound. `blocksAudio` rectangles feed the occlusion calculation
+ * on both the server (authoritative soundFactor) and the client (drawing).
  */
 const ObstacleSchema = new mongoose.Schema(
   {
@@ -50,35 +50,84 @@ const RoomSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+
     name: {
       type: String,
       required: true,
       default: 'Unnamed Office',
+      trim: true,
+      maxlength: 100,
     },
+
     description: {
       type: String,
       default: '',
+      trim: true,
+      maxlength: 500,
     },
+
+    /**
+     * Account that created and owns this room.
+     * Nullable for compatibility with rooms created before ownership
+     * metadata was introduced.
+     */
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+
+    /**
+     * Public rooms can be discovered through the room catalogue.
+     * Private rooms require owner or explicit access authorization.
+     */
+    visibility: {
+      type: String,
+      enum: ['public', 'private'],
+      default: 'public',
+      required: true,
+      index: true,
+    },
+
+    /**
+     * Explicitly authorized accounts for private-room access.
+     * The owner always retains access independently of this list.
+     */
+    allowedUsers: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+        },
+      ],
+      default: [],
+    },
+
     width: {
       type: Number,
       required: true,
       min: 200,
       validate: Number.isFinite,
     },
+
     height: {
       type: Number,
       required: true,
       min: 200,
       validate: Number.isFinite,
     },
+
     obstacles: {
       type: [ObstacleSchema],
       default: [],
     },
+
     spawnPoints: {
       type: [SpawnPointSchema],
       default: [],
     },
+
     createdAt: {
       type: Date,
       default: Date.now,
@@ -89,6 +138,13 @@ const RoomSchema = new mongoose.Schema(
     versionKey: false,
   },
 );
+
+/**
+ * Catalogue queries should only return public rooms.
+ * Ownership queries can use the ownerId index.
+ */
+RoomSchema.index({ visibility: 1, createdAt: -1 });
+RoomSchema.index({ ownerId: 1, createdAt: -1 });
 
 /**
  * Validate geometry as a whole because obstacle and spawn-point boundaries
@@ -112,7 +168,6 @@ RoomSchema.pre('validate', function validateRoomGeometry() {
     );
   }
 
-  // Cross-field geometry checks require valid room dimensions.
   if (!Number.isFinite(width) || !Number.isFinite(height)) {
     return;
   }
@@ -153,6 +208,18 @@ RoomSchema.pre('validate', function validateRoomGeometry() {
         `Spawn point at index ${index} must be within room bounds`,
       );
     }
+  }
+
+  const allowedUsers = this.allowedUsers ?? [];
+  const uniqueUserIds = new Set(
+    allowedUsers.map((userId) => userId.toString()),
+  );
+
+  if (uniqueUserIds.size !== allowedUsers.length) {
+    this.invalidate(
+      'allowedUsers',
+      'A user cannot be added to a room access list more than once.',
+    );
   }
 });
 
