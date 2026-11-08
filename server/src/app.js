@@ -13,6 +13,8 @@ import logger from './utils/logger.js';
 
 import meetingHistoryRouter from './routes/meetingHistory.js';
 
+import roomAccessRouter from './routes/roomAccess.js';
+
 import {
   requireString,
   requireFiniteNumber,
@@ -126,6 +128,9 @@ export function createApp({
 
   // POST /api/rooms
   app.use('/api/rooms', roomCreationRouter);
+
+  // POST /api/rooms/access/:roomId/members/:userId
+  app.use('/api/rooms/access', roomAccessRouter);
 
   const startedAt = Date.now();
 
