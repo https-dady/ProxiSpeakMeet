@@ -1,9 +1,10 @@
 import mongoose from 'mongoose';
 
 /**
- * A persisted office: its pixel dimensions plus the furniture/wall rectangles
- * that block sound. `blocksAudio` rectangles feed the occlusion calculation
- * on both the server (authoritative soundFactor) and the client (drawing).
+ * A persisted office: dimensions, furniture, access policy and ownership.
+ *
+ * Existing rooms remain public by default for backward compatibility.
+ * Private rooms are restricted to their owner and explicitly allowed users.
  */
 const ObstacleSchema = new mongoose.Schema(
   {
@@ -18,10 +19,6 @@ const ObstacleSchema = new mongoose.Schema(
     w: { type: Number, required: true, min: 1, validate: Number.isFinite },
     h: { type: Number, required: true, min: 1, validate: Number.isFinite },
     blocksAudio: { type: Boolean, default: true },
-    /**
-     * Fraction of sound that survives crossing this obstacle.
-     * Example: 0.12 represents heavy sound attenuation.
-     */
     attenuation: {
       type: Number,
       default: 0.2,
@@ -50,15 +47,13 @@ const RoomSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
-
     name: {
       type: String,
       required: true,
       default: 'Unnamed Office',
       trim: true,
-      maxlength: 100,
+      maxlength: 80,
     },
-
     description: {
       type: String,
       default: '',
@@ -66,34 +61,18 @@ const RoomSchema = new mongoose.Schema(
       maxlength: 500,
     },
 
-    /**
-     * Account that created and owns this room.
-     * Nullable for compatibility with rooms created before ownership
-     * metadata was introduced.
-     */
-    ownerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      default: null,
-      index: true,
-    },
-
-    /**
-     * Public rooms can be discovered through the room catalogue.
-     * Private rooms require owner or explicit access authorization.
-     */
+    // Room access control.
     visibility: {
       type: String,
       enum: ['public', 'private'],
       default: 'public',
       required: true,
-      index: true,
     },
-
-    /**
-     * Explicitly authorized accounts for private-room access.
-     * The owner always retains access independently of this list.
-     */
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     allowedUsers: {
       type: [
         {
@@ -110,24 +89,20 @@ const RoomSchema = new mongoose.Schema(
       min: 200,
       validate: Number.isFinite,
     },
-
     height: {
       type: Number,
       required: true,
       min: 200,
       validate: Number.isFinite,
     },
-
     obstacles: {
       type: [ObstacleSchema],
       default: [],
     },
-
     spawnPoints: {
       type: [SpawnPointSchema],
       default: [],
     },
-
     createdAt: {
       type: Date,
       default: Date.now,
@@ -138,13 +113,6 @@ const RoomSchema = new mongoose.Schema(
     versionKey: false,
   },
 );
-
-/**
- * Catalogue queries should only return public rooms.
- * Ownership queries can use the ownerId index.
- */
-RoomSchema.index({ visibility: 1, createdAt: -1 });
-RoomSchema.index({ ownerId: 1, createdAt: -1 });
 
 /**
  * Validate geometry as a whole because obstacle and spawn-point boundaries
@@ -209,16 +177,17 @@ RoomSchema.pre('validate', function validateRoomGeometry() {
       );
     }
   }
+});
 
-  const allowedUsers = this.allowedUsers ?? [];
-  const uniqueUserIds = new Set(
-    allowedUsers.map((userId) => userId.toString()),
-  );
-
-  if (uniqueUserIds.size !== allowedUsers.length) {
+/**
+ * Private rooms must have an owner.
+ * Public rooms may optionally have an owner.
+ */
+RoomSchema.pre('validate', function validateRoomAccess() {
+  if (this.visibility === 'private' && !this.ownerId) {
     this.invalidate(
-      'allowedUsers',
-      'A user cannot be added to a room access list more than once.',
+      'ownerId',
+      'A private room must have an owner',
     );
   }
 });
