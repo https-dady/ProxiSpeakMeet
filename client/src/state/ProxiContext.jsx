@@ -1013,16 +1013,33 @@ export function ProxiProvider({
       status: 'connecting',
     });
 
-    return () => {
+       return () => {
       clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
 
+      // Stop microphone capture before releasing the provider.
+      const localStream = localStreamRef.current;
+
+      if (localStream) {
+        localStream.getTracks().forEach((track) => {
+          track.stop();
+        });
+
+        localStreamRef.current = null;
+      }
+
+      // Release WebRTC connections and remote audio resources.
       peerManager.closeAll();
       audio.dispose();
+
+      // Disconnect the Socket.IO client.
       client.disconnect();
 
       clientRef.current = null;
       peersRef.current = null;
       audioRef.current = null;
+
+      rejoiningRef.current = false;
     };
   }, [
     serverUrl,
