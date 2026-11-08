@@ -10,15 +10,14 @@ import { App } from './App.jsx';
  * Loading order:
  * 1. Tailwind CSS v4
  * 2. Existing application styles
- * 3. Brand compatibility overrides
- *
- * Existing virtual office styles remain available
- * during the gradual migration to Tailwind.
+ * 3. Brand compatibility
+ * 4. Responsive overrides
  */
 
 import './tailwind.css';
 import './styles.css';
 import './styles/brand-compat.css';
+import './styles/responsive-overrides.css';
 
 /*
  * Application Bootstrap
