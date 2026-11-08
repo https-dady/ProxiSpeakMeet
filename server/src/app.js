@@ -219,7 +219,6 @@ export function createApp({
       })),
     });
   });
-
   // -----------------------------------------------------------
   // ROOM CATALOGUE
   // -----------------------------------------------------------
@@ -229,6 +228,8 @@ export function createApp({
    *
    * Returns public rooms and private rooms accessible to the
    * authenticated account.
+   *
+   * Missing access metadata fails closed.
    */
   app.get(
     '/api/rooms',
@@ -236,23 +237,54 @@ export function createApp({
     async (req, res, next) => {
       try {
         const rooms = await services.listRooms();
-        const userId = req.user.userId;
+
+        const userId = req.user?.userId;
+
+        if (!userId) {
+          return res.status(401).json({
+            ok: false,
+            error: 'Authentication is required.',
+          });
+        }
+
+        const normalizedUserId = String(userId).toLowerCase();
 
         const visibleRooms = [];
 
         for (const room of rooms) {
           const access = await getRoomAccess(room.roomId);
 
-          // Legacy rooms without privacy metadata remain public.
-          if (!access || access.visibility === 'public') {
+          // Never expose a room if its access record is missing.
+          if (!access) {
+            continue;
+          }
+
+          // Only explicitly public rooms are visible to everyone
+          // who has successfully authenticated.
+          if (access.visibility === 'public') {
             visibleRooms.push(room);
             continue;
           }
 
-          const isOwner = access.ownerId === userId;
+          // Unknown visibility values fail closed.
+          if (access.visibility !== 'private') {
+            continue;
+          }
+
+          const ownerId = access.ownerId
+            ? String(access.ownerId).toLowerCase()
+            : null;
+
+          const allowedUsers = Array.isArray(access.allowedUsers)
+            ? access.allowedUsers.map((id) =>
+                String(id).toLowerCase(),
+              )
+            : [];
+
+          const isOwner = ownerId === normalizedUserId;
 
           const isAllowed =
-            access.allowedUsers.includes(userId);
+            allowedUsers.includes(normalizedUserId);
 
           if (isOwner || isAllowed) {
             visibleRooms.push(room);
