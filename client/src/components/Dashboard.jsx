@@ -14,6 +14,7 @@ import DashboardProfile from './dashboard/DashboardProfile.jsx';
 import DashboardSettings from './dashboard/DashboardSettings.jsx';
 import DashboardMobileNav from './dashboard/DashboardMobileNav.jsx';
 
+// Retained temporarily because several child components still depend on it.
 import './dashboard/dashboard.css';
 
 const API_BASE_URL = String(config.serverUrl).replace(/\/+$/, '');
@@ -306,7 +307,7 @@ export default function Dashboard({
   };
 
   const renderDashboardContent = () => (
-    <div className="dashboard-page-content">
+    <div className="space-y-7 max-[767px]:space-y-5">
       <DashboardHero
         username={displayName}
         onCreateMeeting={() => setShowCreateModal(true)}
@@ -327,25 +328,25 @@ export default function Dashboard({
 
       <section
         id="join-meeting"
-        className="dashboard-join-section"
+        className="rounded-2xl border border-[#ECEAF7] bg-white p-6 sm:p-7"
       >
-        <div className="dashboard-join-heading">
-          <div>
-            <span className="dashboard-section-eyebrow">
-              HAVE AN INVITATION?
-            </span>
+        <div>
+          <span className="block text-xs font-bold tracking-[0.16em] text-[#85879A]">
+            HAVE AN INVITATION?
+          </span>
 
-            <h2>Join a meeting</h2>
+          <h2 className="mt-2 text-xl font-extrabold text-[#202334]">
+            Join a meeting
+          </h2>
 
-            <p>
-              Enter the meeting ID shared by your host.
-            </p>
-          </div>
+          <p className="mt-1 text-sm text-[#85879A]">
+            Enter the meeting ID shared by your host.
+          </p>
         </div>
 
         <form
           onSubmit={joinMeeting}
-          className="dashboard-join-form"
+          className="mt-5 flex flex-col gap-3 sm:flex-row"
         >
           <input
             type="text"
@@ -359,11 +360,13 @@ export default function Dashboard({
             autoComplete="off"
             disabled={busy}
             aria-label="Meeting ID"
+            className="min-w-0 flex-1 rounded-xl border border-[#E8E6F2] bg-[#FBFAFF] px-4 py-3 text-sm text-[#202334] outline-none transition placeholder:text-[#A1A1B2] focus:border-[#5546F5] focus:ring-2 focus:ring-[#5546F5]/10 disabled:cursor-not-allowed disabled:opacity-50"
           />
 
           <button
             type="submit"
             disabled={busy || !roomId.trim()}
+            className="inline-flex appearance-none items-center justify-center gap-2 rounded-xl border-0 bg-[#5546F5] px-6 py-3 text-sm font-bold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#4435E2] hover:shadow-[0_8px_20px_rgb(85_70_245_/_20%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5546F5] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
           >
             {joiningRoom ? 'Joining...' : 'Join meeting'}
             <span aria-hidden="true">↗</span>
@@ -450,7 +453,7 @@ export default function Dashboard({
   };
 
   return (
-    <div className="dashboard-shell">
+    <div className="fixed inset-0 flex overflow-hidden bg-[#F5F4FC] font-sans text-[#202334]">
       <DashboardSidebar
         activeSection={activeSection}
         setActiveSection={setActiveSection}
@@ -458,21 +461,25 @@ export default function Dashboard({
         onLogout={onLogout}
       />
 
-      <div className="dashboard-main">
+      <div className="ml-0 flex h-full min-w-0 flex-1 flex-col overflow-hidden max-[767px]:w-full max-[767px]:pb-[72px]">
         <DashboardTopbar
-          activeSection={SECTION_TITLES[activeSection] ? activeSection : 'dashboard'}
+          activeSection={
+            SECTION_TITLES[activeSection]
+              ? activeSection
+              : 'dashboard'
+          }
           username={displayName}
           onOpenProfile={openProfile}
         />
 
         <main
-          className="dashboard-content-scroll"
+          className="dashboard-content-scroll min-h-0 flex-1 overflow-y-auto"
           id="dashboard-main-content"
         >
-          <div className="dashboard-content-inner">
-            {(error && activeSection !== 'profile') && (
+          <div className="mx-auto w-full max-w-[1500px] px-8 py-8 max-[1023px]:px-6 max-[767px]:px-4 max-[767px]:py-5 max-[420px]:px-3">
+            {error && activeSection !== 'profile' && (
               <div
-                className="dashboard-global-alert"
+                className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-[#F7D7DA] bg-[#FFF1F1] px-4 py-3 text-sm text-[#B83D4C]"
                 role="alert"
               >
                 <span>{error}</span>
@@ -481,6 +488,7 @@ export default function Dashboard({
                   type="button"
                   onClick={refreshDashboard}
                   disabled={loading}
+                  className="shrink-0 appearance-none border-0 bg-transparent font-bold transition hover:opacity-75 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Retry
                 </button>
@@ -489,7 +497,7 @@ export default function Dashboard({
 
             {notice && (
               <div
-                className="dashboard-global-notice"
+                className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-[#CBEED9] bg-[#EEFBF4] px-4 py-3 text-sm text-[#25845A]"
                 role="status"
               >
                 <span>{notice}</span>
@@ -498,6 +506,7 @@ export default function Dashboard({
                   type="button"
                   onClick={() => setNotice('')}
                   aria-label="Dismiss notification"
+                  className="shrink-0 appearance-none border-0 bg-transparent font-bold transition hover:opacity-75"
                 >
                   ×
                 </button>
