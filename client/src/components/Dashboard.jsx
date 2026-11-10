@@ -14,7 +14,6 @@ import DashboardProfile from './dashboard/DashboardProfile.jsx';
 import DashboardSettings from './dashboard/DashboardSettings.jsx';
 import DashboardMobileNav from './dashboard/DashboardMobileNav.jsx';
 
-
 const API_BASE_URL = String(config.serverUrl).replace(/\/+$/, '');
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 
@@ -203,14 +202,30 @@ export default function Dashboard({
     void loadMeetingHistory(controller.signal);
   }, [loadMeetingHistory]);
 
-  const handleMeetingCreated = ({ roomId: createdRoomId }) => {
-    if (!createdRoomId) return;
+  /*
+   * A newly created meeting returns both the room ID
+   * and the profile selected inside CreateMeetingModal.
+   *
+   * Pass both to App so the next integration step can
+   * initialize the office without showing MicGate.
+   */
+  const handleMeetingCreated = ({
+    roomId: createdRoomId,
+    profile: meetingProfile,
+  }) => {
+    if (
+      typeof createdRoomId !== 'string' ||
+      !ROOM_ID_PATTERN.test(createdRoomId)
+    ) {
+      setError('The created meeting returned an invalid meeting ID.');
+      return;
+    }
 
     setShowCreateModal(false);
     setNotice(`Meeting ${createdRoomId} created successfully.`);
     setError('');
 
-    onJoinRoom(createdRoomId);
+    onJoinRoom(createdRoomId, meetingProfile ?? null);
   };
 
   const joinMeeting = async (event) => {
@@ -471,9 +486,9 @@ export default function Dashboard({
         />
 
         <main
-  className="ps-scrollbar min-h-0 flex-1 overflow-y-auto"
-  id="dashboard-main-content"
->
+          className="ps-scrollbar min-h-0 flex-1 overflow-y-auto"
+          id="dashboard-main-content"
+        >
           <div className="mx-auto w-full max-w-[1500px] px-8 py-8 max-[1023px]:px-6 max-[767px]:px-4 max-[767px]:py-5 max-[420px]:px-3">
             {error && activeSection !== 'profile' && (
               <div
