@@ -51,8 +51,16 @@ export default function DashboardMobileNav({
 }) {
   return (
     <nav
-      className="dashboard-mobile-nav"
       aria-label="Mobile dashboard navigation"
+      className="
+        fixed inset-x-0 bottom-0 z-50
+        flex h-[72px] items-center justify-around
+        border-t border-[#ECEAF7]
+        bg-white/95 px-2
+        pb-[env(safe-area-inset-bottom)]
+        backdrop-blur-[18px]
+        min-[768px]:hidden
+      "
     >
       {navigationItems.map((item) => {
         const isActive = activeSection === item.id;
@@ -61,14 +69,28 @@ export default function DashboardMobileNav({
           <button
             key={item.id}
             type="button"
-            className={`dashboard-mobile-nav-item ${
-              isActive ? 'active' : ''
-            }`}
             onClick={() => setActiveSection?.(item.id)}
             aria-current={isActive ? 'page' : undefined}
             aria-label={item.label}
+            className={`
+              appearance-none border-0
+              flex min-w-0 flex-1
+              flex-col items-center justify-center
+              gap-1 rounded-xl py-2
+              text-[10px]
+              transition-colors duration-200
+              focus-visible:outline-2
+              focus-visible:outline-offset-2
+              focus-visible:outline-[#6252FF]
+              ${
+                isActive
+                  ? 'font-extrabold text-[#6252FF]'
+                  : 'font-semibold text-[#A1A1B2] hover:text-[#6252FF]'
+              }
+            `}
           >
             <svg
+              className="h-5 w-5 shrink-0"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
