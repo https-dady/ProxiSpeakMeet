@@ -144,8 +144,17 @@ function getBackendStatus(health, error) {
   return 'checking';
 }
 
-export function StatusBar() {
-  const { state, worldRef, leave, toggleMute, setVolume } = useProxi();
+export function StatusBar({ onLeave }) {
+  const {
+    state,
+    worldRef,
+    leave,
+    toggleMute,
+    setVolume,
+  } = useProxi();
+
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
 
   const diagnostics = useBackendDiagnostics();
 
@@ -188,6 +197,23 @@ export function StatusBar() {
   const lastChecked = diagnostics.checkedAt
     ? new Date(diagnostics.checkedAt).toLocaleTimeString()
     : 'Not checked yet';
+
+  const handleLeave = async () => {
+    if (leaving) return;
+
+    setLeaving(true);
+    setLeaveError('');
+
+    try {
+      await leave();
+      onLeave?.();
+    } catch (error) {
+      setLeaveError(
+        error?.message || 'Unable to leave the meeting.',
+      );
+      setLeaving(false);
+    }
+  };
 
   return (
     <header className="statusbar">
@@ -321,11 +347,21 @@ export function StatusBar() {
         <button
           type="button"
           className="button"
-          onClick={leave}
+          onClick={handleLeave}
+          disabled={leaving}
         >
-          Leave
+          {leaving ? 'Leaving…' : 'Leave meeting'}
         </button>
       </div>
+
+      {leaveError && (
+        <p
+          role="alert"
+          className="statusbar__leave-error"
+        >
+          {leaveError}
+        </p>
+      )}
     </header>
   );
 }
