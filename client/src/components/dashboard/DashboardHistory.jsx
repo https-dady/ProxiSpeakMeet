@@ -62,7 +62,7 @@ function getMeetingStatus(status) {
   if (['cancelled', 'canceled'].includes(normalized)) {
     return {
       label: 'Cancelled',
-      className: 'bg-rose-50 text-rose-600',
+      className: 'bg-[#EFEDFF] text-[#6252FF]',
     };
   }
 
@@ -589,10 +589,10 @@ export default function DashboardHistory({
             flex flex-wrap
             items-center justify-between
             gap-3 rounded-[15px]
-            border border-rose-100
-            bg-rose-50 px-5 py-4
+            border border-[#E4DFFF]
+            bg-[#F6F4FF] px-5 py-4
             text-[12px] font-medium
-            text-rose-700
+            text-[#5142DC]
           "
         >
           <span>{error}</span>
@@ -604,9 +604,9 @@ export default function DashboardHistory({
               className="
                 appearance-none border-0
                 bg-transparent p-1
-                font-extrabold text-rose-700
+                font-extrabold text-[#6252FF]
                 underline underline-offset-4
-                hover:text-rose-900
+                hover:text-[#5546F5]
               "
             >
               Try again

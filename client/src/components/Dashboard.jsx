@@ -14,8 +14,6 @@ import DashboardProfile from './dashboard/DashboardProfile.jsx';
 import DashboardSettings from './dashboard/DashboardSettings.jsx';
 import DashboardMobileNav from './dashboard/DashboardMobileNav.jsx';
 
-// Retained temporarily because several child components still depend on it.
-import './dashboard/dashboard.css';
 
 const API_BASE_URL = String(config.serverUrl).replace(/\/+$/, '');
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
@@ -473,9 +471,9 @@ export default function Dashboard({
         />
 
         <main
-          className="dashboard-content-scroll min-h-0 flex-1 overflow-y-auto"
-          id="dashboard-main-content"
-        >
+  className="ps-scrollbar min-h-0 flex-1 overflow-y-auto"
+  id="dashboard-main-content"
+>
           <div className="mx-auto w-full max-w-[1500px] px-8 py-8 max-[1023px]:px-6 max-[767px]:px-4 max-[767px]:py-5 max-[420px]:px-3">
             {error && activeSection !== 'profile' && (
               <div

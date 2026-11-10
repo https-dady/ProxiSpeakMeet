@@ -278,7 +278,7 @@ export default function DashboardSettings({
         flex flex-wrap
         items-center gap-5
         rounded-[23px]
-        border border-rose-100
+        border border-[#E8E4FF]
         bg-white p-5
         shadow-[0_8px_35px_rgba(40,35,90,0.025)]
         sm:p-6
@@ -287,8 +287,8 @@ export default function DashboardSettings({
           flex h-[50px] w-[50px]
           shrink-0 items-center justify-center
           rounded-[16px]
-          bg-rose-50
-          text-rose-600
+          bg-[#EFEDFF]
+          text-[#6252FF]
         ">
           <SettingsIcon type="logout" size={22} />
         </div>
@@ -319,19 +319,19 @@ export default function DashboardSettings({
             shrink-0 items-center
             justify-center gap-2
             rounded-[13px]
-            bg-rose-50 px-5
+            bg-[#EFEDFF] px-5
             text-[11px] font-extrabold
-            text-rose-600
+            text-[#6252FF]
             transition-all duration-300
             hover:-translate-y-0.5
-            hover:bg-rose-600
+            hover:bg-[#5546F5]
             hover:text-white
             active:translate-y-0
             disabled:cursor-not-allowed
             disabled:opacity-50
             focus-visible:outline-none
             focus-visible:ring-2
-            focus-visible:ring-rose-500
+            focus-visible:ring-[#6252FF]
             focus-visible:ring-offset-2
           "
         >

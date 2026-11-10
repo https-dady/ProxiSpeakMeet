@@ -304,13 +304,13 @@ function SidebarAccount({
           text-[11px] font-bold
           text-[#9292A7]
           transition-all duration-200
-          hover:bg-rose-50
-          hover:text-rose-600
+          hover:bg-[#EFEDFF]
+          hover:text-[#6252FF]
           disabled:cursor-not-allowed
           disabled:opacity-50
           focus-visible:outline-none
           focus-visible:ring-2
-          focus-visible:ring-rose-400
+          focus-visible:ring-[#6252FF]
         "
       >
         <SidebarIcon name="logout" size={18} />

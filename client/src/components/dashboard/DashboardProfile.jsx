@@ -316,17 +316,18 @@ export default function DashboardProfile({
           className="
             flex items-start gap-3
             rounded-[15px]
-            border border-rose-100
-            bg-rose-50 px-5 py-4
+            border border-[#E4DFFF]
+            bg-[#F6F4FF] px-5 py-4
             text-[12px] font-medium
-            leading-6 text-rose-700
+            leading-6 text-[#5142DC]
           "
         >
           <span className="
             mt-0.5 flex h-5 w-5
             shrink-0 items-center
             justify-center rounded-full
-            bg-rose-100 font-black
+            bg-[#EAE6FF] font-black
+            text-[#6252FF]
           ">
             !
           </span>
