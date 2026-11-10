@@ -43,7 +43,7 @@ function LoadingScreen({
   return (
     <main className="grid min-h-screen place-items-center bg-[#1E1E1E] px-6 text-[#F6F6F6]">
       <div className="text-center">
-        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F3184C] text-xl font-bold">
+        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#6252FF] text-xl font-bold">
           P
         </div>
 
@@ -83,7 +83,7 @@ function SessionErrorScreen({
           <button
             type="button"
             onClick={onRetry}
-            className="flex-1 rounded-xl bg-[#F3184C] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#D91343]"
+            className="flex-1 rounded-xl bg-[#6252FF] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#5546F5]"
           >
             Retry
           </button>
@@ -118,12 +118,10 @@ function ConnectionAudioPanel() {
     peersRef.current?.snapshot?.() ?? [];
 
   const connectedPeers = connections.filter(
-    (connection) =>
-      connection.state === 'connected',
+    (connection) => connection.state === 'connected',
   ).length;
 
-  const socketConnected =
-    state.status === 'online';
+  const socketConnected = state.status === 'online';
 
   const audioReady = Boolean(
     state.selfId && audioRef.current,
@@ -155,25 +153,20 @@ function ConnectionAudioPanel() {
     },
     {
       label: 'WebRTC',
-      value:
-        connections.length === 0
-          ? 'No peer connections'
-          : `${connectedPeers}/${connections.length} connected`,
+      value: connections.length === 0
+        ? 'No peer connections'
+        : `${connectedPeers}/${connections.length} connected`,
       active: connectedPeers > 0,
     },
     {
       label: 'Spatial Audio',
-      value: audioReady
-        ? 'Initialized'
-        : 'Waiting',
+      value: audioReady ? 'Initialized' : 'Waiting',
       active: audioReady,
     },
     {
       label: 'Microphone',
       value: microphoneLabel,
-      active:
-        state.mic.state === 'ready' &&
-        !state.muted,
+      active: state.mic.state === 'ready' && !state.muted,
     },
   ];
 
@@ -251,9 +244,7 @@ function RoomInfoPanel() {
 
     try {
       if (!navigator.clipboard?.writeText) {
-        throw new Error(
-          'Clipboard access is unavailable.',
-        );
+        throw new Error('Clipboard access is unavailable.');
       }
 
       await navigator.clipboard.writeText(
@@ -383,81 +374,79 @@ function SettingsPanel() {
   } = useProxi();
 
   return (
-    <>
-      <section
-        className="panel"
-        aria-labelledby="settings-panel-title"
-      >
-        <header className="panel__header">
-          <div>
-            <span className="connection-panel__eyebrow">
-              PREFERENCES
-            </span>
+    <section
+      className="panel"
+      aria-labelledby="settings-panel-title"
+    >
+      <header className="panel__header">
+        <div>
+          <span className="connection-panel__eyebrow">
+            PREFERENCES
+          </span>
 
-            <h2 id="settings-panel-title">
-              Audio settings
-            </h2>
-          </div>
-        </header>
-
-        <div className="room-info__details">
-          <div className="room-info__item">
-            <span className="room-info__icon" aria-hidden="true">
-              ◉
-            </span>
-
-            <div className="room-info__copy">
-              <span className="room-info__label">
-                Microphone
-              </span>
-
-              <strong className="room-info__value">
-                {state.muted ? 'Muted' : 'Unmuted'}
-              </strong>
-            </div>
-
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={toggleMute}
-            >
-              {state.muted ? 'Unmute' : 'Mute'}
-            </button>
-          </div>
-
-          <div className="room-info__item">
-            <span className="room-info__icon" aria-hidden="true">
-              ◖
-            </span>
-
-            <div className="room-info__copy">
-              <label
-                className="room-info__label"
-                htmlFor="master-volume"
-              >
-                Master volume
-              </label>
-
-              <strong className="room-info__value">
-                {Math.round(state.volume * 100)}%
-              </strong>
-            </div>
-          </div>
-
-          <input
-            id="master-volume"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={state.volume}
-            onChange={(event) =>
-              setVolume(Number(event.target.value))
-            }
-          />
+          <h2 id="settings-panel-title">
+            Audio settings
+          </h2>
         </div>
-      </section>
-    </>
+      </header>
+
+      <div className="room-info__details">
+        <div className="room-info__item">
+          <span className="room-info__icon" aria-hidden="true">
+            ◉
+          </span>
+
+          <div className="room-info__copy">
+            <span className="room-info__label">
+              Microphone
+            </span>
+
+            <strong className="room-info__value">
+              {state.muted ? 'Muted' : 'Unmuted'}
+            </strong>
+          </div>
+
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={toggleMute}
+          >
+            {state.muted ? 'Unmute' : 'Mute'}
+          </button>
+        </div>
+
+        <div className="room-info__item">
+          <span className="room-info__icon" aria-hidden="true">
+            ◖
+          </span>
+
+          <div className="room-info__copy">
+            <label
+              className="room-info__label"
+              htmlFor="master-volume"
+            >
+              Master volume
+            </label>
+
+            <strong className="room-info__value">
+              {Math.round(state.volume * 100)}%
+            </strong>
+          </div>
+        </div>
+
+        <input
+          id="master-volume"
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={state.volume}
+          onChange={(event) =>
+            setVolume(Number(event.target.value))
+          }
+        />
+      </div>
+    </section>
   );
 }
 
@@ -511,12 +500,135 @@ function WorkspaceView({ activeView }) {
    OFFICE APPLICATION
 ------------------------------------------------------- */
 
-function Office() {
-  const { state } = useProxi();
+function Office({
+  initialProfile,
+  onLeave,
+}) {
+  const {
+    state,
+    join,
+    leave,
+  } = useProxi();
 
   const [activeView, setActiveView] = useState('office');
 
+  const [autoJoinError, setAutoJoinError] = useState('');
+  const [autoJoining, setAutoJoining] = useState(false);
+  const [joinAttempt, setJoinAttempt] = useState(0);
+
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
+
+  /*
+   * A profile supplied by the Create Meeting popup
+   * enters the office directly.
+   *
+   * Normal invite links without a profile continue
+   * to use the existing MicGate.
+   */
+  useEffect(() => {
+    if (
+      !initialProfile ||
+      state.selfId ||
+      autoJoining
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    setAutoJoining(true);
+    setAutoJoinError('');
+
+    const roomId = new URLSearchParams(
+      window.location.search,
+    ).get('room');
+
+    join({
+      roomId,
+      name: initialProfile.name,
+      color: initialProfile.color,
+      avatar: initialProfile.avatar,
+      withMic: initialProfile.withMic !== false,
+    })
+      .catch((err) => {
+        if (!cancelled) {
+          setAutoJoinError(
+            err.message || 'Unable to enter the office.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAutoJoining(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    initialProfile,
+    state.selfId,
+    join,
+    joinAttempt,
+  ]);
+
+  const handleLeave = async () => {
+    if (leaving) return;
+
+    setLeaving(true);
+    setLeaveError('');
+
+    try {
+      await leave();
+      onLeave();
+    } catch (err) {
+      setLeaveError(
+        err.message || 'Unable to leave the meeting.',
+      );
+      setLeaving(false);
+    }
+  };
+
   if (!state.selfId) {
+    if (initialProfile) {
+      return (
+        <main className="grid min-h-screen place-items-center bg-[#1E1E1E] px-5 text-[#F6F6F6]">
+          <section className="w-full max-w-md rounded-2xl border border-[#454545] bg-[#303030] p-7 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#6252FF] text-xl font-bold">
+              P
+            </div>
+
+            <h1 className="mt-5 text-xl font-bold">
+              {autoJoinError
+                ? 'Unable to enter office'
+                : 'Entering your office…'}
+            </h1>
+
+            <p className="mt-3 text-sm leading-6 text-[#BDBDBD]">
+              {autoJoinError ||
+                `Preparing your workspace, ${initialProfile.name}…`}
+            </p>
+
+            {autoJoinError && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAutoJoinError('');
+                  setAutoJoining(false);
+                  setJoinAttempt((attempt) => attempt + 1);
+                }}
+                className="mt-6 rounded-xl bg-[#6252FF] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#5546F5]"
+              >
+                Try again
+              </button>
+            )}
+          </section>
+        </main>
+      );
+    }
+
     return (
       <div className="app app--gate">
         <StatusBar />
@@ -563,6 +675,27 @@ function Office() {
       />
 
       <div className="app__workspace">
+        {/* Compact meeting action instead of the old large header. */}
+        <div className="flex items-center justify-end gap-3 px-4 py-2 sm:px-6">
+          {leaveError && (
+            <span
+              role="alert"
+              className="text-xs text-[#FF9AA8]"
+            >
+              {leaveError}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleLeave}
+            disabled={leaving}
+            className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-[#F6F6F6] transition hover:border-[#6252FF]/60 hover:bg-[#6252FF]/15 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {leaving ? 'Leaving…' : 'Leave office'}
+          </button>
+        </div>
+
         <StatusBar />
 
         {activeView !== 'office' && (
@@ -584,66 +717,6 @@ function Office() {
 
       <Notices />
     </div>
-  );
-}
-
-/* -------------------------------------------------------
-   MEETING HEADER
-------------------------------------------------------- */
-
-function MeetingHeader({
-  roomId,
-  onLeave,
-}) {
-  const { leave } = useProxi();
-
-  const [leaving, setLeaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleLeave = async () => {
-    if (leaving) return;
-
-    setLeaving(true);
-    setError('');
-
-    try {
-      await leave();
-      onLeave();
-    } catch (err) {
-      setError(
-        err.message || 'Unable to leave the meeting.',
-      );
-      setLeaving(false);
-    }
-  };
-
-  return (
-    <header className="relative z-[1000] flex flex-wrap items-center justify-between gap-3 border-b border-[#454545] bg-[#303030] px-4 py-3 sm:px-6">
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold tracking-[0.18em] text-[#BDBDBD]">
-          CURRENT MEETING
-        </p>
-
-        <p className="mt-1 truncate text-sm font-semibold text-[#F6F6F6]">
-          {roomId}
-        </p>
-
-        {error && (
-          <p role="alert" className="mt-1 text-xs text-red-300">
-            {error}
-          </p>
-        )}
-      </div>
-
-      <button
-        type="button"
-        onClick={handleLeave}
-        disabled={leaving}
-        className="rounded-xl border border-[#F3184C]/40 bg-[#F3184C]/10 px-4 py-2.5 text-xs font-semibold text-[#F6F6F6] transition hover:bg-[#F3184C]/20 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {leaving ? 'Leaving meeting…' : 'Leave meeting'}
-      </button>
-    </header>
   );
 }
 
@@ -719,13 +792,6 @@ export function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  /*
-   * Preserve invite-link behavior:
-   * A valid room query can open the invited room after
-   * the authenticated session has been restored.
-   *
-   * Normal login without a room query opens Dashboard.
-   */
   const [currentRoom, setCurrentRoom] = useState(() => {
     const roomId = new URLSearchParams(
       window.location.search,
@@ -739,6 +805,36 @@ export function App() {
     return ROOM_ID_PATTERN.test(normalizedRoomId)
       ? normalizedRoomId
       : null;
+  });
+
+  /*
+   * Restore the saved office profile when the URL
+   * contains a meeting room.
+   */
+  const [currentProfile, setCurrentProfile] = useState(() => {
+    const roomId = new URLSearchParams(
+      window.location.search,
+    ).get('room');
+
+    if (!roomId) return null;
+
+    const name =
+      localStorage.getItem('proxispeak:name') ?? '';
+
+    if (!name.trim()) return null;
+
+    return {
+      name: name.trim(),
+      color:
+        localStorage.getItem('proxispeak:color') ??
+        '#4f8cff',
+      avatar:
+        localStorage.getItem('proxispeak:avatar') ??
+        'circle',
+      withMic:
+        localStorage.getItem('proxispeak:withMic') !==
+        'false',
+    };
   });
 
   const currentUser = user?.username ?? null;
@@ -768,6 +864,11 @@ export function App() {
         });
 
         setCurrentRoom(null);
+        setCurrentProfile(null);
+
+        localStorage.removeItem(
+          'proxispeak:withMic',
+        );
 
         const url = new URL(window.location.href);
         url.searchParams.delete('room');
@@ -797,7 +898,9 @@ export function App() {
    */
   const handleLogout = useCallback(() => {
     logout();
+
     setCurrentRoom(null);
+    setCurrentProfile(null);
 
     const url = new URL(window.location.href);
 
@@ -813,9 +916,12 @@ export function App() {
   /*
    * Called by Dashboard after successful room creation
    * or room verification.
+   *
+   * A profile from CreateMeetingModal is forwarded
+   * into the active office entry flow.
    */
   const handleJoinRoom = useCallback(
-    (roomId) => {
+    (roomId, meetingProfile = null) => {
       const normalizedRoomId =
         typeof roomId === 'string'
           ? roomId.trim().toLowerCase()
@@ -841,6 +947,42 @@ export function App() {
       );
 
       setCurrentRoom(normalizedRoomId);
+
+      if (
+        meetingProfile &&
+        typeof meetingProfile.name === 'string'
+      ) {
+        const nextProfile = {
+          name: meetingProfile.name.trim(),
+          color: meetingProfile.color || '#4f8cff',
+          avatar: meetingProfile.avatar || 'circle',
+          withMic: meetingProfile.withMic !== false,
+        };
+
+        setCurrentProfile(nextProfile);
+
+        localStorage.setItem(
+          'proxispeak:name',
+          nextProfile.name,
+        );
+
+        localStorage.setItem(
+          'proxispeak:color',
+          nextProfile.color,
+        );
+
+        localStorage.setItem(
+          'proxispeak:avatar',
+          nextProfile.avatar,
+        );
+
+        localStorage.setItem(
+          'proxispeak:withMic',
+          String(nextProfile.withMic),
+        );
+      } else {
+        setCurrentProfile(null);
+      }
     },
     [],
   );
@@ -851,6 +993,7 @@ export function App() {
    */
   const handleLeaveMeeting = useCallback(() => {
     setCurrentRoom(null);
+    setCurrentProfile(null);
 
     const url = new URL(window.location.href);
 
@@ -881,11 +1024,36 @@ export function App() {
           ? roomId.trim().toLowerCase()
           : '';
 
+      const validRoom =
+        ROOM_ID_PATTERN.test(normalizedRoomId);
+
       setCurrentRoom(
-        ROOM_ID_PATTERN.test(normalizedRoomId)
-          ? normalizedRoomId
-          : null,
+        validRoom ? normalizedRoomId : null,
       );
+
+      if (validRoom) {
+        const name =
+          localStorage.getItem('proxispeak:name') ?? '';
+
+        setCurrentProfile(
+          name.trim()
+            ? {
+                name: name.trim(),
+                color:
+                  localStorage.getItem('proxispeak:color') ??
+                  '#4f8cff',
+                avatar:
+                  localStorage.getItem('proxispeak:avatar') ??
+                  'circle',
+                withMic:
+                  localStorage.getItem('proxispeak:withMic') !==
+                  'false',
+              }
+            : null,
+        );
+      } else {
+        setCurrentProfile(null);
+      }
     };
 
     window.addEventListener(
@@ -970,19 +1138,16 @@ export function App() {
   /*
    * Existing virtual office.
    *
-   * ProxiProvider is mounted only while a meeting is
-   * active. Leaving the meeting first calls leave(),
-   * then unmounts this provider and its resources.
+   * The provider still owns Socket.IO, WebRTC,
+   * spatial audio and meeting cleanup.
    */
   return (
     <ProxiProvider>
       <div className="min-h-screen bg-[#1E1E1E]">
-        <MeetingHeader
-          roomId={currentRoom}
+        <Office
+          initialProfile={currentProfile}
           onLeave={handleLeaveMeeting}
         />
-
-        <Office />
       </div>
     </ProxiProvider>
   );
