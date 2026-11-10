@@ -328,22 +328,6 @@ function RoomInfoPanel() {
             </strong>
           </div>
         </div>
-
-        <div className="room-info__item">
-          <span className="room-info__icon" aria-hidden="true">
-            #
-          </span>
-
-          <div className="room-info__copy">
-            <span className="room-info__label">
-              Room ID
-            </span>
-
-            <strong className="room-info__value">
-              {roomId}
-            </strong>
-          </div>
-        </div>
       </div>
 
       <button
@@ -507,7 +491,6 @@ function Office({
   const {
     state,
     join,
-    leave,
   } = useProxi();
 
   const [activeView, setActiveView] = useState('office');
@@ -515,9 +498,6 @@ function Office({
   const [autoJoinError, setAutoJoinError] = useState('');
   const [autoJoining, setAutoJoining] = useState(false);
   const [joinAttempt, setJoinAttempt] = useState(0);
-
-  const [leaving, setLeaving] = useState(false);
-  const [leaveError, setLeaveError] = useState('');
 
   /*
    * A profile supplied by the Create Meeting popup
@@ -574,23 +554,6 @@ function Office({
     joinAttempt,
   ]);
 
-  const handleLeave = async () => {
-    if (leaving) return;
-
-    setLeaving(true);
-    setLeaveError('');
-
-    try {
-      await leave();
-      onLeave();
-    } catch (err) {
-      setLeaveError(
-        err.message || 'Unable to leave the meeting.',
-      );
-      setLeaving(false);
-    }
-  };
-
   if (!state.selfId) {
     if (initialProfile) {
       return (
@@ -631,7 +594,7 @@ function Office({
 
     return (
       <div className="app app--gate">
-        <StatusBar />
+        <StatusBar onLeave={onLeave} />
         <MicGate />
         <Notices />
       </div>
@@ -675,28 +638,7 @@ function Office({
       />
 
       <div className="app__workspace">
-        {/* Compact meeting action instead of the old large header. */}
-        <div className="flex items-center justify-end gap-3 px-4 py-2 sm:px-6">
-          {leaveError && (
-            <span
-              role="alert"
-              className="text-xs text-[#FF9AA8]"
-            >
-              {leaveError}
-            </span>
-          )}
-
-          <button
-            type="button"
-            onClick={handleLeave}
-            disabled={leaving}
-            className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-[#F6F6F6] transition hover:border-[#6252FF]/60 hover:bg-[#6252FF]/15 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {leaving ? 'Leaving…' : 'Leave office'}
-          </button>
-        </div>
-
-        <StatusBar />
+        <StatusBar onLeave={onLeave} />
 
         {activeView !== 'office' && (
           <header
