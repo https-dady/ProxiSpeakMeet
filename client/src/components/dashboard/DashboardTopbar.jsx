@@ -1,5 +1,9 @@
 import { useState } from 'react';
 
+/* =========================================
+   TOPBAR ICONS
+========================================= */
+
 function TopbarIcon({ name, size = 19 }) {
   const icons = {
     chevron: <path d="m7 10 5 5 5-5" />,
@@ -11,12 +15,10 @@ function TopbarIcon({ name, size = 19 }) {
       </>
     ),
 
-    workspace: (
+    close: (
       <>
-        <rect x="3" y="3" width="7" height="7" rx="2" />
-        <rect x="14" y="3" width="7" height="7" rx="2" />
-        <rect x="3" y="14" width="7" height="7" rx="2" />
-        <rect x="14" y="14" width="7" height="7" rx="2" />
+        <path d="m18 6-12 12" />
+        <path d="m6 6 12 12" />
       </>
     ),
   };
@@ -38,12 +40,154 @@ function TopbarIcon({ name, size = 19 }) {
   );
 }
 
-const pageTitles = {
-  dashboard: 'Dashboard',
-  history: 'Past meetings',
-  profile: 'Profile',
-  settings: 'Settings',
-};
+/* =========================================
+   BRAND
+========================================= */
+
+function MobileBrand() {
+  return (
+    <div className="
+      flex items-center gap-2.5
+      lg:hidden
+    ">
+      <span className="
+        flex h-[37px] w-[37px]
+        shrink-0 items-center
+        justify-center rounded-[12px]
+        bg-[#6252FF]
+        text-[19px] font-black
+        text-white
+        shadow-[0_5px_15px_rgba(98,82,255,0.18)]
+      ">
+        P
+      </span>
+
+      <span className="
+        flex items-center gap-1
+        text-[15px] font-black
+        tracking-[-0.6px]
+        text-[#25263A]
+      ">
+        ProxiSpeak
+
+        <span className="
+          mt-1 text-[10px]
+          font-extrabold
+          text-[#6252FF]
+        ">
+          Meet
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/* =========================================
+   PROFILE DROPDOWN
+========================================= */
+
+function ProfileDropdown({
+  username,
+  initials,
+  onOpenProfile,
+  onClose,
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        className="
+          fixed inset-0 z-40
+          cursor-default appearance-none
+          border-0 bg-transparent
+        "
+        aria-label="Close account menu"
+        onClick={onClose}
+      />
+
+      <div className="
+        absolute right-0 top-[calc(100%+14px)]
+        z-50 w-[245px]
+        overflow-hidden rounded-[18px]
+        border border-[#EBE8F7]
+        bg-white
+        shadow-[0_16px_45px_rgba(40,35,90,0.13)]
+        animate-in fade-in slide-in-from-top-2
+        duration-200
+      ">
+        <div className="
+          flex items-center gap-3
+          p-4
+        ">
+          <span className="
+            flex h-[42px] w-[42px]
+            shrink-0 items-center
+            justify-center rounded-[13px]
+            bg-[#EFEDFF]
+            text-[13px] font-black
+            text-[#6252FF]
+          ">
+            {initials}
+          </span>
+
+          <span className="min-w-0 flex-1">
+            <strong className="
+              block truncate
+              text-[12px] font-extrabold
+              text-[#303047]
+            ">
+              {username}
+            </strong>
+
+            <small className="
+              mt-1 block
+              text-[10px] font-medium
+              text-[#9292A7]
+            ">
+              Personal account
+            </small>
+          </span>
+        </div>
+
+        <div className="h-px bg-[#F0EDF8]" />
+
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          className="
+            flex min-h-[47px]
+            w-full appearance-none
+            items-center gap-3
+            border-0 bg-white
+            px-4 text-left
+            text-[11px] font-bold
+            text-[#686880]
+            transition-colors
+            hover:bg-[#F8F6FF]
+            hover:text-[#6252FF]
+            focus-visible:outline-none
+            focus-visible:bg-[#F8F6FF]
+          "
+        >
+          <TopbarIcon name="user" size={17} />
+
+          View profile
+
+          <span className="
+            ml-auto text-[16px]
+            text-[#A1A0B2]
+          ">
+            →
+          </span>
+        </button>
+      </div>
+    </>
+  );
+}
+
+/* =========================================
+   MAIN TOPBAR
+========================================= */
 
 export default function DashboardTopbar({
   activeSection,
@@ -56,322 +200,179 @@ export default function DashboardTopbar({
 
   const initials = displayName
     .trim()
-    .split(/\s+/)
     .slice(0, 2)
-    .map((part) => part.charAt(0))
-    .join('')
     .toUpperCase();
 
-  const currentTitle = pageTitles[activeSection] || 'Dashboard';
+  const pageTitles = {
+    dashboard: 'Dashboard',
+    history: 'Past meetings',
+    profile: 'Profile',
+    settings: 'Settings',
+  };
+
+  const currentTitle =
+    pageTitles[activeSection] || 'Dashboard';
 
   const handleProfileClick = () => {
     setProfileMenuOpen(false);
     onOpenProfile?.();
   };
 
-  const buttonReset = `
-    appearance-none border-0 outline-none
-    shadow-none font-inherit cursor-pointer
-  `;
-
   return (
     <header className="
-      sticky top-0 z-30
-      flex h-[96px] w-full shrink-0
+      relative z-30
+      flex min-h-[86px]
+      w-full shrink-0
       items-center justify-between
-      border-b border-[#EEEAF7]
-      bg-white/95 px-6 backdrop-blur-xl
-      sm:px-8 lg:px-12
+      gap-4 border-b border-[#EBE8F7]
+      bg-white px-5
+      sm:px-7 lg:px-9
     ">
 
-      {/* LEFT SECTION */}
+      {/* LEFT SIDE */}
 
       <div className="
-        flex min-w-0 items-center
-        gap-4 sm:gap-6
+        flex min-w-0
+        items-center gap-5
       ">
-
-        {/* MOBILE BRAND */}
-
-        <div className="
-          flex shrink-0 items-center gap-2.5
-          lg:hidden
-        ">
-          <div className="
-            flex h-[38px] w-[38px]
-            items-center justify-center
-            rounded-[13px]
-            bg-gradient-to-br
-            from-[#6252FF] to-[#8878FF]
-            text-[18px] font-black text-white
-            shadow-[0_5px_15px_rgba(98,82,255,0.2)]
-          ">
-            P
-          </div>
-
-          <div className="flex flex-col">
-            <span className="
-              text-[15px] font-extrabold
-              tracking-[-0.5px] text-[#202235]
-            ">
-              ProxiSpeak
-            </span>
-
-            <span className="
-              text-[11px] font-semibold
-              text-[#6554FF]
-            ">
-              Meet
-            </span>
-          </div>
-        </div>
-
-        {/* BREADCRUMB */}
+        <MobileBrand />
 
         <div className="
-          flex min-w-0 flex-col
-          justify-center gap-1
+          hidden min-w-0
+          sm:block
         ">
-
           <div className="
             flex items-center gap-2
-            overflow-hidden text-[11px]
-            font-extrabold tracking-[1.5px]
+            text-[9px] font-extrabold
+            tracking-[1.5px]
             text-[#A1A0B2]
           ">
-            <span className="hidden sm:inline">
-              YOUR WORKSPACE
-            </span>
+            <span>YOUR WORKSPACE</span>
 
-            <span className="hidden text-[#D0CDDC] sm:inline">
+            <span className="text-[#D5D1E4]">
               /
             </span>
 
-            <span className="
-              truncate text-[#6454FF]
-            ">
+            <span className="text-[#6252FF]">
               {currentTitle.toUpperCase()}
             </span>
           </div>
 
           <h1 className="
-            truncate text-[18px]
-            font-extrabold tracking-[-0.5px]
-            text-[#222337]
+            mt-1.5 truncate
+            text-[17px] font-black
+            tracking-[-0.5px]
+            text-[#25263A]
           ">
             {currentTitle}
           </h1>
-
         </div>
       </div>
 
-      {/* RIGHT SECTION */}
+      {/* RIGHT SIDE */}
 
       <div className="
-        relative flex shrink-0
-        items-center gap-3 sm:gap-5
+        flex shrink-0
+        items-center gap-4
+        sm:gap-5
       ">
 
-        {/* SIGNED IN USER */}
+        {/* USER INFORMATION */}
 
         <div className="
-          hidden flex-col items-end
-          gap-1 sm:flex
+          hidden text-right
+          sm:block
         ">
           <span className="
-            text-[10px] font-bold
+            block text-[9px]
+            font-extrabold
             tracking-[1.4px]
             text-[#A1A0B2]
           ">
             SIGNED IN AS
           </span>
 
-          <span className="
-            max-w-[180px] truncate
-            text-[13px] font-bold
-            text-[#343449]
+          <strong className="
+            mt-1 block max-w-[180px]
+            truncate text-[13px]
+            font-bold tracking-[-0.2px]
+            text-[#303047]
           ">
             {displayName}
-          </span>
+          </strong>
         </div>
 
-        {/* SEPARATOR */}
+        {/* DIVIDER */}
 
         <div className="
-          hidden h-9 w-px
-          bg-[#EEEAF7] sm:block
+          hidden h-[42px] w-px
+          bg-[#F0EDF8]
+          sm:block
         " />
 
         {/* PROFILE MENU */}
 
         <div className="relative">
-
           <button
             type="button"
             onClick={() => {
               setProfileMenuOpen((previous) => !previous);
             }}
+            className={`
+              group flex min-h-[48px]
+              appearance-none items-center
+              gap-2 rounded-[15px]
+              border-0 bg-transparent
+              p-1.5
+              transition-colors duration-200
+              hover:bg-[#F8F6FF]
+              focus-visible:outline-none
+              focus-visible:ring-2
+              focus-visible:ring-[#6252FF]
+              ${
+                profileMenuOpen
+                  ? 'bg-[#F8F6FF]'
+                  : ''
+              }
+            `}
             aria-label="Open account menu"
             aria-expanded={profileMenuOpen}
-            aria-haspopup="menu"
-            className={`
-              ${buttonReset}
-              group flex h-[50px]
-              items-center gap-2
-              rounded-[16px]
-              bg-transparent p-1.5
-              transition-all duration-300
-              hover:bg-[#F7F5FF]
-              focus-visible:ring-2
-              focus-visible:ring-[#6858FF]
-              focus-visible:ring-offset-2
-            `}
+            aria-haspopup="true"
           >
-
             <span className="
-              flex h-[40px] w-[40px]
+              flex h-[45px] w-[45px]
               items-center justify-center
-              rounded-[14px]
-              bg-[#F0EEFF]
-              text-[14px] font-extrabold
-              text-[#5D4CFF]
-              transition-all duration-300
-              group-hover:bg-[#E8E4FF]
-              group-hover:scale-[1.04]
+              rounded-[15px]
+              bg-[#EFEDFF]
+              text-[14px] font-black
+              text-[#6252FF]
             ">
-              {initials || 'U'}
+              {initials}
             </span>
 
-            <span className="
-              hidden text-[#8E8DA2]
-              transition-transform duration-300
-              sm:block
-            ">
-              <span className={`
-                block transition-transform duration-300
-                ${profileMenuOpen ? 'rotate-180' : ''}
-              `}>
-                <TopbarIcon name="chevron" size={16} />
-              </span>
+            <span className={`
+              text-[#9292A7]
+              transition-transform duration-200
+              ${
+                profileMenuOpen
+                  ? 'rotate-180'
+                  : ''
+              }
+            `}>
+              <TopbarIcon name="chevron" size={16} />
             </span>
-
           </button>
 
-          {/* DROPDOWN */}
-
           {profileMenuOpen && (
-            <>
-              {/* BACKDROP */}
-
-              <button
-                type="button"
-                aria-label="Close account menu"
-                onClick={() => setProfileMenuOpen(false)}
-                className="
-                  appearance-none border-0
-                  fixed inset-0 z-40
-                  h-screen w-screen
-                  cursor-default bg-transparent
-                  shadow-none
-                "
-              />
-
-              {/* MENU PANEL */}
-
-              <div
-                role="menu"
-                className="
-                  absolute right-0 top-[calc(100%+12px)]
-                  z-50 w-[260px]
-                  overflow-hidden
-                  rounded-[20px]
-                  border border-[#EEEAF7]
-                  bg-white
-                  p-2
-                  shadow-[0_18px_55px_rgba(35,30,75,0.13)]
-                  animate-in fade-in slide-in-from-top-2
-                  duration-200
-                "
-              >
-
-                {/* USER INFORMATION */}
-
-                <div className="
-                  flex items-center gap-3
-                  rounded-[14px]
-                  bg-[#F8F7FF]
-                  p-3
-                ">
-                  <span className="
-                    flex h-[43px] w-[43px]
-                    shrink-0 items-center justify-center
-                    rounded-[13px]
-                    bg-[#EAE7FF]
-                    text-[13px] font-extrabold
-                    text-[#5D4CFF]
-                  ">
-                    {initials || 'U'}
-                  </span>
-
-                  <span className="
-                    flex min-w-0 flex-col
-                  ">
-                    <strong className="
-                      truncate text-[13px]
-                      font-bold text-[#29293D]
-                    ">
-                      {displayName}
-                    </strong>
-
-                    <small className="
-                      mt-1 text-[11px]
-                      font-medium text-[#9695AA]
-                    ">
-                      Personal account
-                    </small>
-                  </span>
-                </div>
-
-                {/* DIVIDER */}
-
-                <div className="
-                  my-2 h-px bg-[#F0EDF7]
-                " />
-
-                {/* PROFILE ACTION */}
-
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={handleProfileClick}
-                  className={`
-                    ${buttonReset}
-                    flex min-h-[44px]
-                    w-full items-center gap-3
-                    rounded-[12px]
-                    bg-transparent px-3
-                    text-left text-[13px]
-                    font-semibold text-[#77778F]
-                    transition-colors duration-200
-                    hover:bg-[#F5F3FF]
-                    hover:text-[#5D4CFF]
-                    focus-visible:ring-2
-                    focus-visible:ring-[#6858FF]
-                  `}
-                >
-                  <TopbarIcon name="user" size={18} />
-
-                  <span>View profile</span>
-                </button>
-
-              </div>
-            </>
+            <ProfileDropdown
+              username={displayName}
+              initials={initials}
+              onOpenProfile={handleProfileClick}
+              onClose={() => setProfileMenuOpen(false)}
+            />
           )}
-
         </div>
-
       </div>
-
     </header>
   );
 }
