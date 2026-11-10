@@ -1,6 +1,10 @@
 import React from 'react';
 
-function SettingsIcon({ type }) {
+/* =========================================
+   SETTINGS ICONS
+========================================= */
+
+function SettingsIcon({ type, size = 21 }) {
   const icons = {
     account: (
       <>
@@ -8,18 +12,21 @@ function SettingsIcon({ type }) {
         <path d="M5 20c.6-3.2 3.2-5 7-5s6.4 1.8 7 5" />
       </>
     ),
+
     appearance: (
       <>
         <path d="M12 3a9 9 0 1 0 0 18h1.2a2.3 2.3 0 0 0 1.5-4c-.7-.6-.4-1.8.6-1.8H17a4 4 0 0 0 4-4c0-4.5-4-8.2-9-8.2Z" />
         <path d="M7.5 10h.01M10 7h.01M15 7.5h.01M17 11h.01" />
       </>
     ),
+
     security: (
       <>
         <path d="M12 3 19 6v5c0 4.7-2.8 8-7 10-4.2-2-7-5.3-7-10V6l7-3Z" />
         <path d="m9 12 2 2 4-4" />
       </>
     ),
+
     logout: (
       <>
         <path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5" />
@@ -30,6 +37,8 @@ function SettingsIcon({ type }) {
 
   return (
     <svg
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -43,26 +52,91 @@ function SettingsIcon({ type }) {
   );
 }
 
-function SettingsRow({ icon, title, description, children }) {
+/* =========================================
+   SETTINGS ROW
+========================================= */
+
+function SettingsRow({
+  icon,
+  title,
+  description,
+  children,
+}) {
   return (
-    <div className="dashboard-settings-row">
-      <div className="dashboard-settings-row-icon">
-        <SettingsIcon type={icon} />
+    <div className="
+      flex flex-wrap
+      items-center gap-4
+      border-b border-[#F0EDF8]
+      px-5 py-5
+      last:border-b-0
+      sm:px-6
+    ">
+      <div className="
+        flex h-[46px] w-[46px]
+        shrink-0 items-center justify-center
+        rounded-[15px]
+        bg-[#EFEDFF]
+        text-[#6252FF]
+      ">
+        <SettingsIcon type={icon} size={21} />
       </div>
 
-      <div className="dashboard-settings-row-content">
-        <h3>{title}</h3>
-        <p>{description}</p>
+      <div className="min-w-0 flex-1">
+        <h3 className="
+          text-[13px] font-extrabold
+          tracking-[-0.2px]
+          text-[#303047]
+        ">
+          {title}
+        </h3>
+
+        <p className="
+          mt-1.5 break-words
+          text-[11px] leading-6
+          text-[#9292A7]
+        ">
+          {description}
+        </p>
       </div>
 
       {children && (
-        <div className="dashboard-settings-row-action">
+        <div className="
+          ml-auto shrink-0
+          pl-[62px] sm:pl-0
+        ">
           {children}
         </div>
       )}
     </div>
   );
 }
+
+/* =========================================
+   SETTINGS VALUE BADGE
+========================================= */
+
+function SettingsValue({ children, variant = 'default' }) {
+  const variants = {
+    default: 'bg-[#F5F3FF] text-[#6252FF]',
+    protected: 'bg-emerald-50 text-emerald-700',
+  };
+
+  return (
+    <span className={`
+      inline-flex items-center
+      rounded-full px-3 py-2
+      text-[9px] font-extrabold
+      whitespace-nowrap
+      ${variants[variant]}
+    `}>
+      {children}
+    </span>
+  );
+}
+
+/* =========================================
+   MAIN COMPONENT
+========================================= */
 
 export default function DashboardSettings({
   profile = null,
@@ -81,40 +155,97 @@ export default function DashboardSettings({
     'Not available';
 
   return (
-    <section className="dashboard-settings-section">
-      <div className="dashboard-settings-heading">
-        <span className="dashboard-section-eyebrow">
+    <section className="w-full space-y-7">
+
+      {/* =====================================
+          PAGE HEADING
+      ===================================== */}
+
+      <div>
+        <span className="
+          text-[10px] font-extrabold
+          tracking-[1.8px]
+          text-[#6252FF]
+        ">
           PREFERENCES
         </span>
 
-        <h2>Settings</h2>
+        <h2 className="
+          mt-3 text-[26px]
+          font-black tracking-[-1px]
+          text-[#25263A]
+        ">
+          Settings
+        </h2>
 
-        <p>
+        <p className="
+          mt-2 max-w-[550px]
+          text-[13px] leading-6
+          text-[#9292A7]
+        ">
           Manage your account information and application preferences.
         </p>
       </div>
 
-      <div className="dashboard-settings-card">
-        <div className="dashboard-settings-card-heading">
+      {/* =====================================
+          ACCOUNT PREFERENCES
+      ===================================== */}
+
+      <div className="
+        overflow-hidden
+        rounded-[24px]
+        border border-[#EBE8F7]
+        bg-white
+        shadow-[0_8px_35px_rgba(40,35,90,0.035)]
+      ">
+
+        {/* CARD HEADER */}
+
+        <div className="
+          flex items-center
+          justify-between gap-4
+          border-b border-[#F0EDF8]
+          px-5 py-6 sm:px-6
+        ">
           <div>
-            <h3>Account preferences</h3>
-            <p>Information about your ProxiSpeakMeet account.</p>
+            <h3 className="
+              text-[16px] font-extrabold
+              tracking-[-0.4px]
+              text-[#25263A]
+            ">
+              Account preferences
+            </h3>
+
+            <p className="
+              mt-1.5 text-[11px]
+              leading-5 text-[#9292A7]
+            ">
+              Information about your ProxiSpeakMeet account.
+            </p>
           </div>
 
-          <div className="dashboard-settings-heading-badge">
-            <SettingsIcon type="account" />
+          <div className="
+            flex h-[45px] w-[45px]
+            shrink-0 items-center justify-center
+            rounded-[15px]
+            bg-[#EFEDFF]
+            text-[#6252FF]
+          ">
+            <SettingsIcon type="account" size={22} />
           </div>
         </div>
 
-        <div className="dashboard-settings-list">
+        {/* SETTINGS LIST */}
+
+        <div>
           <SettingsRow
             icon="account"
             title="Account information"
             description={`${displayName} · ${email}`}
           >
-            <span className="dashboard-settings-value">
+            <SettingsValue>
               Personal account
-            </span>
+            </SettingsValue>
           </SettingsRow>
 
           <SettingsRow
@@ -122,9 +253,9 @@ export default function DashboardSettings({
             title="Application appearance"
             description="ProxiSpeakMeet uses its current lavender and purple interface."
           >
-            <span className="dashboard-settings-value">
+            <SettingsValue>
               Default theme
-            </span>
+            </SettingsValue>
           </SettingsRow>
 
           <SettingsRow
@@ -132,39 +263,106 @@ export default function DashboardSettings({
             title="Account security"
             description="Your account session is managed securely by the application."
           >
-            <span className="dashboard-settings-value">
+            <SettingsValue variant="protected">
               Protected
-            </span>
+            </SettingsValue>
           </SettingsRow>
         </div>
       </div>
 
-      <div className="dashboard-settings-logout-card">
-        <div className="dashboard-settings-logout-icon">
-          <SettingsIcon type="logout" />
+      {/* =====================================
+          LOGOUT CARD
+      ===================================== */}
+
+      <div className="
+        flex flex-wrap
+        items-center gap-5
+        rounded-[23px]
+        border border-rose-100
+        bg-white p-5
+        shadow-[0_8px_35px_rgba(40,35,90,0.025)]
+        sm:p-6
+      ">
+        <div className="
+          flex h-[50px] w-[50px]
+          shrink-0 items-center justify-center
+          rounded-[16px]
+          bg-rose-50
+          text-rose-600
+        ">
+          <SettingsIcon type="logout" size={22} />
         </div>
 
-        <div className="dashboard-settings-logout-content">
-          <h3>Sign out</h3>
-          <p>
+        <div className="min-w-0 flex-1">
+          <h3 className="
+            text-[14px] font-extrabold
+            text-[#303047]
+          ">
+            Sign out
+          </h3>
+
+          <p className="
+            mt-1.5 text-[11px]
+            leading-6 text-[#9292A7]
+          ">
             Sign out of your account on this device.
           </p>
         </div>
 
         <button
           type="button"
-          className="dashboard-settings-logout-button"
           onClick={onLogout}
           disabled={!onLogout}
+          className="
+            appearance-none border-0
+            inline-flex min-h-[43px]
+            shrink-0 items-center
+            justify-center gap-2
+            rounded-[13px]
+            bg-rose-50 px-5
+            text-[11px] font-extrabold
+            text-rose-600
+            transition-all duration-300
+            hover:-translate-y-0.5
+            hover:bg-rose-600
+            hover:text-white
+            active:translate-y-0
+            disabled:cursor-not-allowed
+            disabled:opacity-50
+            focus-visible:outline-none
+            focus-visible:ring-2
+            focus-visible:ring-rose-500
+            focus-visible:ring-offset-2
+          "
         >
-          <SettingsIcon type="logout" />
+          <SettingsIcon type="logout" size={16} />
           Sign out
         </button>
       </div>
 
-      <div className="dashboard-settings-footer">
-        <span>ProxiSpeakMeet</span>
-        <span>Account settings</span>
+      {/* =====================================
+          FOOTER
+      ===================================== */}
+
+      <div className="
+        flex flex-wrap
+        items-center justify-between
+        gap-3 px-1 py-2
+      ">
+        <span className="
+          text-[11px] font-extrabold
+          tracking-[0.3px]
+          text-[#85869D]
+        ">
+          ProxiSpeakMeet
+        </span>
+
+        <span className="
+          text-[10px] font-medium
+          text-[#A1A0B2]
+        ">
+          Account settings
+        </span>
       </div>
     </section>
   );
