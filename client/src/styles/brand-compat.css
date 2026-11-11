@@ -1,51 +1,57 @@
 /*
  * ProxiSpeakMeet
- * Virtual Office Theme Compatibility
+ * Virtual Office Compatibility Layer
  *
- * Keeps the original dark virtual-office design.
- * Does not inherit Dashboard colors or typography.
+ * Uses the actual project layout:
+ * .app
+ * .office-sidebar
+ * .app__workspace
+ * .workspace-grid
+ *
+ * Does not override the Dashboard theme.
  */
 
+/* =========================================================
+   ORIGINAL VIRTUAL OFFICE THEME
+========================================================= */
+
 :root {
-  /* Backgrounds */
   --bg: #080b14;
   --bg-elev: #101625;
   --bg-elev-2: #151e30;
 
-  /* Borders */
   --line: #263149;
   --line-strong: rgba(143, 164, 202, 0.28);
 
-  /* Typography */
   --text: #edf2ff;
   --text-dim: #9ba9c2;
 
-  /* Office accent and status */
   --accent: #8175ff;
   --ok: #5ad19a;
   --warn: #ffc857;
   --error: #ff6b81;
 
-  /* Form controls */
   --input-bg: rgba(10, 15, 29, 0.82);
   --input-border: var(--line);
   --input-border-hover: var(--line-strong);
   --input-focus-ring: rgba(129, 117, 255, 0.18);
 
-  /* Badges */
   --badge-bg: rgba(129, 117, 255, 0.12);
   --badge-border: rgba(129, 117, 255, 0.28);
 
-  /* Panels */
   --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.22);
 
   color-scheme: dark;
 }
 
-/* Preserve the existing Virtual Office typography. */
+/* =========================================================
+   THEME
+========================================================= */
 
-html,
 body {
+  background: var(--bg);
+  color: var(--text);
+
   font-family:
     Inter,
     ui-sans-serif,
@@ -56,16 +62,14 @@ body {
     Helvetica,
     Arial,
     sans-serif;
-}
 
-body {
-  background: var(--bg);
-  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Buttons */
+/* =========================================================
+   ORIGINAL PURPLE OFFICE ACCENTS
+========================================================= */
 
 .button--primary {
   background: linear-gradient(
@@ -73,9 +77,12 @@ body {
     #8175ff,
     #6c63e8
   );
+
   border-color: transparent;
   color: #ffffff;
-  box-shadow: 0 7px 20px rgba(98, 88, 245, 0.22);
+
+  box-shadow:
+    0 7px 20px rgba(98, 88, 245, 0.22);
 }
 
 .button--primary:hover:not(:disabled) {
@@ -84,18 +91,17 @@ body {
     #9187ff,
     #8175ff
   );
-  border-color: transparent;
-  box-shadow: 0 9px 24px rgba(98, 88, 245, 0.3);
-}
 
-/* Toggle controls */
+  border-color: transparent;
+
+  box-shadow:
+    0 9px 24px rgba(98, 88, 245, 0.3);
+}
 
 .button--toggle.button--active {
   border-color: var(--accent);
   color: var(--accent);
 }
-
-/* Interactive chips */
 
 .chip--interactive:hover,
 .chip--active {
@@ -108,8 +114,6 @@ body {
   outline-color: var(--accent);
 }
 
-/* Form focus states */
-
 .field input:focus-visible,
 .field textarea:focus-visible,
 .field select:focus-visible,
@@ -117,20 +121,10 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--input-focus-ring);
+
+  box-shadow:
+    0 0 0 3px var(--input-focus-ring);
 }
-
-/* Preserve the original office canvas rendering. */
-
-.world__stage {
-  background: #0b1018;
-}
-
-.world__layer {
-  isolation: isolate;
-}
-
-/* Preserve native dark controls. */
 
 button,
 input,
@@ -141,4 +135,290 @@ select {
 
 :focus-visible {
   outline-color: var(--accent);
+}
+
+/* =========================================================
+   DESKTOP VIRTUAL OFFICE LAYOUT
+========================================================= */
+
+@media (min-width: 821px) {
+  /*
+   * Do not globally force html/body/#root to a clipped
+   * fixed-height layout. Constrain only the office shell.
+   */
+
+  body:has(.app:not(.app--gate)) {
+    overflow: hidden;
+  }
+
+  #root:has(.app:not(.app--gate)) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Main application */
+
+  .app:not(.app--gate) {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+
+    width: 100%;
+    height: 100dvh;
+
+    min-width: 0;
+    min-height: 0;
+
+    overflow: hidden;
+  }
+
+  /* Left navigation */
+
+  .app:not(.app--gate) > .office-sidebar {
+    flex: 0 0 252px;
+
+    width: 252px;
+    height: 100%;
+    min-height: 0;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* Workspace */
+
+  .app:not(.app--gate) > .app__workspace {
+    display: flex;
+    flex-direction: column;
+
+    flex: 1 1 0;
+
+    width: 0;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+
+    overflow: hidden;
+  }
+
+  /* Status bar */
+
+  .app__workspace > .statusbar {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  /* Existing workspace grid */
+
+  .app__workspace > .workspace-grid {
+    display: grid;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(280px, 340px);
+
+    align-items: stretch;
+
+    flex: 1 1 0;
+
+    width: 100%;
+    height: 0;
+
+    min-width: 0;
+    min-height: 0;
+
+    gap: 14px;
+    padding: 14px;
+
+    overflow: hidden;
+  }
+
+  .workspace-grid > * {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* Canvas column */
+
+  .workspace-grid--office > .workspace-grid__main {
+    display: flex;
+    flex-direction: column;
+
+    min-width: 0;
+    min-height: 0;
+
+    overflow: hidden;
+  }
+
+  .workspace-grid__main > .world {
+    flex: 1 1 auto;
+
+    width: 100%;
+    height: 100%;
+
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .workspace-grid__main .world__stage {
+    flex: 1 1 auto;
+
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* Existing right sidebar */
+
+  .workspace-grid--office > .workspace-grid__sidebar {
+    display: flex;
+    flex-direction: column;
+
+    min-width: 0;
+    min-height: 0;
+
+    gap: 14px;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    overscroll-behavior: contain;
+
+    scrollbar-width: thin;
+    scrollbar-color:
+      rgba(129, 117, 255, 0.3)
+      transparent;
+  }
+
+  .workspace-grid__sidebar::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .workspace-grid__sidebar::-webkit-scrollbar-thumb {
+    background: rgba(129, 117, 255, 0.3);
+    border-radius: 999px;
+  }
+
+  .workspace-grid__sidebar > .panel {
+    flex: 0 0 auto;
+    min-width: 0;
+    margin: 0;
+  }
+
+  /* Other workspace pages */
+
+  .app__workspace > .workspace-grid:not(.workspace-grid--office) {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    overscroll-behavior: contain;
+  }
+
+  .workspace-grid:not(.workspace-grid--office) > .panel {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* =========================================================
+   LARGE DESKTOP
+========================================================= */
+
+@media (min-width: 1600px) {
+  .app:not(.app--gate) > .office-sidebar {
+    flex-basis: 264px;
+    width: 264px;
+  }
+
+  .workspace-grid--office {
+    grid-template-columns:
+      minmax(0, 1fr)
+      360px;
+  }
+}
+
+/* =========================================================
+   TABLET AND MOBILE
+========================================================= */
+
+@media (max-width: 820px) {
+  .app:not(.app--gate) {
+    display: flex;
+    flex-direction: column;
+
+    width: 100%;
+    height: auto;
+    min-height: 100dvh;
+
+    overflow: visible;
+  }
+
+  .app:not(.app--gate) > .office-sidebar {
+    position: relative;
+
+    flex: 0 0 auto;
+
+    width: 100%;
+    height: auto;
+    min-height: 0;
+
+    overflow: visible;
+  }
+
+  .app:not(.app--gate) > .app__workspace {
+    flex: 1 1 auto;
+
+    width: 100%;
+    height: auto;
+    min-height: 0;
+
+    overflow: visible;
+  }
+
+  .app__workspace > .workspace-grid {
+    display: flex;
+    flex-direction: column;
+
+    width: 100%;
+    height: auto;
+    min-height: 0;
+
+    overflow: visible;
+  }
+
+  .workspace-grid--office > .workspace-grid__main {
+    min-height: 420px;
+    overflow: visible;
+  }
+
+  .workspace-grid__main > .world {
+    min-height: 420px;
+  }
+
+  .workspace-grid__main .world__stage {
+    min-height: 380px;
+  }
+
+  .workspace-grid--office > .workspace-grid__sidebar {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .workspace-grid:not(.workspace-grid--office) {
+    overflow: visible;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITY
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-grid__sidebar {
+    scroll-behavior: auto;
+  }
 }
