@@ -9,11 +9,13 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { once } from 'node:events';
 import { io as createClient } from 'socket.io-client';
+import jwt from 'jsonwebtoken';
 
 import config from '../src/config/index.js';
 import logger from '../src/utils/logger.js';
 import { createServices } from '../src/services/index.js';
 import { createSocketServer } from '../src/sockets/index.js';
+import { createSocketAuthentication } from '../src/sockets/authentication.js';
 import { mongoose } from '../src/db/mongo.js';
 import { distancePx } from '../src/utils/geo.js';
 
@@ -21,6 +23,44 @@ mongoose.set('bufferTimeoutMS', 50);
 
 const log = logger.child('test-socket');
 const AVATAR_RADIUS = 14;
+
+const TEST_JWT_SECRET =
+  'proxispeak-integration-test-secret-32-chars-minimum';
+
+const TEST_ACCOUNT_ID = '65a000000000000000000001';
+
+const TEST_ACCOUNT = Object.freeze({
+  _id: {
+    toString: () => TEST_ACCOUNT_ID,
+  },
+  username: 'integration-test-user',
+  email: 'integration-test@example.test',
+  isEmailVerified: true,
+});
+
+const testUserModel = {
+  findById(id) {
+    return {
+      select: async () =>
+        String(id) === TEST_ACCOUNT_ID
+          ? TEST_ACCOUNT
+          : null,
+    };
+  },
+};
+
+function createTestToken() {
+  return jwt.sign(
+    {
+      userId: TEST_ACCOUNT_ID,
+    },
+    TEST_JWT_SECRET,
+    {
+      algorithm: 'HS256',
+      expiresIn: '5m',
+    },
+  );
+}
 
 /**
  * Keep integration-test spawn points far enough apart that the server's
@@ -117,6 +157,20 @@ async function startServer(cfg = config) {
     services.store,
   );
 
+  /*
+   * The socket integration tests use deterministic public-room metadata.
+   * This keeps these tests independent of MongoDB while still exercising
+   * the actual room authorization middleware.
+   *
+   * Production room access continues to use the real roomService.
+   */
+  services.getRoomAccess = async (roomId) => ({
+    roomId: String(roomId).trim().toLowerCase(),
+    visibility: 'public',
+    ownerId: null,
+    allowedUsers: [],
+  });
+
   const httpServer = http.createServer();
 
   httpServer.on('request', (req, res) => {
@@ -130,6 +184,17 @@ async function startServer(cfg = config) {
     config: cfg,
     logger: log,
   });
+
+  /*
+   * Use the real Socket.IO authentication middleware.
+   * Only the User model is replaced with an in-memory test double.
+   */
+  io.use(
+    createSocketAuthentication({
+      secret: TEST_JWT_SECRET,
+      UserModel: testUserModel,
+    }),
+  );
 
   httpServer.listen(0);
   await once(httpServer, 'listening');
@@ -157,6 +222,9 @@ async function startServer(cfg = config) {
 
 function client(url) {
   return createClient(url, {
+    auth: {
+      token: createTestToken(),
+    },
     transports: ['websocket'],
     reconnection: false,
     forceNew: true,
@@ -910,4 +978,3 @@ test(
     });
   },
 );
-

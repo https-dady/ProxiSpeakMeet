@@ -1,21 +1,48 @@
 /**
- * Express surface: health, room catalogue, live stats and the Spatial Audit
- * endpoint used by the mid-project review.
+ * Express surface: authentication, health, room catalogue,
+ * room creation, office blueprint import and Spatial Audit.
  */
+
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import cors from 'cors';
+
 import config, { SERVER_ROOT } from './config/index.js';
 import logger from './utils/logger.js';
+
+import meetingHistoryRouter from './routes/meetingHistory.js';
+
+import roomAccessRouter from './routes/roomAccess.js';
+
 import {
   requireString,
   requireFiniteNumber,
   clamp,
 } from './utils/validate.js';
-import { ValidationError, NotFoundError } from './utils/errors.js';
-import { requireRoom } from './services/roomService.js';
+
+import {
+  ValidationError,
+  NotFoundError,
+} from './utils/errors.js';
+
+import {
+  requireRoom,
+  getRoomAccess,
+} from './services/roomService.js';
+
+import { authenticateToken } from './middleware/auth.js';
+import { authorizeRoomAccess } from './middleware/authorizeRoomAccess.js';
+
 import { corsOrigin } from './utils/origin.js';
+
+import authRouter from './routes/auth.js';
+import authSessionRouter from './routes/authSession.js';
+import roomCreationRouter from './routes/roomCreation.js';
+
+import {
+  importOfficeBlueprint,
+} from './services/officeBlueprintImportService.js';
 
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 
@@ -50,26 +77,75 @@ export function createApp({
 
   app.disable('x-powered-by');
 
-  // Render terminates TLS at its proxy and forwards X-Forwarded-Proto; trusting
-  // one hop keeps req.ip / protocol and rate-limit-style checks truthful.
+  // Render terminates TLS at its proxy and forwards X-Forwarded-Proto.
   app.set('trust proxy', 1);
 
-  app.use(cors({ origin: corsOrigin(cfg) }));
+  // -----------------------------------------------------------
+  // CORS AND REQUEST MIDDLEWARE
+  // -----------------------------------------------------------
+
+  app.use(
+    cors({
+      origin: corsOrigin(cfg),
+      credentials: true,
+      methods: [
+        'GET',
+        'HEAD',
+        'POST',
+        'PUT',
+        'PATCH',
+        'DELETE',
+        'OPTIONS',
+      ],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+      ],
+      optionsSuccessStatus: 204,
+    }),
+  );
+
   app.use(express.json({ limit: '64kb' }));
+
+  // -----------------------------------------------------------
+  // AUTHENTICATION
+  // -----------------------------------------------------------
+
+  app.use('/api/auth', authRouter);
+
+  app.use('/api/auth/session', authSessionRouter);
+
+  // -----------------------------------------------------------
+  // MEETING HISTORY
+  // -----------------------------------------------------------
+
+  app.use('/api/meetings/history', meetingHistoryRouter);
+
+  // -----------------------------------------------------------
+  // ROOM CREATION
+  // -----------------------------------------------------------
+
+  // POST /api/rooms
+  app.use('/api/rooms', roomCreationRouter);
+
+  // POST /api/rooms/access/:roomId/members/:userId
+  app.use('/api/rooms/access', roomAccessRouter);
 
   const startedAt = Date.now();
 
-  /**
-   * Liveness endpoint used by the Render health check. Deliberately free of
-   * MongoDB/Redis calls so a blip in a backing service never marks a healthy
-   * process as dead (and never causes the platform to restart it).
-   */
+  // -----------------------------------------------------------
+  // HEALTH
+  // -----------------------------------------------------------
+
   app.get('/health', (req, res) => {
     res.status(200).json({
       status: 'ok',
       service: 'proxispeak',
       instanceId: cfg.server.instanceId,
-      uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
+      uptimeSeconds: Math.round(
+        (Date.now() - startedAt) / 1000,
+      ),
       scaleMode: redisBus?.mode ?? 'single',
       time: new Date().toISOString(),
     });
@@ -83,22 +159,33 @@ export function createApp({
     res.json({
       ok: true,
       status: 'healthy',
-      uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
+
+      uptimeSeconds: Math.round(
+        (Date.now() - startedAt) / 1000,
+      ),
+
       instanceId: cfg.server.instanceId,
       scaleMode: redisBus?.mode ?? 'single',
+
       database: {
         uri: redact(cfg.mongo.uri),
         geoIndex: indexed,
         queryMode: cfg.spatial.queryMode,
       },
+
       redis: {
-        url: cfg.redis.url ? redact(cfg.redis.url) : null,
+        url: cfg.redis.url
+          ? redact(cfg.redis.url)
+          : null,
+
         mode: redisBus?.mode ?? 'single',
       },
+
       presence: {
         users: services.store.size(),
         dirty: services.store.dirtyCount(),
       },
+
       mesh: services.peerGraph.stats(),
     });
   });
@@ -117,61 +204,172 @@ export function createApp({
     res.json({
       instanceId: cfg.server.instanceId,
       scaleMode: redisBus?.mode ?? 'single',
+
       users: users.length,
+
       byRoom: Object.fromEntries(byRoom),
+
       mesh: services.peerGraph.stats(),
+
       edges: services.peerGraph.snapshot().map((edge) => ({
         a: edge.a,
         b: edge.b,
         state: edge.state,
-        soundFactor: Number(edge.soundFactor.toFixed(3)),
+
+        soundFactor: Number(
+          edge.soundFactor.toFixed(3),
+        ),
+
         generation: edge.generation,
       })),
     });
   });
 
-  // ----------------------------------------------------------- room catalogue
-  app.get('/api/rooms', async (req, res, next) => {
-    try {
-      const rooms = await services.listRooms();
-      const live = new Map();
-
-      for (const user of services.store.all()) {
-        live.set(
-          user.roomId,
-          (live.get(user.roomId) ?? 0) + 1,
-        );
-      }
-
-      res.json({
-        rooms: rooms.map((room) => ({
-          ...room,
-          liveUsers: live.get(room.roomId) ?? 0,
-        })),
-      });
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  app.get('/api/rooms/:roomId', async (req, res, next) => {
-    try {
-      const roomId = parseRoomId(req.params.roomId);
-      const room = await requireRoom(roomId);
-      const live = services.store.byRoom(roomId).length;
-
-      res.json({ room, liveUsers: live });
-    } catch (err) {
-      next(err);
-    }
-  });
+  // -----------------------------------------------------------
+  // ROOM CATALOGUE
+  // -----------------------------------------------------------
 
   /**
-   * GET /api/spatial-audit?roomId=lobby&x=960&y=540&radius=100&samples=25
+   * GET /api/rooms
    *
-   * Returns the full audit report: per-operator timings against the 20 ms
-   * budget, an accuracy cross-check and the winning query plan.
+   * Returns public rooms and private rooms accessible to the
+   * authenticated account.
+   *
+   * Fail-closed:
+   * Rooms with missing access metadata are not exposed.
    */
+  app.get(
+    '/api/rooms',
+    authenticateToken,
+    async (req, res, next) => {
+      try {
+        const rooms = await services.listRooms();
+        const userId = String(req.user.userId);
+
+        const visibleRooms = [];
+
+        for (const room of rooms) {
+          const access = await getRoomAccess(room.roomId);
+
+          // Missing access metadata must never be treated as public.
+          if (!access) {
+            continue;
+          }
+
+          if (access.visibility === 'public') {
+            visibleRooms.push(room);
+            continue;
+          }
+
+          if (access.visibility !== 'private') {
+            continue;
+          }
+
+          const ownerId = access.ownerId
+            ? String(access.ownerId)
+            : null;
+
+          const allowedUsers = Array.isArray(access.allowedUsers)
+            ? access.allowedUsers.map((id) => String(id))
+            : [];
+
+          const isOwner = ownerId === userId;
+          const isAllowed = allowedUsers.includes(userId);
+
+          if (isOwner || isAllowed) {
+            visibleRooms.push(room);
+          }
+        }
+
+        const live = new Map();
+
+        for (const user of services.store.all()) {
+          live.set(
+            user.roomId,
+            (live.get(user.roomId) ?? 0) + 1,
+          );
+        }
+
+        return res.json({
+          rooms: visibleRooms.map((room) => ({
+            ...room,
+            liveUsers: live.get(room.roomId) ?? 0,
+          })),
+        });
+      } catch (err) {
+        return next(err);
+      }
+    },
+  );
+
+  // -----------------------------------------------------------
+  // IMPORT CUSTOM OFFICE BLUEPRINT
+  // -----------------------------------------------------------
+
+  /**
+   * POST /api/rooms/import-blueprint
+   *
+   * Imports a validated JSON blueprint into the existing room system.
+   * Authentication is mandatory.
+   */
+  app.post(
+    '/api/rooms/import-blueprint',
+    authenticateToken,
+    async (req, res, next) => {
+      try {
+        const result = await importOfficeBlueprint(
+          req.body,
+        );
+
+        return res.status(201).json({
+          ok: true,
+          message: 'Office blueprint imported successfully',
+          data: result,
+        });
+      } catch (err) {
+        return next(err);
+      }
+    },
+  );
+
+  // -----------------------------------------------------------
+  // INDIVIDUAL ROOM
+  // -----------------------------------------------------------
+
+  /**
+   * GET /api/rooms/:roomId
+   *
+   * Authentication and room authorization are required.
+   */
+  app.get(
+    '/api/rooms/:roomId',
+    authenticateToken,
+    authorizeRoomAccess,
+    async (req, res, next) => {
+      try {
+        const roomId = parseRoomId(
+          req.params.roomId,
+        );
+
+        const room = await requireRoom(roomId);
+
+        const live = services.store
+          .byRoom(roomId).length;
+
+        return res.json({
+          room,
+          liveUsers: live,
+        });
+      } catch (err) {
+        return next(err);
+      }
+    },
+  );
+
+  // -----------------------------------------------------------
+  // SPATIAL AUDIT
+  // -----------------------------------------------------------
+
   const runAudit = async (req, res, next) => {
     try {
       const params = {
@@ -179,16 +377,20 @@ export function createApp({
         ...(req.body ?? {}),
       };
 
-      const roomId = parseRoomId(params.roomId ?? 'lobby');
+      const roomId = parseRoomId(
+        params.roomId ?? 'lobby',
+      );
+
       const room = await requireRoom(roomId);
 
-      // Validate audit coordinates against the selected room's geometry,
-      // not the global world dimensions.
       const x = clamp(
         requireFiniteNumber(
           Number(params.x ?? room.width / 2),
           'x',
-          { min: 0, max: room.width },
+          {
+            min: 0,
+            max: room.width,
+          },
         ),
         0,
         room.width,
@@ -198,7 +400,10 @@ export function createApp({
         requireFiniteNumber(
           Number(params.y ?? room.height / 2),
           'y',
-          { min: 0, max: room.height },
+          {
+            min: 0,
+            max: room.height,
+          },
         ),
         0,
         room.height,
@@ -206,7 +411,10 @@ export function createApp({
 
       const radiusPx = clamp(
         requireFiniteNumber(
-          Number(params.radius ?? cfg.world.earshotRadiusPx),
+          Number(
+            params.radius ??
+            cfg.world.earshotRadiusPx,
+          ),
           'radius',
           {
             min: 1,
@@ -218,8 +426,11 @@ export function createApp({
       );
 
       const samples = clamp(
-        Number(params.samples ?? cfg.limits.auditSamples) ||
+        Number(
+          params.samples ??
           cfg.limits.auditSamples,
+        ) || cfg.limits.auditSamples,
+
         1,
         cfg.limits.auditSamples,
       );
@@ -230,18 +441,19 @@ export function createApp({
         y,
         radiusPx,
         samples,
+
         includeClusters:
           params.clusters !== 'false' &&
           params.clusters !== false,
+
         includeExplain:
           params.explain !== 'false' &&
           params.explain !== false,
+
         source: 'http',
         instanceId: cfg.server.instanceId,
       });
 
-      // Surface every completed audit on every connected client (this is the
-      // part that visibly proves the Redis fan-out across instances).
       io?.to(roomId).emit('audit:completed', {
         roomId,
         at: report.at,
@@ -253,42 +465,60 @@ export function createApp({
 
       redisBus?.publish({
         type: 'audit:completed',
-        payload: { roomId, report },
+
+        payload: {
+          roomId,
+          report,
+        },
+
         at: Date.now(),
       });
 
-      res.status(report.ok ? 200 : 503).json(report);
+      return res
+        .status(report.ok ? 200 : 503)
+        .json(report);
+
     } catch (err) {
-      next(err);
+      return next(err);
     }
   };
 
   app.get('/api/spatial-audit', runAudit);
   app.post('/api/spatial-audit', runAudit);
 
-  app.get('/api/spatial-audit/history', async (req, res, next) => {
-    try {
-      const roomId = parseRoomId(req.query.roomId ?? 'lobby');
+  app.get(
+    '/api/spatial-audit/history',
+    async (req, res, next) => {
+      try {
+        const roomId = parseRoomId(
+          req.query.roomId ?? 'lobby',
+        );
 
-      const limit = clamp(
-        Number(req.query.limit ?? 20) || 20,
-        1,
-        100,
-      );
+        const limit = clamp(
+          Number(req.query.limit ?? 20) || 20,
+          1,
+          100,
+        );
 
-      res.json(await services.audit.history(roomId, limit));
-    } catch (err) {
-      next(err);
-    }
-  });
+        return res.json(
+          await services.audit.history(
+            roomId,
+            limit,
+          ),
+        );
 
-  // ---------------------------------------------------------------------
-  // Static client bundle (single Web Service: one process, one port).
-  // Registered AFTER the API routes so /api/* can never be swallowed, and the
-  // SPA fallback only answers GET/HEAD for client-side routes. Socket.io
-  // requests (/socket.io/*) never reach Express — Socket.io intercepts them.
-  // ---------------------------------------------------------------------
+      } catch (err) {
+        return next(err);
+      }
+    },
+  );
+
+  // -----------------------------------------------------------
+  // STATIC CLIENT BUNDLE
+  // -----------------------------------------------------------
+
   const clientDist = resolveClientDist(cfg);
+
   const hasClientBundle = fs.existsSync(
     path.join(clientDist, 'index.html'),
   );
@@ -297,47 +527,64 @@ export function createApp({
     app.use(
       express.static(clientDist, {
         index: false,
-        maxAge: cfg.isProduction ? '1h' : 0,
+
+        maxAge: cfg.isProduction
+          ? '1h'
+          : 0,
+
         setHeaders(res, filePath) {
-          // Never cache the entry document itself, or a deploy leaves clients
-          // pointing at hashed assets that no longer exist.
           if (filePath.endsWith('index.html')) {
-            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader(
+              'Cache-Control',
+              'no-cache',
+            );
           }
         },
       }),
     );
 
-    // The entry document is read once at boot: it never changes while the
-    // process is alive (a deploy restarts us), and caching it removes a disk
-    // read from every client-side route.
     const indexHtml = fs.readFileSync(
       path.join(clientDist, 'index.html'),
       'utf8',
     );
 
     app.use((req, res, next) => {
-      if (req.method !== 'GET' && req.method !== 'HEAD') {
+      if (
+        req.method !== 'GET' &&
+        req.method !== 'HEAD'
+      ) {
         return next();
       }
 
-      if (req.path.startsWith('/api') || req.path === '/health') {
+      if (
+        req.path.startsWith('/api') ||
+        req.path === '/health'
+      ) {
         return next();
       }
 
-      // A deploy replaces the bundle; never let a browser pin an old one.
       res.set('Cache-Control', 'no-cache');
 
-      return res.status(200).type('html').send(indexHtml);
+      return res
+        .status(200)
+        .type('html')
+        .send(indexHtml);
     });
 
-    log.info(`serving client bundle from ${clientDist}`);
+    log.info(
+      `serving client bundle from ${clientDist}`,
+    );
+
   } else {
     log.warn(
       `client bundle not found at ${clientDist} — serving API only. ` +
-        'Run `npm run build` at the repo root (Render build command) to produce it.',
+      'Run `npm run build` at the repo root (Render build command) to produce it.',
     );
   }
+
+  // -----------------------------------------------------------
+  // 404 HANDLER
+  // -----------------------------------------------------------
 
   app.use((req, res) => {
     res.status(404).json({
@@ -346,7 +593,11 @@ export function createApp({
     });
   });
 
-  // eslint-disable-next-line no-unused-vars -- Express identifies error handlers by arity.
+  // -----------------------------------------------------------
+  // CENTRALIZED ERROR HANDLING
+  // -----------------------------------------------------------
+
+  // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
     const status =
       err instanceof ValidationError
@@ -372,21 +623,33 @@ export function createApp({
   return app;
 }
 
-/** Hide credentials in anything we print or return over HTTP. */
+/**
+ * Hide credentials in anything we print or return over HTTP.
+ */
 function redact(uri) {
-  return uri.replace(/\/\/([^:]+):([^@]+)@/, '//$1:***@');
+  return uri.replace(
+    /\/\/([^:]+):([^@]+)@/,
+    '//$1:***@',
+  );
 }
 
 /**
- * Where the built client lives. Defaults to <repo>/client/dist and can be
- * overridden with CLIENT_DIST if the bundle is built somewhere else.
+ * Where the built client lives.
+ * Defaults to <repo>/client/dist.
  */
 function resolveClientDist(cfg) {
   if (cfg.server.clientDist) {
-    return path.resolve(cfg.server.clientDist);
+    return path.resolve(
+      cfg.server.clientDist,
+    );
   }
 
-  return path.resolve(SERVER_ROOT, '..', 'client', 'dist');
+  return path.resolve(
+    SERVER_ROOT,
+    '..',
+    'client',
+    'dist',
+  );
 }
 
 export default createApp;

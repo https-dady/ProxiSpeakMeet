@@ -19,6 +19,8 @@ import { resolveCollision } from '../services/obstacleService.js';
 import { makeEvent } from '../db/redis.js';
 import { corsOrigin } from '../utils/origin.js';
 
+import { randomUUID } from 'node:crypto';
+
 import {
   requireActiveRoomMembership,
 } from './membership.js';
@@ -26,6 +28,10 @@ import {
 import {
   getAuthorizedPeerSignalEdge,
 } from './signalingAuthorization.js';
+
+import {
+  authorizeSocketRoomJoin,
+} from './roomAuthorization.js';
 
 import {
   validateRoomJoin,
@@ -93,6 +99,7 @@ function onConnection({
     store,
     peerGraph,
     getRoom,
+    getRoomAccess,
     chooseSpawn,
   } = services;
 
@@ -107,20 +114,121 @@ function onConnection({
     capacity: cfg.limits.signalEventsPerSec,
     refillPerSec: cfg.limits.signalEventsPerSec,
   });
-let identity = null;
-let leaveInProgress = null;
 
-// Serialize room lifecycle operations for this socket.
-let lifecycleQueue = Promise.resolve();
+  let identity = null;
 
-function serializeLifecycle(operation) {
-  const result = lifecycleQueue.then(operation, operation);
+  let historySessionId = null;
+  let lastHistoryTouchAt = 0;
 
-  // Keep the queue usable even if one operation rejects.
-  lifecycleQueue = result.catch(() => {});
+  const meetingHistory = services.meetingHistory;
 
-  return result;
-}
+  function authenticatedAccount() {
+    return socket.data.authenticatedUser ?? null;
+  }
+
+  async function startMeetingHistory({
+    room,
+    roomId,
+    participantCount,
+  }) {
+    const account = authenticatedAccount();
+
+    if (!meetingHistory || !account?.userId) {
+      socketsLog.warn(
+        'meeting history was not started: authenticated account or history service is unavailable',
+      );
+      return;
+    }
+
+    const sessionId = randomUUID();
+
+    try {
+      await meetingHistory.startMeeting({
+        userId: account.userId,
+        sessionId,
+        roomId,
+        roomName: room?.name ?? room?.title ?? roomId,
+        username: account.username,
+        role: 'participant',
+        participantCountAtJoin: Math.max(1, participantCount),
+      });
+
+      historySessionId = sessionId;
+      lastHistoryTouchAt = Date.now();
+    } catch (err) {
+      socketsLog.error(
+        `meeting history start failed: ${err.message}`,
+      );
+    }
+  }
+
+  async function touchMeetingHistory() {
+    if (!meetingHistory || !historySessionId) return;
+
+    const now = Date.now();
+
+    if (now - lastHistoryTouchAt < 30_000) return;
+
+    lastHistoryTouchAt = now;
+
+    try {
+      const account = authenticatedAccount();
+
+      if (!account?.userId) return;
+
+      await meetingHistory.touchMeeting({
+        userId: account.userId,
+        sessionId: historySessionId,
+      });
+    } catch (err) {
+      socketsLog.error(
+        `meeting history heartbeat update failed: ${err.message}`,
+      );
+    }
+  }
+
+  async function finishMeetingHistory(reason) {
+    if (!meetingHistory || !historySessionId) return;
+
+    const sessionId = historySessionId;
+
+    historySessionId = null;
+    lastHistoryTouchAt = 0;
+
+    const account = authenticatedAccount();
+
+    if (!account?.userId) return;
+
+    const status =
+      reason === 'client-leave' || reason === 'room-switch'
+        ? 'completed'
+        : 'abandoned';
+
+    try {
+      await meetingHistory.endMeeting({
+        userId: account.userId,
+        sessionId,
+        status,
+      });
+    } catch (err) {
+      socketsLog.error(
+        `meeting history close failed: ${err.message}`,
+      );
+    }
+  }
+
+  let leaveInProgress = null;
+
+  // Serialize room lifecycle operations for this socket.
+  let lifecycleQueue = Promise.resolve();
+
+  function serializeLifecycle(operation) {
+    const result = lifecycleQueue.then(operation, operation);
+
+    lifecycleQueue = result.catch(() => {});
+
+    return result;
+  }
 
   const safe = (handler) => async (payload, ack) => {
     try {
@@ -171,192 +279,212 @@ function serializeLifecycle(operation) {
   // Room join
   // -------------------------------------------------------------
 
- socket.on(
-  'room:join',
-  safe((payload) =>
-    serializeLifecycle(async () => {
-      /*
-       * Step 3.3:
-       * A rapid leave -> rejoin can arrive while leaveRoom() is still
-       * removing the old in-memory and MongoDB presence.
-       *
-       * Wait for that cleanup before checking identity or creating
-       * the next presence record.
-       */
-      if (leaveInProgress) {
-        await leaveInProgress;
-      }
-
-      const {
-        roomId,
-        name,
-        color,
-        avatar,
-      } = validateRoomJoin(payload, {
-        world: cfg.world,
-      });
-
-      const room = await getRoom(roomId, {
-        persist: true,
-      });
-
-      if (
-        !room ||
-        !Number.isFinite(room.width) ||
-        !Number.isFinite(room.height) ||
-        room.width < AVATAR_RADIUS * 2 ||
-        room.height < AVATAR_RADIUS * 2
-      ) {
-        throw new ValidationError(
-          'room configuration has invalid dimensions',
-        );
-      }
-
-      const roomWorld = {
-        width: room.width,
-        height: room.height,
-      };
-
-      const occupants = store.byRoom(roomId);
-
-      if (
-        occupants.length >= cfg.limits.maxUsersPerRoom &&
-        !occupants.some((user) => user.id === socket.id)
-      ) {
-        throw Object.assign(
-          new Error(
-            `room "${roomId}" is full (${cfg.limits.maxUsersPerRoom} max)`,
-          ),
-          { status: 503 },
-        );
-      }
-
-      /*
-       * An idempotent same-room join returns the existing session
-       * instead of creating a duplicate presence record.
-       */
-      if (identity?.roomId === roomId) {
-        const existingUser = store.get(socket.id);
-
-        if (existingUser) {
-          const peers = store
-            .byRoom(roomId)
-            .filter((user) => user.id !== socket.id)
-            .map(wireUser);
-
-          return {
-            self: wireUser(existingUser),
-            room,
-            peers,
-            config: joinConfig(),
-          };
+  socket.on(
+    'room:join',
+    safe((payload) =>
+      serializeLifecycle(async () => {
+        /*
+         * A rapid leave -> rejoin can arrive while leaveRoom()
+         * is still removing the old presence.
+         */
+        if (leaveInProgress) {
+          await leaveInProgress;
         }
-      }
 
-      let requestedSpawn = null;
+        const {
+          roomId,
+          name,
+          color,
+          avatar,
+        } = validateRoomJoin(payload, {
+          world: cfg.world,
+        });
 
-      if (
-        payload?.spawn !== undefined &&
-        payload?.spawn !== null
-      ) {
-        const spawn = payload.spawn;
+        /*
+         * PRIVATE ROOM AUTHORIZATION
+         *
+         * This must run before:
+         * - loading the room for joining;
+         * - capacity checks;
+         * - creating presence;
+         * - joining the Socket.IO room;
+         * - starting meeting history.
+         *
+         * The account identity comes from the authenticated
+         * Socket.IO handshake, never from client payload data.
+         */
+        await authorizeSocketRoomJoin({
+          socket,
+          roomId,
+          getRoomAccess,
+        });
+
+        const room = await getRoom(roomId, {
+          persist: true,
+        });
 
         if (
-          typeof spawn !== 'object' ||
-          Array.isArray(spawn) ||
-          !Number.isFinite(spawn.x) ||
-          !Number.isFinite(spawn.y)
+          !room ||
+          !Number.isFinite(room.width) ||
+          !Number.isFinite(room.height) ||
+          room.width < AVATAR_RADIUS * 2 ||
+          room.height < AVATAR_RADIUS * 2
         ) {
           throw new ValidationError(
-            'spawn must contain finite x and y coordinates',
-            { field: 'spawn' },
+            'room configuration has invalid dimensions',
           );
         }
 
-        if (
-          spawn.x < AVATAR_RADIUS ||
-          spawn.y < AVATAR_RADIUS ||
-          spawn.x > roomWorld.width - AVATAR_RADIUS ||
-          spawn.y > roomWorld.height - AVATAR_RADIUS
-        ) {
-          throw new ValidationError(
-            'spawn coordinates must be within the selected room boundaries',
-            { field: 'spawn' },
-          );
-        }
-
-        requestedSpawn = {
-          x: spawn.x,
-          y: spawn.y,
+        const roomWorld = {
+          width: room.width,
+          height: room.height,
         };
-      }
 
-      const preferredSpawn =
-        requestedSpawn ??
-        chooseSpawn(room.spawnPoints, occupants);
+        const occupants = store.byRoom(roomId);
 
-      const position = resolveSafeSpawn({
-        room,
-        preferredSpawn,
-        occupants,
-      });
+        if (
+          occupants.length >= cfg.limits.maxUsersPerRoom &&
+          !occupants.some((user) => user.id === socket.id)
+        ) {
+          throw Object.assign(
+            new Error(
+              `room "${roomId}" is full (${cfg.limits.maxUsersPerRoom} max)`,
+            ),
+            { status: 503 },
+          );
+        }
 
-      /*
-       * Switching rooms must remove the old room membership and
-       * presence before adding the user to the destination room.
-       */
-      if (identity && identity.roomId !== roomId) {
-        await leaveRoom('room-switch');
-      }
+        /*
+         * An idempotent same-room join returns the existing session.
+         */
+        if (identity?.roomId === roomId) {
+          const existingUser = store.get(socket.id);
 
-      const user = store.add({
-        id: socket.id,
-        roomId,
-        name,
-        color,
-        avatar,
-        x: Math.round(position.x),
-        y: Math.round(position.y),
-        angle: 0,
-        instanceId: cfg.server.instanceId,
-      });
-
-      user.ready = false;
-
-      identity = {
-        roomId,
-        name,
-        color,
-        avatar,
-      };
-
-      socket.data.userId = socket.id;
-      socket.data.roomId = roomId;
-
-      await socket.join(roomId);
-
-      const peers = store
-        .byRoom(roomId)
-        .filter((peer) => peer.id !== socket.id)
-        .map(wireUser);
-
-      socket.to(roomId).emit('peer:joined', {
-        peer: wireUser(user),
-      });
-
-      socketsLog.info(
-        `joined ${roomId} as "${name}" (${peers.length} others)`,
-      );
+          if (existingUser) {
+            const peers = store
+              .byRoom(roomId)
+              .filter((user) => user.id !== socket.id)
+              .map(wireUser);
 
             return {
-        self: wireUser(user),
-        room,
-        peers,
-        config: joinConfig(),
-      };
-    }),
-  ),
-);
+              self: wireUser(existingUser),
+              room,
+              peers,
+              config: joinConfig(),
+            };
+          }
+        }
+
+        let requestedSpawn = null;
+
+        if (
+          payload?.spawn !== undefined &&
+          payload?.spawn !== null
+        ) {
+          const spawn = payload.spawn;
+
+          if (
+            typeof spawn !== 'object' ||
+            Array.isArray(spawn) ||
+            !Number.isFinite(spawn.x) ||
+            !Number.isFinite(spawn.y)
+          ) {
+            throw new ValidationError(
+              'spawn must contain finite x and y coordinates',
+              { field: 'spawn' },
+            );
+          }
+
+          if (
+            spawn.x < AVATAR_RADIUS ||
+            spawn.y < AVATAR_RADIUS ||
+            spawn.x > roomWorld.width - AVATAR_RADIUS ||
+            spawn.y > roomWorld.height - AVATAR_RADIUS
+          ) {
+            throw new ValidationError(
+              'spawn coordinates must be within the selected room boundaries',
+              { field: 'spawn' },
+            );
+          }
+
+          requestedSpawn = {
+            x: spawn.x,
+            y: spawn.y,
+          };
+        }
+
+        const preferredSpawn =
+          requestedSpawn ??
+          chooseSpawn(room.spawnPoints, occupants);
+
+        const position = resolveSafeSpawn({
+          room,
+          preferredSpawn,
+          occupants,
+        });
+
+        /*
+         * Switching rooms removes old membership before adding
+         * the user to the destination room.
+         */
+        if (identity && identity.roomId !== roomId) {
+          await leaveRoom('room-switch');
+        }
+
+        const user = store.add({
+          id: socket.id,
+          roomId,
+          name,
+          color,
+          avatar,
+          x: Math.round(position.x),
+          y: Math.round(position.y),
+          angle: 0,
+          instanceId: cfg.server.instanceId,
+        });
+
+        user.ready = false;
+
+        identity = {
+          roomId,
+          name,
+          color,
+          avatar,
+        };
+
+        socket.data.userId = socket.id;
+        socket.data.roomId = roomId;
+
+        await socket.join(roomId);
+
+        await startMeetingHistory({
+          room,
+          roomId,
+          participantCount: store.byRoom(roomId).length,
+        });
+
+        const peers = store
+          .byRoom(roomId)
+          .filter((peer) => peer.id !== socket.id)
+          .map(wireUser);
+
+        socket.to(roomId).emit('peer:joined', {
+          peer: wireUser(user),
+        });
+
+        socketsLog.info(
+          `joined ${roomId} as "${name}" (${peers.length} others)`,
+        );
+
+        return {
+          self: wireUser(user),
+          room,
+          peers,
+          config: joinConfig(),
+        };
+      }),
+    ),
+  );
 
   // -------------------------------------------------------------
   // Microphone readiness
@@ -516,6 +644,8 @@ function serializeLifecycle(operation) {
         );
       }
 
+      await touchMeetingHistory();
+
       return {};
     }),
   );
@@ -538,10 +668,6 @@ function serializeLifecycle(operation) {
         'roomId',
       );
 
-      /*
-       * Step 1.1:
-       * A socket can only request the snapshot of its authoritative room.
-       */
       if (roomId !== identity.roomId) {
         throw new ValidationError(
           'cannot synchronize presence for another room',
@@ -571,11 +697,6 @@ function serializeLifecycle(operation) {
   socket.on(
     'peer:signal',
     safe(async (payload) => {
-      /*
-       * Step 1.2:
-       * Verify the sender's active Socket.IO room membership and
-       * authoritative PresenceStore record.
-       */
       requireActiveRoomMembership({
         identity,
         socket,
@@ -595,12 +716,6 @@ function serializeLifecycle(operation) {
         return {};
       }
 
-      /*
-       * Step 1.3:
-       * Both participants must have active presence records in the
-       * sender's authoritative room, and a PeerGraph edge must exist
-       * for that same room.
-       */
       const authorizedEdge = getAuthorizedPeerSignalEdge({
         senderId: socket.id,
         recipientId: to,
@@ -617,10 +732,6 @@ function serializeLifecycle(operation) {
         return {};
       }
 
-      /*
-       * Re-check the edge after updating its activity so that a stale
-       * or replaced peer connection cannot receive the signal.
-       */
       const edge = peerGraph.noteSignal(socket.id, to);
 
       if (
@@ -639,9 +750,6 @@ function serializeLifecycle(operation) {
         peerGraph.markLive(socket.id, to);
       }
 
-      /*
-       * Keep the existing WebRTC signaling payload unchanged.
-       */
       io.to(to).emit('peer:signal', {
         from: socket.id,
         data,
@@ -670,6 +778,8 @@ function serializeLifecycle(operation) {
 
     leaveInProgress = (async () => {
       try {
+        await finishMeetingHistory(reason);
+
         peerGraph.removeUser(socket.id, reason);
 
         socket.to(roomId).emit('peer:left', {
@@ -715,30 +825,30 @@ function serializeLifecycle(operation) {
   }
 
   socket.on(
-  'room:leave',
-  safe(() =>
-    serializeLifecycle(async () => {
-      const left = await leaveRoom('client-leave');
+    'room:leave',
+    safe(() =>
+      serializeLifecycle(async () => {
+        const left = await leaveRoom('client-leave');
 
-      return { left };
-    }),
-  ),
-);
+        return { left };
+      }),
+    ),
+  );
 
   // -------------------------------------------------------------
   // Disconnect
   // -------------------------------------------------------------
 
   socket.on('disconnect', async (reason) => {
-  try {
-    await serializeLifecycle(() => leaveRoom(reason));
-  } catch (err) {
-    socketsLog.error(
-      'disconnect cleanup failed:',
-      err.message,
-    );
-  }
-});
+    try {
+      await serializeLifecycle(() => leaveRoom(reason));
+    } catch (err) {
+      socketsLog.error(
+        'disconnect cleanup failed:',
+        err.message,
+      );
+    }
+  });
 
   socket.on('error', (err) => {
     socketsLog.error('socket error:', err.message);

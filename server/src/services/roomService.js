@@ -4,6 +4,11 @@
  * Default rooms remain available when MongoDB is temporarily unreachable.
  * Failed persistence is retained in a per-room retry queue and retried after
  * MongoDB reconnects or when that room is requested again.
+ *
+ * Room access metadata:
+ * - visibility: public | private
+ * - ownerId: MongoDB User ObjectId
+ * - allowedUsers: MongoDB User ObjectIds
  */
 import mongoose from 'mongoose';
 import Room from '../models/Room.js';
@@ -12,6 +17,7 @@ import logger from '../utils/logger.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
 
 const log = logger.child('rooms');
+
 const cache = new Map();
 const pendingPersistence = new Map();
 const inFlightPersistence = new Map();
@@ -35,9 +41,6 @@ function isTransientMongoError(err) {
   );
 }
 
-/**
- * Errors that retrying without changing the submitted room cannot fix.
- */
 function isPermanentPersistenceError(err) {
   const name = String(err?.name ?? '');
   const code = Number(err?.code);
@@ -45,9 +48,50 @@ function isPermanentPersistenceError(err) {
   return (
     name === 'ValidationError' ||
     name === 'CastError' ||
-    code === 11000 || // Duplicate key
-    code === 121       // MongoDB document validation failure
+    code === 11000 ||
+    code === 121
   );
+}
+
+function normalizeObjectId(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'object' && value._id) {
+    return String(value._id);
+  }
+
+  return String(value);
+}
+
+function normalizeAllowedUsers(users) {
+  if (!Array.isArray(users)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      users
+        .map(normalizeObjectId)
+        .filter(Boolean),
+    ),
+  ];
+}
+
+/**
+ * Normalize access metadata.
+ * Legacy rooms without privacy fields remain public.
+ */
+function normalizeRoomAccess(room = {}) {
+  const visibility =
+    room.visibility === 'private' ? 'private' : 'public';
+
+  return {
+    visibility,
+    ownerId: normalizeObjectId(room.ownerId),
+    allowedUsers: normalizeAllowedUsers(room.allowedUsers),
+  };
 }
 
 /** Generate a deterministic default office blueprint. */
@@ -173,6 +217,7 @@ export function buildDefaultRoom(roomId, world = config.world) {
     roomId,
     name: prettyRoomName(roomId),
     description: 'Default office blueprint generated on first join.',
+    ...normalizeRoomAccess(),
     width: w,
     height: h,
     obstacles,
@@ -187,12 +232,17 @@ const prettyRoomName = (roomId) =>
     .map((word) => word[0].toUpperCase() + word.slice(1))
     .join(' ') || 'Lobby';
 
-/** Convert a Mongoose document or plain object to the client wire format. */
+/**
+ * Convert a Mongoose document or plain object to the client wire format.
+ */
 export function toRoomWire(doc) {
+  const access = normalizeRoomAccess(doc);
+
   return {
     roomId: doc.roomId,
     name: doc.name,
     description: doc.description ?? '',
+    ...access,
     width: doc.width,
     height: doc.height,
     obstacles: (doc.obstacles ?? []).map((obstacle) => ({
@@ -217,10 +267,7 @@ function rememberPending(room) {
 }
 
 /**
- * Validate geometry before query-based persistence.
- *
- * Mongoose document pre('validate') hooks do not run for findOneAndUpdate().
- * These checks therefore protect every room write through this service.
+ * Validate geometry and access metadata before persistence.
  */
 function assertRoomGeometry(room) {
   const width = room?.width;
@@ -244,15 +291,17 @@ function assertRoomGeometry(room) {
   const spawnPoints = room.spawnPoints ?? [];
 
   if (!Array.isArray(obstacles)) {
-    throw new ValidationError('Room obstacles must be an array', {
-      field: 'obstacles',
-    });
+    throw new ValidationError(
+      'Room obstacles must be an array',
+      { field: 'obstacles' },
+    );
   }
 
   if (!Array.isArray(spawnPoints)) {
-    throw new ValidationError('Room spawn points must be an array', {
-      field: 'spawnPoints',
-    });
+    throw new ValidationError(
+      'Room spawn points must be an array',
+      { field: 'spawnPoints' },
+    );
   }
 
   for (const [index, obstacle] of obstacles.entries()) {
@@ -296,6 +345,41 @@ function assertRoomGeometry(room) {
       );
     }
   }
+
+  const access = normalizeRoomAccess(room);
+
+  if (!['public', 'private'].includes(access.visibility)) {
+    throw new ValidationError(
+      'Room visibility must be public or private',
+      { field: 'visibility' },
+    );
+  }
+
+  if (access.visibility === 'private' && !access.ownerId) {
+    throw new ValidationError(
+      'A private room must have an owner',
+      { field: 'ownerId' },
+    );
+  }
+
+  for (const userId of access.allowedUsers) {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ValidationError(
+        'Room allowedUsers must contain valid user IDs',
+        { field: 'allowedUsers' },
+      );
+    }
+  }
+
+  if (
+    access.ownerId &&
+    !mongoose.Types.ObjectId.isValid(access.ownerId)
+  ) {
+    throw new ValidationError(
+      'Room ownerId must be a valid user ID',
+      { field: 'ownerId' },
+    );
+  }
 }
 
 /**
@@ -303,11 +387,14 @@ function assertRoomGeometry(room) {
  * Failed writes remain pending for a later retry.
  */
 async function persistWithRetryQueue(room) {
-  // Validate before entering the persistence/retry path.
-  // Invalid geometry must never be queued as a temporary database failure.
-  assertRoomGeometry(room);
+  const normalizedRoom = {
+    ...room,
+    ...normalizeRoomAccess(room),
+  };
 
-  const roomId = room.roomId;
+  assertRoomGeometry(normalizedRoom);
+
+  const roomId = normalizedRoom.roomId;
   const existingOperation = inFlightPersistence.get(roomId);
 
   if (existingOperation) {
@@ -318,7 +405,7 @@ async function persistWithRetryQueue(room) {
     try {
       const doc = await Room.findOneAndUpdate(
         { roomId },
-        { $set: room },
+        { $set: normalizedRoom },
         {
           upsert: true,
           new: true,
@@ -341,14 +428,14 @@ async function persistWithRetryQueue(room) {
       log.info(`room "${roomId}" persisted`);
 
       return wire;
-        } catch (err) {
+    } catch (err) {
       const permanent = isPermanentPersistenceError(err);
       const databaseUnavailable =
         mongoose.connection.readyState !== 1;
       const transient = isTransientMongoError(err);
 
       if (!permanent && (transient || databaseUnavailable)) {
-        rememberPending(room);
+        rememberPending(normalizedRoom);
 
         log.warn(
           `room "${roomId}" persistence deferred: ${err.message}`,
@@ -456,9 +543,80 @@ export async function getRoom(roomId, { persist = false } = {}) {
   return cache.get(roomId) ?? blueprint;
 }
 
+/**
+ * Read room access metadata from MongoDB.
+ *
+ * Does not create a missing room or silently turn an unknown room into
+ * a public default room. This is important for authorization checks.
+ *
+ * Cached data is used only when MongoDB is temporarily unavailable.
+ */
+export async function getRoomAccess(roomId) {
+  if (
+    typeof roomId !== 'string' ||
+    !roomId.trim()
+  ) {
+    return null;
+  }
+
+  const normalizedRoomId = roomId.trim().toLowerCase();
+
+  try {
+    const doc = await Room.findOne(
+      { roomId: normalizedRoomId },
+      {
+        roomId: 1,
+        visibility: 1,
+        ownerId: 1,
+        allowedUsers: 1,
+      },
+    ).lean();
+
+    if (!doc) {
+      return null;
+    }
+
+    const access = normalizeRoomAccess(doc);
+
+    // Refresh access metadata in an existing cache entry.
+    const cached = cache.get(normalizedRoomId);
+
+    if (cached) {
+      cache.set(normalizedRoomId, {
+        ...cached,
+        ...access,
+      });
+    }
+
+    return {
+      roomId: normalizedRoomId,
+      ...access,
+    };
+  } catch (error) {
+    if (!isTransientMongoError(error)) {
+      throw error;
+    }
+
+    const cached = cache.get(normalizedRoomId);
+
+    if (!cached) {
+      // Fail closed: no database record and no trusted cache entry.
+      return null;
+    }
+
+    log.warn(
+      `room "${normalizedRoomId}" access lookup using cache: ${error.message}`,
+    );
+
+    return {
+      roomId: normalizedRoomId,
+      ...normalizeRoomAccess(cached),
+    };
+  }
+}
+
 export async function listRooms() {
   const roomsById = new Map();
-  let databaseAvailable = false;
 
   // 1. Load persisted rooms from MongoDB.
   try {
@@ -468,6 +626,9 @@ export async function listRooms() {
         roomId: 1,
         name: 1,
         description: 1,
+        visibility: 1,
+        ownerId: 1,
+        allowedUsers: 1,
         width: 1,
         height: 1,
         obstacles: 1,
@@ -477,8 +638,6 @@ export async function listRooms() {
       .sort({ roomId: 1 })
       .limit(100)
       .lean();
-
-    databaseAvailable = true;
 
     for (const doc of docs) {
       if (doc?.roomId) {
@@ -498,9 +657,7 @@ export async function listRooms() {
     );
   }
 
-  // 2. Add pending rooms.
-  // Pending rooms may contain newer room configuration that MongoDB
-  // has not successfully persisted yet, so they take precedence.
+  // 2. Pending writes take precedence over older persisted records.
   for (const [roomId, room] of pendingPersistence.entries()) {
     if (room?.roomId) {
       roomsById.set(roomId, toRoomWire(room));
@@ -508,7 +665,6 @@ export async function listRooms() {
   }
 
   // 3. Add cached rooms that are not already present.
-  // Persisted rooms remain authoritative unless a pending write exists.
   for (const [roomId, room] of cache.entries()) {
     if (room?.roomId && !roomsById.has(roomId)) {
       roomsById.set(roomId, toRoomWire(room));
@@ -516,7 +672,6 @@ export async function listRooms() {
   }
 
   // 4. Guarantee a usable lobby.
-  // Prefer a persisted, pending, or cached lobby if one already exists.
   if (!roomsById.has('lobby')) {
     roomsById.set('lobby', buildDefaultRoom('lobby'));
   }
@@ -540,9 +695,14 @@ export async function requireRoom(roomId) {
 }
 
 export async function persistRoom(room) {
-  assertRoomGeometry(room);
+  const normalizedRoom = {
+    ...room,
+    ...normalizeRoomAccess(room),
+  };
 
-  const wire = toRoomWire(room);
+  assertRoomGeometry(normalizedRoom);
+
+  const wire = toRoomWire(normalizedRoom);
 
   return persistWithRetryQueue(wire);
 }
@@ -560,6 +720,36 @@ export function getCachedRoom(roomId) {
   return cache.get(roomId) ?? null;
 }
 
+/**
+ * Check whether an authenticated account can enter a room.
+ *
+ * Public rooms remain accessible to all authenticated users.
+ * Private rooms require ownership or an explicit invitation.
+ */
+export function canAccessRoom(room, userId) {
+  if (!room || !userId) {
+    return false;
+  }
+
+  const access = normalizeRoomAccess(room);
+
+  if (access.visibility !== 'private') {
+    return true;
+  }
+
+  const normalizedUserId = normalizeObjectId(userId);
+
+  if (!normalizedUserId) {
+    return false;
+  }
+
+  if (access.ownerId === normalizedUserId) {
+    return true;
+  }
+
+  return access.allowedUsers.includes(normalizedUserId);
+}
+
 /** Choose the spawn point furthest from current occupants. */
 export function chooseSpawn(spawnPoints, occupants = []) {
   if (!spawnPoints?.length) {
@@ -575,7 +765,10 @@ export function chooseSpawn(spawnPoints, occupants = []) {
     for (const occupant of occupants) {
       nearest = Math.min(
         nearest,
-        Math.hypot(occupant.x - point.x, occupant.y - point.y),
+        Math.hypot(
+          occupant.x - point.x,
+          occupant.y - point.y,
+        ),
       );
     }
 

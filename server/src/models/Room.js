@@ -1,9 +1,10 @@
 import mongoose from 'mongoose';
 
 /**
- * A persisted office: its pixel dimensions plus the furniture/wall rectangles
- * that block sound. `blocksAudio` rectangles feed the occlusion calculation on
- * both the server (authoritative soundFactor) and the client (drawing).
+ * A persisted office: dimensions, furniture, access policy and ownership.
+ *
+ * Existing rooms remain public by default for backward compatibility.
+ * Private rooms are restricted to their owner and explicitly allowed users.
  */
 const ObstacleSchema = new mongoose.Schema(
   {
@@ -18,10 +19,6 @@ const ObstacleSchema = new mongoose.Schema(
     w: { type: Number, required: true, min: 1, validate: Number.isFinite },
     h: { type: Number, required: true, min: 1, validate: Number.isFinite },
     blocksAudio: { type: Boolean, default: true },
-    /**
-     * Fraction of sound that survives crossing this obstacle.
-     * Example: 0.12 represents heavy sound attenuation.
-     */
     attenuation: {
       type: Number,
       default: 0.2,
@@ -54,11 +51,38 @@ const RoomSchema = new mongoose.Schema(
       type: String,
       required: true,
       default: 'Unnamed Office',
+      trim: true,
+      maxlength: 80,
     },
     description: {
       type: String,
       default: '',
+      trim: true,
+      maxlength: 500,
     },
+
+    // Room access control.
+    visibility: {
+      type: String,
+      enum: ['public', 'private'],
+      default: 'public',
+      required: true,
+    },
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    allowedUsers: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+        },
+      ],
+      default: [],
+    },
+
     width: {
       type: Number,
       required: true,
@@ -112,7 +136,6 @@ RoomSchema.pre('validate', function validateRoomGeometry() {
     );
   }
 
-  // Cross-field geometry checks require valid room dimensions.
   if (!Number.isFinite(width) || !Number.isFinite(height)) {
     return;
   }
@@ -153,6 +176,19 @@ RoomSchema.pre('validate', function validateRoomGeometry() {
         `Spawn point at index ${index} must be within room bounds`,
       );
     }
+  }
+});
+
+/**
+ * Private rooms must have an owner.
+ * Public rooms may optionally have an owner.
+ */
+RoomSchema.pre('validate', function validateRoomAccess() {
+  if (this.visibility === 'private' && !this.ownerId) {
+    this.invalidate(
+      'ownerId',
+      'A private room must have an owner',
+    );
   }
 });
 

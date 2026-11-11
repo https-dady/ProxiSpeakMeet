@@ -28,6 +28,8 @@ import { createApp } from './app.js';
 import { createSocketServer } from './sockets/index.js';
 import { startRuntime } from './runtime.js';
 
+import { createSocketAuthentication } from './sockets/authentication.js';
+
 const log = logger;
 
 async function main() {
@@ -60,6 +62,7 @@ async function main() {
     logger: log,
   });
 
+  // app.js already owns Express middleware and API route registration.
   httpServer.on('request', app);
 
   const io = createSocketServer({
@@ -69,6 +72,17 @@ async function main() {
     config,
     logger: log,
   });
+
+  // Make the Socket.IO instance available to Express routes.
+  // Private-room access revocation uses it to terminate active sessions.
+  app.set('io', io);
+
+  // Authenticate Socket.IO connections before connection handlers run.
+  io.use(
+    createSocketAuthentication({
+      secret: config.auth.jwtSecret,
+    }),
+  );
 
   redisBus?.subscribe((event) => {
     switch (event.type) {
@@ -100,7 +114,6 @@ async function main() {
     logger: log,
   });
 
-  // Reject startup if the requested port cannot be bound.
   await new Promise((resolve, reject) => {
     const onError = (err) => {
       httpServer.off('listening', onListening);
@@ -149,7 +162,6 @@ async function main() {
 
       let shutdownFailed = false;
 
-      // 1. Stop background timers and await active runtime tasks.
       try {
         await stopRuntime();
       } catch (err) {
@@ -157,8 +169,6 @@ async function main() {
         log.error('runtime shutdown failed:', err);
       }
 
-      // 2. Close Socket.IO and its underlying HTTP server.
-      // Do not call httpServer.close() a second time.
       try {
         await new Promise((resolve) => {
           io.close(() => resolve());
@@ -168,7 +178,6 @@ async function main() {
         log.error('Socket.IO shutdown failed:', err);
       }
 
-      // 3. Persist remaining dirty presence state.
       try {
         await services.store.flush();
       } catch (err) {
@@ -176,7 +185,6 @@ async function main() {
         log.error('presence flush failed during shutdown:', err);
       }
 
-      // 4. Close Redis resources.
       try {
         await redisBus?.close();
       } catch (err) {
@@ -184,7 +192,6 @@ async function main() {
         log.error('Redis shutdown failed:', err);
       }
 
-      // 5. Disconnect MongoDB last.
       try {
         await disconnectMongo();
       } catch (err) {

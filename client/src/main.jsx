@@ -1,10 +1,40 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App.jsx';
-import './styles.css';
+import { BrowserRouter } from 'react-router-dom';
 
-createRoot(document.getElementById('root')).render(
+import { App } from './App.jsx';
+
+/*
+ * ProxiSpeakMeet Global Styles
+ *
+ * Loading order:
+ * 1. Tailwind CSS v4
+ * 2. Existing application styles
+ * 3. Brand compatibility
+ * 4. Responsive overrides
+ */
+
+import './tailwind.css';
+import './styles.css';
+import './styles/brand-compat.css';
+import './styles/responsive-overrides.css';
+import './styles/motion.css';
+/*
+ * Application Bootstrap
+ */
+
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  throw new Error(
+    'ProxiSpeakMeet: Root element #root was not found.'
+  );
+}
+
+createRoot(rootElement).render(
   <StrictMode>
-    <App />
-  </StrictMode>,
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </StrictMode>
 );
