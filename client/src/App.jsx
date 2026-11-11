@@ -22,6 +22,7 @@ import { AuditPanel } from './components/AuditPanel.jsx';
 import { OfficeSidebar } from './components/OfficeSidebar.jsx';
 import { Notices } from './components/Notices.jsx';
 import { OfficeBlueprintImporter } from './components/OfficeBlueprintImport.jsx';
+import OfficeLayout from './components/OfficeLayout.jsx';
 
 import Login from './components/Login.jsx';
 import Signup from './components/Signup.jsx';
@@ -36,6 +37,10 @@ import { useUiTick } from './hooks/useUiTick.js';
 import { useAuthSession } from './hooks/useAuthSession.js';
 
 const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
+
+/* -------------------------------------------------------
+   LOADING AND SESSION SCREENS
+------------------------------------------------------- */
 
 function LoadingScreen({
   message = 'Loading your workspace…',
@@ -102,7 +107,7 @@ function SessionErrorScreen({
 }
 
 /* -------------------------------------------------------
-   OFFICE CONNECTION AND AUDIO STATUS
+   CONNECTION AND AUDIO STATUS
 ------------------------------------------------------- */
 
 function ConnectionAudioPanel() {
@@ -347,7 +352,7 @@ function RoomInfoPanel() {
 }
 
 /* -------------------------------------------------------
-   OFFICE SETTINGS
+   SETTINGS
 ------------------------------------------------------- */
 
 function SettingsPanel() {
@@ -435,13 +440,13 @@ function SettingsPanel() {
 }
 
 /* -------------------------------------------------------
-   OFFICE WORKSPACE VIEW
+   MAIN PAGE CONTENT
 ------------------------------------------------------- */
 
 function WorkspaceView({ activeView }) {
   if (activeView === 'people') {
     return (
-      <div className="workspace-grid">
+      <div className="min-h-0 w-full overflow-y-auto">
         <PeerList />
       </div>
     );
@@ -449,7 +454,7 @@ function WorkspaceView({ activeView }) {
 
   if (activeView === 'audio') {
     return (
-      <div className="workspace-grid">
+      <div className="min-h-0 w-full overflow-y-auto">
         <ConnectionAudioPanel />
         <RoomInfoPanel />
       </div>
@@ -458,25 +463,32 @@ function WorkspaceView({ activeView }) {
 
   if (activeView === 'settings') {
     return (
-      <div className="workspace-grid">
+      <div className="min-h-0 w-full overflow-y-auto">
         <SettingsPanel />
         <OfficeBlueprintImporter />
       </div>
     );
   }
 
-  return (
-    <div className="workspace-grid workspace-grid--office">
-      <div className="workspace-grid__main">
-        <WorldCanvas />
-      </div>
+  return <WorldCanvas />;
+}
 
-      <aside className="workspace-grid__sidebar">
-        <RoomInfoPanel />
-        <ConnectionAudioPanel />
-        <AuditPanel />
-      </aside>
-    </div>
+/* -------------------------------------------------------
+   RIGHT SIDEBAR CONTENT
+------------------------------------------------------- */
+
+function OfficeInformationSidebar() {
+  return (
+    <>
+      <RoomInfoPanel />
+
+      {/* Live participant list with spatial audio indicators */}
+      <PeerList />
+
+      <ConnectionAudioPanel />
+
+      <AuditPanel />
+    </>
   );
 }
 
@@ -499,13 +511,6 @@ function Office({
   const [autoJoining, setAutoJoining] = useState(false);
   const [joinAttempt, setJoinAttempt] = useState(0);
 
-  /*
-   * A profile supplied by the Create Meeting popup
-   * enters the office directly.
-   *
-   * Normal invite links without a profile continue
-   * to use the existing MicGate.
-   */
   useEffect(() => {
     if (
       !initialProfile ||
@@ -631,7 +636,7 @@ function Office({
     viewDetails[activeView] || viewDetails.office;
 
   return (
-    <div className="app">
+    <div className="app office-app">
       <OfficeSidebar
         activeView={activeView}
         onNavigate={setActiveView}
@@ -641,12 +646,7 @@ function Office({
         <StatusBar onLeave={onLeave} />
 
         {activeView !== 'office' && (
-          <header
-            className="panel__header"
-            style={{
-              padding: '16px 20px 0',
-            }}
-          >
+          <header className="panel__header office-view-header">
             <div>
               <h1>{currentView.title}</h1>
               <p>{currentView.description}</p>
@@ -654,7 +654,12 @@ function Office({
           </header>
         )}
 
-        <WorkspaceView activeView={activeView} />
+        <OfficeLayout
+          sidebar={<OfficeInformationSidebar />}
+          className={`office-layout office-layout--${activeView}`}
+        >
+          <WorkspaceView activeView={activeView} />
+        </OfficeLayout>
       </div>
 
       <Notices />
@@ -749,10 +754,6 @@ export function App() {
       : null;
   });
 
-  /*
-   * Restore the saved office profile when the URL
-   * contains a meeting room.
-   */
   const [currentProfile, setCurrentProfile] = useState(() => {
     const roomId = new URLSearchParams(
       window.location.search,
@@ -781,10 +782,6 @@ export function App() {
 
   const currentUser = user?.username ?? null;
 
-  /*
-   * Establish the session after Login.jsx successfully
-   * stores the token and returns the username.
-   */
   const handleLogin = useCallback(
     async (username) => {
       const token = localStorage.getItem('token');
@@ -834,10 +831,6 @@ export function App() {
     [login, navigate],
   );
 
-  /*
-   * Logout clears the existing authentication session
-   * and removes any active room from the URL.
-   */
   const handleLogout = useCallback(() => {
     logout();
 
@@ -855,13 +848,6 @@ export function App() {
     });
   }, [logout, navigate]);
 
-  /*
-   * Called by Dashboard after successful room creation
-   * or room verification.
-   *
-   * A profile from CreateMeetingModal is forwarded
-   * into the active office entry flow.
-   */
   const handleJoinRoom = useCallback(
     (roomId, meetingProfile = null) => {
       const normalizedRoomId =
@@ -929,10 +915,6 @@ export function App() {
     [],
   );
 
-  /*
-   * After the actual ProxiContext leave() operation,
-   * return the user to Dashboard.
-   */
   const handleLeaveMeeting = useCallback(() => {
     setCurrentRoom(null);
     setCurrentProfile(null);
@@ -952,9 +934,6 @@ export function App() {
     });
   }, [navigate]);
 
-  /*
-   * Keep React state synchronized with browser back/forward.
-   */
   useEffect(() => {
     const handlePopState = () => {
       const roomId = new URLSearchParams(
@@ -1011,10 +990,6 @@ export function App() {
     };
   }, []);
 
-  /*
-   * A restored authenticated session should land on
-   * Dashboard instead of the old /login route.
-   */
   useEffect(() => {
     if (
       currentUser &&
@@ -1054,19 +1029,12 @@ export function App() {
     );
   }
 
-  /*
-   * Authentication pages are accessible only when
-   * the user does not have a verified active session.
-   */
   if (!currentUser) {
     return (
       <AuthRoutes onLogin={handleLogin} />
     );
   }
 
-  /*
-   * Main authenticated landing page.
-   */
   if (!currentRoom) {
     return (
       <Dashboard
@@ -1077,12 +1045,6 @@ export function App() {
     );
   }
 
-  /*
-   * Existing virtual office.
-   *
-   * The provider still owns Socket.IO, WebRTC,
-   * spatial audio and meeting cleanup.
-   */
   return (
     <ProxiProvider>
       <div className="min-h-screen bg-[#1E1E1E]">
