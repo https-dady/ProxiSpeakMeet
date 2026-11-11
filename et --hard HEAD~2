@@ -1,5 +1,0 @@
-[33md716875[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtarun[m[33m)[m feat: integrate join meeting modal across dashboard entry points
-[33m29e9332[m[33m ([m[1;31morigin/tarun[m[33m)[m fix:fixed the components of virtual office
-[33mb7bc7ae[m fix: restore existing virtual office layout
-[33m62a8297[m ui: restore persistent live participant sidebar
-[33m06b8b85[m fix: restore original dark office theme
