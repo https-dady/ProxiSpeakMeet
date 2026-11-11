@@ -1,8 +1,8 @@
 /**
  * OfficeLayout
  *
- * Full-height virtual office layout.
- * Main workspace and right sidebar have independent scrolling.
+ * Preserves the existing WorldCanvas DOM structure.
+ * Keeps the information sidebar as a separate grid column.
  */
 
 export default function OfficeLayout({
@@ -12,9 +12,7 @@ export default function OfficeLayout({
 }) {
   return (
     <main className={`app__body ${className}`.trim()}>
-      <section className="world">
-        {children}
-      </section>
+      {children}
 
       {sidebar && (
         <aside
