@@ -523,6 +523,23 @@ export function ProxiProvider({
           client.emit('peer:media-ready', {
             micEnabled: !mutedRef.current,
           });
+        } else {
+          // A browser refresh destroys the previous MediaStream.
+          // Do not leave the UI in the initial `idle`/pending state:
+          // the restored room is explicitly listen-only until the
+          // user grants microphone access again through the UI.
+          dispatch({
+            type: 'mic',
+            mic: {
+              state: 'listen-only',
+              error: null,
+              device: null,
+            },
+          });
+
+          client.emit('peer:media-ready', {
+            micEnabled: false,
+          });
         }
 
         dispatch({
@@ -1362,32 +1379,68 @@ export function ProxiProvider({
     }
   }, []);
 
-  const toggleMute = useCallback(() => {
-    const next = !mutedRef.current;
+  const toggleMute = useCallback(async () => {
+  const next = !mutedRef.current;
 
-    mutedRef.current = next;
-
-    audioRef.current?.setLocalMuted(next);
-    peersRef.current?.setMicEnabled(!next);
-
-    localStreamRef.current
+  // Unmuting without a live microphone requires
+  // a fresh browser permission request.
+  if (next === false) {
+    const existingTrack = localStreamRef.current
       ?.getAudioTracks()
-      .forEach((track) => {
-        track.enabled = !next;
-      });
+      .find((track) => track.readyState === 'live');
 
-    clientRef.current?.emit(
-      'peer:media-ready',
-      {
-        micEnabled: !next,
-      },
-    );
+    if (!existingTrack) {
+      mutedRef.current = false;
 
-    dispatch({
-      type: 'muted',
-      muted: next,
-    });
-  }, []);
+      try {
+        await requestMicrophone();
+      } catch (error) {
+        mutedRef.current = true;
+
+        dispatch({
+          type: 'muted',
+          muted: true,
+        });
+
+        dispatch({
+          type: 'notice',
+          notice: {
+            level: 'error',
+            message: error.message,
+          },
+        });
+
+        return;
+      }
+    }
+  }
+
+  const stream = localStreamRef.current;
+
+  const liveTrack = stream
+    ?.getAudioTracks()
+    .find((track) => track.readyState === 'live');
+
+  const actualMicEnabled =
+    next === false && Boolean(liveTrack);
+
+  mutedRef.current = !actualMicEnabled;
+
+  liveTrack && (liveTrack.enabled = actualMicEnabled);
+
+  audioRef.current?.setLocalMuted(!actualMicEnabled);
+
+  peersRef.current?.setMicEnabled(actualMicEnabled);
+
+  clientRef.current?.emit('peer:media-ready', {
+    micEnabled: actualMicEnabled,
+  });
+
+  dispatch({
+    type: 'muted',
+    muted: !actualMicEnabled,
+  });
+}, [requestMicrophone]);
 
   const setVolume = useCallback((volume) => {
     audioRef.current?.setMasterVolume(volume);
